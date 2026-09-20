@@ -126,9 +126,12 @@ void GameEngine::init_gameplay(int time) {
     // reinit_gameplay (which also runs after a bonus round) deliberately does
     // not touch it -- a warp round is not a failure to clear.
     //
-    // NB this still deliberately does NOT reset score: the original clears it
-    // after HIGHSCORE ENTRY (the reference source:5860) and at program init (7364), not at
-    // game start, and that ordering is gated behaviour.
+    // Score is RUN-scoped: every new run starts at 0. This is the run boundary
+    // (level-select START / warp-test / demo all enter here), so clearing it
+    // here is what stops the previous run's score carrying into the next.
+    // reinit_gameplay (mid-run, after a warp round) deliberately does NOT
+    // touch it -- a warp round is not a new run.
+    player.score = 0;
     pending_start_bonus = start_bonus;
     start_bonus = 0;
     reinit_gameplay(time);
