@@ -881,6 +881,19 @@ void GameEngine::init_score(int points, float x, float y,
 void GameEngine::init_gameover(int time, int text_id) {
     if (player.z >= GRID_ELEMENT_LENGTH) return;
 
+    // Silence the held voices NOW, at the moment of death, not at the end of the
+    // no-lives ramp. move_zapper early-returns once gameover_animation > 0
+    // (weapons.cpp) without running _zapper_end, so a super-zapper beam live at
+    // the instant of death would otherwise keep looping through the whole dive
+    // and the nolives ramp until the seam at player.cpp:218 finally tears it
+    // down at nolives_animation == 400. That late teardown is the "keeps looping
+    // on the game-over screen" report: the LOOP_STOP is delivered fine (no
+    // worker race), just seconds late. stop_looping_sfx() is the same teardown
+    // the warp/quit seams use -- idempotent, so the later 400-seam call is a
+    // harmless no-op. Queued before OUCH so the beam stops on the same frame the
+    // death sound starts.
+    stop_looping_sfx();
+
     sfx.push(SfxId::OUCH);   // the reference source:805-810 (descending ouch x5; single hit for now)
     flash_raise(flash, FLASH_DEATH, time);
     player.lives -= 1;
