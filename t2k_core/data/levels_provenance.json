@@ -1,0 +1,734 @@
+{
+ "_comment": "Which source shape each shipped level came from, and what the dedup dropped -- provenance only, never read by the game. The actual level data is data/levels.json. tools/verify_levels.cpp uses the from/from_index pairs below to re-derive every shipped row from its ground truth and bit-compare.",
+ "dedup_threshold_deg": 6.0,
+ "tsunami_hand_excluded": {
+  "0": "circle",
+  "1": "flat line",
+  "5": "square",
+  "7": "V/triangle",
+  "8": "sine wave"
+ },
+ "t2k_hand_excluded": {
+  "1": "bowling alley (rms 0.000, bit-exact at 11 vs 15 lanes)",
+  "2": "v (rms 0.000)",
+  "4": "clover (rms 0.094)",
+  "5": "Circle (rms 0.046)",
+  "7": "Twist (rms 0.126)",
+  "8": "infinity (rms 0.068)",
+  "9": "triangle (rms 0.020)",
+  "10": "stylized cross (rms 0.059)",
+  "11": "square (rms 0.000)",
+  "21": "Circle/Octagon at 8 lanes (rms 0.043)",
+  "24": "Smooth circle (rms 0.042)",
+  "34": "Asymmetric peaks (rms 0.085)"
+ },
+ "kept_despite_threshold": {
+  "tsunami:35": "Octagon: 5.8 deg from Tubes' Circle, but eight flat faces read differently from a 16-gon when you are falling down it",
+  "t2k:15": "dart: 5.9 deg from triangle under the lane-strict rule, but the notched base reads as its own shape (user-curated import)",
+  "t2k:22": "pinched star: outline-close to stylized cross but with concave curved edges at 12 lanes (user-curated import)",
+  "t2k:3": "flat bowl: 4.9 deg from tempest's u, but a FLAT floor with straight walls vs u's continuous bowl -- same argument as the Octagon: flat faces read differently when you are falling down them (user-curated import)"
+ },
+ "count": 100,
+ "levels": [
+  {
+   "name": "Circle",
+   "from": "tempest",
+   "from_index": 0,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "square",
+   "from": "tempest",
+   "from_index": 1,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "bowling alley",
+   "from": "tempest",
+   "from_index": 10,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "v",
+   "from": "tempest",
+   "from_index": 7,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "triangle",
+   "from": "tempest",
+   "from_index": 5,
+   "lanes": 18,
+   "closed": true
+  },
+  {
+   "name": "flat bowl",
+   "from": "t2k",
+   "from_index": 3,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "crown",
+   "from": "t2k",
+   "from_index": 12,
+   "lanes": 14,
+   "closed": false
+  },
+  {
+   "name": "Twist",
+   "from": "tsunami",
+   "from_index": 45,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "lazy wave",
+   "from": "t2k",
+   "from_index": 13,
+   "lanes": 14,
+   "closed": false
+  },
+  {
+   "name": "clover",
+   "from": "tempest",
+   "from_index": 6,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "peak",
+   "from": "t2k",
+   "from_index": 14,
+   "lanes": 13,
+   "closed": false
+  },
+  {
+   "name": "stylized cross",
+   "from": "tempest",
+   "from_index": 4,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "dart",
+   "from": "t2k",
+   "from_index": 15,
+   "lanes": 18,
+   "closed": true
+  },
+  {
+   "name": "check mark",
+   "from": "t2k",
+   "from_index": 6,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "bull",
+   "from": "t2k",
+   "from_index": 16,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "infinity",
+   "from": "tempest",
+   "from_index": 15,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "leaf",
+   "from": "t2k",
+   "from_index": 18,
+   "lanes": 14,
+   "closed": true
+  },
+  {
+   "name": "swoosh",
+   "from": "t2k",
+   "from_index": 19,
+   "lanes": 14,
+   "closed": false
+  },
+  {
+   "name": "terrace",
+   "from": "t2k",
+   "from_index": 20,
+   "lanes": 13,
+   "closed": false
+  },
+  {
+   "name": "hex bowl",
+   "from": "t2k",
+   "from_index": 17,
+   "lanes": 12,
+   "closed": false
+  },
+  {
+   "name": "pinched star",
+   "from": "t2k",
+   "from_index": 22,
+   "lanes": 12,
+   "closed": true
+  },
+  {
+   "name": "Smooth circle (smaller amplitude)",
+   "from": "tsunami",
+   "from_index": 3,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "spiral",
+   "from": "t2k",
+   "from_index": 23,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "pentagon",
+   "from": "t2k",
+   "from_index": 27,
+   "lanes": 15,
+   "closed": true
+  },
+  {
+   "name": "hook",
+   "from": "t2k",
+   "from_index": 25,
+   "lanes": 12,
+   "closed": false
+  },
+  {
+   "name": "Octagon",
+   "from": "tsunami",
+   "from_index": 35,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "bat",
+   "from": "t2k",
+   "from_index": 28,
+   "lanes": 12,
+   "closed": false
+  },
+  {
+   "name": "half dome",
+   "from": "t2k",
+   "from_index": 29,
+   "lanes": 15,
+   "closed": true
+  },
+  {
+   "name": "corner",
+   "from": "t2k",
+   "from_index": 30,
+   "lanes": 13,
+   "closed": false
+  },
+  {
+   "name": "squiggle",
+   "from": "t2k",
+   "from_index": 32,
+   "lanes": 12,
+   "closed": false
+  },
+  {
+   "name": "jaws",
+   "from": "t2k",
+   "from_index": 33,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Asymmetric peaks",
+   "from": "tsunami",
+   "from_index": 40,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "plumb line",
+   "from": "t2k",
+   "from_index": 35,
+   "lanes": 14,
+   "closed": false
+  },
+  {
+   "name": "lips",
+   "from": "t2k",
+   "from_index": 36,
+   "lanes": 13,
+   "closed": true
+  },
+  {
+   "name": "fish",
+   "from": "t2k",
+   "from_index": 37,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "sparkle",
+   "from": "t2k",
+   "from_index": 26,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "arrow",
+   "from": "t2k",
+   "from_index": 31,
+   "lanes": 17,
+   "closed": false
+  },
+  {
+   "name": "plus",
+   "from": "tempest",
+   "from_index": 2,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "bowtie",
+   "from": "tempest",
+   "from_index": 3,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "steps",
+   "from": "tempest",
+   "from_index": 8,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "u",
+   "from": "tempest",
+   "from_index": 9,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "heart",
+   "from": "tempest",
+   "from_index": 11,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "star",
+   "from": "tempest",
+   "from_index": 12,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "w",
+   "from": "tempest",
+   "from_index": 13,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "fan",
+   "from": "tempest",
+   "from_index": 14,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Circle",
+   "from": "tubes",
+   "from_index": 0,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "teardrop",
+   "from": "tubes",
+   "from_index": 1,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "skull",
+   "from": "tubes",
+   "from_index": 2,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "fly",
+   "from": "tubes",
+   "from_index": 3,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "wave",
+   "from": "tubes",
+   "from_index": 4,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "I",
+   "from": "tubes",
+   "from_index": 5,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "spiral",
+   "from": "tubes",
+   "from_index": 6,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "fountain",
+   "from": "tubes",
+   "from_index": 7,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "pocket",
+   "from": "tubes",
+   "from_index": 8,
+   "lanes": 16,
+   "closed": false
+  },
+  {
+   "name": "roof",
+   "from": "tubes",
+   "from_index": 10,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "star",
+   "from": "tubes",
+   "from_index": 11,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "claw",
+   "from": "tubes",
+   "from_index": 12,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "alley",
+   "from": "tubes",
+   "from_index": 13,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "demon",
+   "from": "tubes",
+   "from_index": 14,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "triple loop",
+   "from": "tubes",
+   "from_index": 15,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Alternating spikes",
+   "from": "tsunami",
+   "from_index": 2,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Figure-8 / pinched shape",
+   "from": "tsunami",
+   "from_index": 4,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Irregular bumpy",
+   "from": "tsunami",
+   "from_index": 6,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Asymmetric wave",
+   "from": "tsunami",
+   "from_index": 9,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Sharp zigzag",
+   "from": "tsunami",
+   "from_index": 10,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Cross/diamond",
+   "from": "tsunami",
+   "from_index": 11,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "L-shape",
+   "from": "tsunami",
+   "from_index": 12,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Step",
+   "from": "tsunami",
+   "from_index": 13,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Heart-like",
+   "from": "tsunami",
+   "from_index": 14,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Petal/flower",
+   "from": "tsunami",
+   "from_index": 15,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Shallow U",
+   "from": "tsunami",
+   "from_index": 16,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Wavy asymmetric",
+   "from": "tsunami",
+   "from_index": 17,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Butterfly",
+   "from": "tsunami",
+   "from_index": 18,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Gentle noise",
+   "from": "tsunami",
+   "from_index": 19,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Notch",
+   "from": "tsunami",
+   "from_index": 20,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Steep valley",
+   "from": "tsunami",
+   "from_index": 22,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Raised platform",
+   "from": "tsunami",
+   "from_index": 23,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Gradual slope",
+   "from": "tsunami",
+   "from_index": 24,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Wide U with lip",
+   "from": "tsunami",
+   "from_index": 25,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Wings",
+   "from": "tsunami",
+   "from_index": 26,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Tall horseshoe",
+   "from": "tsunami",
+   "from_index": 27,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Angular corners",
+   "from": "tsunami",
+   "from_index": 28,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Multi-peak",
+   "from": "tsunami",
+   "from_index": 29,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Full circle flat bottom",
+   "from": "tsunami",
+   "from_index": 30,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Dramatic cliff",
+   "from": "tsunami",
+   "from_index": 31,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Rolling hills",
+   "from": "tsunami",
+   "from_index": 32,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Star burst",
+   "from": "tsunami",
+   "from_index": 33,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Irregular cross",
+   "from": "tsunami",
+   "from_index": 34,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Diamond",
+   "from": "tsunami",
+   "from_index": 36,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Beveled rectangle",
+   "from": "tsunami",
+   "from_index": 37,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Plus sign",
+   "from": "tsunami",
+   "from_index": 38,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Windmill",
+   "from": "tsunami",
+   "from_index": 39,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Gentle wave",
+   "from": "tsunami",
+   "from_index": 41,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Flat valley",
+   "from": "tsunami",
+   "from_index": 42,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Mesa",
+   "from": "tsunami",
+   "from_index": 43,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Steps with plateau",
+   "from": "tsunami",
+   "from_index": 44,
+   "lanes": 16,
+   "closed": true
+  },
+  {
+   "name": "Bowl",
+   "from": "tsunami",
+   "from_index": 46,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Asymmetric valley",
+   "from": "tsunami",
+   "from_index": 47,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Crazy peaks",
+   "from": "tsunami",
+   "from_index": 48,
+   "lanes": 15,
+   "closed": false
+  },
+  {
+   "name": "Complex wave",
+   "from": "tsunami",
+   "from_index": 49,
+   "lanes": 15,
+   "closed": false
+  }
+ ]
+}

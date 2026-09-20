@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="100%" height="100%">
+  <defs>
+    <!-- Purple Vector Neon Glow Filter -->
+    <filter id="purple-neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur2"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur3"/>
+      <feMerge>
+        <feMergeNode in="blur3"/>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Deep Purple Gloss Core -->
+    <linearGradient id="purple-core" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1b0024"/>
+      <stop offset="25%" stop-color="#4a155c"/>
+      <stop offset="48%" stop-color="#73298c"/>
+      <stop offset="50%" stop-color="#050008"/>
+      <stop offset="65%" stop-color="#14001a"/>
+      <stop offset="85%" stop-color="#2a0438"/>
+      <stop offset="100%" stop-color="#0a0010"/>
+    </linearGradient>
+
+    <!-- Chrome Inner Bevel / Chassis -->
+    <linearGradient id="silver-bevel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#e8ecf0"/>
+      <stop offset="48%" stop-color="#9da8b3"/>
+      <stop offset="50%" stop-color="#3a4047"/>
+      <stop offset="75%" stop-color="#8a949e"/>
+      <stop offset="100%" stop-color="#d4dbe0"/>
+    </linearGradient>
+
+    <!-- Clean Inset Rim Highlights -->
+    <linearGradient id="rim-light" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- LAYER 1: Glowing Purple Vector Trace Outline -->
+  <g filter="url(#purple-neon-glow)" fill="none" stroke-linejoin="round">
+    <!-- Wide vibrant purple aura -->
+    <path stroke="#a824e8" stroke-width="6" opacity="0.85"
+          d="M 120,70 L 290,70 L 290,81 L 221,81 L 221,128 L 189,128 L 189,81 L 120,81 Z
+             M 340,70 L 475,70 C 484,70 490,75 490,83 L 490,95 C 490,103 484,107 475,107 L 370,107 L 370,117 L 490,117 L 490,128 L 355,128 C 346,128 340,123 340,115 L 340,103 C 340,95 346,91 355,91 L 460,91 L 460,81 L 340,81 Z
+             M 540,70 L 575,70 L 575,89 L 660,70 L 695,70 L 602,96 L 700,128 L 665,128 L 575,98 L 575,128 L 540,128 Z"/>
+    <!-- Intense inner neon core line -->
+    <path stroke="#f2baff" stroke-width="2" opacity="0.95"
+          d="M 120,70 L 290,70 L 290,81 L 221,81 L 221,128 L 189,128 L 189,81 L 120,81 Z
+             M 340,70 L 475,70 C 484,70 490,75 490,83 L 490,95 C 490,103 484,107 475,107 L 370,107 L 370,117 L 490,117 L 490,128 L 355,128 C 346,128 340,123 340,115 L 340,103 C 340,95 346,91 355,91 L 460,91 L 460,81 L 340,81 Z
+             M 540,70 L 575,70 L 575,89 L 660,70 L 695,70 L 602,96 L 700,128 L 665,128 L 575,98 L 575,128 L 540,128 Z"/>
+  </g>
+
+  <!-- LAYER 2: Core Metallic & Reflective Purple Letterforms -->
+  <g id="T2K_MAIN_CHARACTERS">
+
+    <!-- ==================== LETTER 'T' ==================== -->
+    <g id="letter-t">
+      <!-- Silver Chassis -->
+      <path d="M 120,70 L 290,70 L 290,81 L 221,81 L 221,128 L 189,128 L 189,81 L 120,81 Z"
+            fill="url(#silver-bevel)" stroke="#3b0a54" stroke-width="1.2" stroke-linejoin="round"/>
+      <!-- Purple Face -->
+      <path d="M 123,73 L 287,73 L 287,78 L 218,78 L 218,125 L 192,125 L 192,78 L 123,78 Z"
+            fill="url(#purple-core)"/>
+      <!-- Contained Rim Highlight -->
+      <path d="M 123,72 L 287,72" stroke="url(#rim-light)" stroke-width="1" fill="none"/>
+    </g>
+
+    <!-- ==================== NUMBER '2' ==================== -->
+    <g id="number-2">
+      <!-- Silver Chassis -->
+      <path d="M 340,70 L 475,70 C 484,70 490,75 490,83 L 490,95 C 490,103 484,107 475,107 L 370,107 L 370,117 L 490,117 L 490,128 L 355,128 C 346,128 340,123 340,115 L 340,103 C 340,95 346,91 355,91 L 460,91 L 460,81 L 340,81 Z"
+            fill="url(#silver-bevel)" stroke="#3b0a54" stroke-width="1.2" stroke-linejoin="round"/>
+      <!-- Purple Face -->
+      <path d="M 343,73 L 473,73 C 480,73 487,76 487,83 L 487,93 C 487,100 480,104 473,104 L 367,104 L 367,120 L 487,120 L 487,125 L 357,125 C 350,125 343,121 343,115 L 343,105 C 343,98 350,94 357,94 L 463,94 L 463,78 L 343,78 Z"
+            fill="url(#purple-core)"/>
+      <!-- Contained Top Arc Highlight -->
+      <path d="M 343,72 L 473,72" stroke="url(#rim-light)" stroke-width="1" fill="none"/>
+    </g>
+
+    <!-- ==================== LETTER 'K' ==================== -->
+    <g id="letter-k">
+      <!-- Silver Chassis -->
+      <path d="M 540,70 L 575,70 L 575,89 L 660,70 L 695,70 L 602,96 L 700,128 L 665,128 L 575,98 L 575,128 L 540,128 Z"
+            fill="url(#silver-bevel)" stroke="#3b0a54" stroke-width="1.2" stroke-linejoin="round"/>
+      <!-- Purple Face -->
+      <path d="M 543,73 L 572,73 L 572,92 L 655,73 L 688,73 L 597,97 L 693,125 L 661,125 L 572,96 L 572,125 L 543,125 Z"
+            fill="url(#purple-core)"/>
+      <!-- Contained Top Highlight -->
+      <path d="M 543,72 L 572,72 M 660,72 L 688,72" stroke="url(#rim-light)" stroke-width="1" fill="none"/>
+    </g>
+
+  </g>
+</svg>

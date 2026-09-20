@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Bonus Lose (aww)",
+    "priority": 33,
+    "period": 447,
+    "rate_hz": 8000.0,
+    "file": "aww",
+    "length": null,
+    "loop_start": 0,
+    "loop_len": 0,
+    "rate_hz_raw": 8000.0
+  }
+]
