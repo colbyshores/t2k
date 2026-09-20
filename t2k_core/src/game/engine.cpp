@@ -250,6 +250,28 @@ void GameEngine::stop_looping_sfx() {
     if (zapper_chain.active) zapper_chain = ZapperChain{};
 }
 
+void GameEngine::clear_gameplay_entities() {
+    // The same entity set init_level clears, minus the level/spawn/player setup.
+    // Counts first, then the per-lane vectors, then the loose lists. clear()
+    // keeps capacity, so this neither frees nor re-grows the reserved buffers.
+    memset(shots_nums, 0, sizeof(shots_nums));
+    memset(enemies_nums, 0, sizeof(enemies_nums));
+    memset(embrios_nums, 0, sizeof(embrios_nums));
+    memset(explosions_nums, 0, sizeof(explosions_nums));
+    for (int i = 0; i < 5; i++) explosions[i].clear();
+    scores.clear();
+    bonuses.clear();
+    for (int i = 0; i < lane_count; i++) {
+        grid[i].num_shots = 0;
+        grid[i].shots.clear();
+        grid[i].num_enemies = 0;
+        grid[i].enemies.clear();
+        grid[i].num_embrios = 0;
+        grid[i].embrios.clear();
+        grid[i].spike = 0.0f;
+    }
+}
+
 void GameEngine::init_level(int time, int nr) {
     // Clear all entity counts
     memset(shots_nums, 0, sizeof(shots_nums));
@@ -259,6 +281,7 @@ void GameEngine::init_level(int time, int nr) {
     for (int i = 0; i < 5; i++) explosions[i].clear();
     scores.clear();
     bonuses.clear();
+    gameover_entities_cleared = false;   // re-arm the game-over one-shot for the new level
 
     base_tremor_strength = 0.02f;
     tremor_strength = base_tremor_strength;

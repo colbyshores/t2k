@@ -3,6 +3,7 @@
 #include "camera.h"     // camera_arrival_held -- the level-asset hold predicate
 #include "constants.h"
 #include "models.h"
+#include "../rendering/gameover_geometry.h"   // gameoverRamp / gameoverWebT -- the web pull-away gate
 
 #include <cmath>
 #include <cstdlib>
@@ -202,6 +203,21 @@ void move_jump(GameEngine& engine, int time) {
         float val = (200 - p.gameover_animation) * (0.06f / GRID_ELEMENT_LENGTH);
         p.z -= val * val;
         p.gameover_animation += 1;
+
+        // CLEAR THE LEVEL'S OBJECTS FROM MEMORY ONCE THE WEB HAS PULLED AWAY.
+        // The render gate (goWebFadeNow) hides the entities as the web recedes,
+        // but the engine's entity DATA otherwise survives the whole sequence.
+        // The contract is that once the web is gone the objects are GONE, not
+        // merely hidden. Fire the one-shot the tick the web finishes pulling
+        // away (gameoverWebT reaches 1.0, ~0.5 s into the dive) -- strictly
+        // after the render has already dropped the entities at its 0.996 gate,
+        // and while the dive's own enemy/collision sim is early-returning on
+        // gameover_animation > 0, so no live reference into a lane is held.
+        if (!engine.gameover_entities_cleared &&
+            ts::gameoverWebT(ts::gameoverRamp(engine)) >= 1.0f) {
+            engine.clear_gameplay_entities();
+            engine.gameover_entities_cleared = true;
+        }
 
         if (p.gameover_animation == 200) {
             if (p.lives < 0) {

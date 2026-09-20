@@ -411,6 +411,24 @@ struct GameEngine {
     // finish-the-current-pass behaviour instead of chopping mid-word.
     void stop_looping_sfx();
 
+    // ---- Drop the gameplay entities once the web has pulled away ----------
+    // The game-over sequence fades the web and everything standing on it out
+    // through the render gate (goWebFadeNow), but the engine's entity DATA --
+    // the per-lane enemy/shot/embryo vectors, the explosion/bonus/score lists
+    // and their counts -- otherwise survives the whole sequence and the
+    // high-score screen. The user's contract is that once the web is gone, the
+    // level's objects are gone from MEMORY, not merely hidden. This clears the
+    // gameplay entities and their counts WITHOUT touching the web/grid surface
+    // geometry (the recede+fade owns that) or the player state (the dive is
+    // still running). Idempotent: clearing an already-empty lane is a no-op,
+    // and clear() keeps the reserved capacity so a later init_level's reserve
+    // is a no-op rather than a realloc.
+    void clear_gameplay_entities();
+
+    // One-shot latch so the game-over step clears the entities exactly once,
+    // on the tick the web finishes pulling away. Reset by init_level.
+    bool gameover_entities_cleared = false;
+
     // ---- Chant sync: when the voice actually SAYS "yes" -------------------
     // The sample is ONE sustained utterance per loop pass (23148 samples @
     // 19226.1 Hz = 1.204 s, attack measured at loop position 0.218), so every
