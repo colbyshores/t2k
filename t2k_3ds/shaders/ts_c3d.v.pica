@@ -1,0 +1,45 @@
+; ts_c3d.v.pica — Citro3D vertex shader (Phase 0).
+;
+; Minimal MVP transform + passthrough of vertex color and texcoord. The
+; PICA200 has NO programmable fragment shader; all shading/texturing is done
+; by the fixed-function TEV stages configured in renderer_c3d.cpp. This shader
+; only does per-vertex transform.
+;
+; Uniforms (resolved by name via shaderInstanceGetUniformLocation):
+;   mvp[0..3] (c0..c3) — combined model-view-projection, already carrying the
+;                        PICA depth remap ([-1,1]->[-1,0]) and the 90 deg
+;                        top-screen rotation (built CPU-side in renderer_c3d).
+;
+; Inputs:  v0 = position (xyz), v1 = color (rgba 0..1), v2 = texcoord0 (uv)
+; Outputs: clip-space position, color, texcoord0
+
+.fvec mvp[4]
+
+.constf myconst(0.0, 1.0, -1.0, 0.5)
+.alias  ones  myconst.yyyy
+
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+
+.alias inpos v0
+.alias inclr v1
+.alias intex v2
+
+.proc main
+	; r0 = (pos.xyz, 1.0)
+	mov r0.xyz, inpos
+	mov r0.w,   ones
+
+	; clip = mvp * r0
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; passthrough color and texcoord
+	mov outclr, inclr
+	mov outtc0, intex
+
+	end
+.end

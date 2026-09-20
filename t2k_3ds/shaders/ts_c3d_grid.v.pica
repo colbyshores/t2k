@@ -1,0 +1,182 @@
+; ts_c3d_grid.v.pica — Citro3D GRID vertex shader.
+;
+; 3DS-ONLY perf lever ("vertex-shader wave"): the web surface is a static base
+; mesh uploaded once per level; this shader applies the per-frame sinusoidal
+; tremor displacement along the lane normal AND computes distance fog, so the CPU
+; no longer recomputes+re-uploads 4480 wave verts every frame. It reproduces the
+; CPU wave in grid_geometry.cpp transformLevel() Phase 2:
+;
+;   phase       = (P0 + dynPhase) * PI                      ; P0 static, dynPhase uniform
+;   wave        = sin(phase)
+;   disp        = wave * tremor * sqrt(vz)                  ; tremor uniform, sqrt(vz)=A static
+;   pos.xy      = basePos.xy + normal.xy * disp             ; pos.z = basePos.z (static)
+;   fog(alpha)  = clamp((-viewZ - FOG_START) / (FOG_END-FOG_START), 0, 1)
+;
+; where P0 = vz*0.1 + (vg+v2)*0.066 and dynPhase = tc - tremor*50 - sc  (CPU folds
+; the per-frame scalars into one uniform, pre-wrapped mod 2 to keep precision).
+; sin() is a degree-5 minimax on [-PI,PI] after range reduction (PICA has no sin);
+; the tremor is a sub-pixel displacement so the ~1e-3 poly error is invisible, and
+; the CPU path uses fastSin (a LUT of the same sin) so both already approximate.
+;
+; NOTE: this DVLE is bound ONLY for the grid draw (renderer_c3d.cpp swaps to it and
+; back to the passthrough program), so entities/text/HUD are never displaced.
+;
+; Uniforms:
+;   mvp[0..3]  — per-eye model-view-projection (same as the passthrough shader)
+;   wave       — (dynPhase, tremor, 0, 0)
+;   vrow       — view-matrix row 2 (world->view Z): viewZ = dot(vrow, pos)
+;   fog        — (FOG_START, 1/(FOG_END-FOG_START), 0, 0)
+;   rip        — (col0, row0, radius, 1/width)      the pickup burst's tube ripple
+;   rip2       — (wrap period in columns [1e6 when the web is open],
+;                 1/GRID_LOD_X, world units per row, amp)
+;   rippleOn   — bool: a pickup burst is alive and its style ripples. The
+;                whole ripple block is skipped otherwise, so the common frame
+;                pays two instructions for it, not ~27 per vertex.
+;
+; THE PICKUP-CATCH TUBE RIPPLE (rendering/grid_geometry.h webRippleDisp): a
+; ring wave through the surface centred on the caught
+; capsule, added to the tremor displacement along the same lane normal. The
+; CPU term, mirrored operation for operation (no transcendental on purpose,
+; so the two agree to float noise):
+;   dc   = col - col0;  dc -= period * floor(dc/period + 0.5)   (closed webs wrap)
+;   d    = sqrt((dc/GRID_LOD_X)^2 + ((row - row0) * unitsPerRow)^2)
+;   x    = (d - radius) / width
+;   q    = max(0, 1 - x*x);   w = 3.5 * x * q * q          (one windowed cycle)
+;   disp += amp * w * min(1, sqrt(row))                   (front ring stays pinned)
+; ~27 instructions per vertex while a burst is alive; branched off (ifu
+; rippleOn) the rest of the time, since the 3DS frame is GPU-bound and the
+; grid is ~5k vertices per eye.
+;
+; Inputs:  v0=basePos(xyz)  v1=normal(xy)  v2=wave(P0, A=sqrt(vz), col, row)
+;          v3=color(rgb)    v4=texcoord0(texA uv)   v5=texcoord1(texB uv)
+; Outputs: clip position, color (rgb passthrough, a=fog factor), texcoord0, texcoord1
+
+.fvec mvp[4]
+.fvec wave, vrow, fog
+.fvec rip, rip2
+.bool rippleOn
+
+; myc: x=0.0  y=1.0  z=-2.0  w=0.5      (0.5 for range-reduce, -2.0 for the -2k step)
+.constf myc(0.0, 1.0, -2.0, 0.5)
+.constf pic(3.14159265, 6.28318531, 2.0, -1.0)      ; PI, 2PI, 2.0, -1.0
+; Nick's sin approximation constants (valid on the FULL [-PI,PI] after reduction):
+;   base:   y = B*x + C*x*|x|      (B = 4/PI, C = -4/PI^2)
+;   refine: y = (1-P)*y + P*y*|y|  (P = 0.225) -> ~0.0016 max error, exact at 0,+-PI/2,+-PI
+.constf sconst(1.27323954, -0.40528473, 0.225, 0.775)
+; ripple constants: x = eps under the sqrt (d = 0 must not make 0 * inf),
+;                   y = 3.5 (profile peak normaliser)
+.constf ripc(0.000001, 3.5, 0.0, 0.0)
+.alias  ones  myc.yyyy
+
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+
+.alias inpos v0
+.alias innrm v1
+.alias inwav v2
+.alias inclr v3
+.alias intex v4
+.alias inuv1 v5
+
+; PICA operand rules: src2 may NOT be a constant/uniform (constants go in src1;
+; src2 must be input/temp), and each instruction reads at most one constant reg.
+; So every const/uniform below sits in src1 (negated where needed).
+.proc main
+	; --- arg = P0 + dynPhase   (units where sin period = 2) ---
+	add r0.x, wave.x, inwav.x             ; uniform src1, input src2
+
+	; --- range-reduce arg to [-1,1): arg = arg - 2*floor(arg*0.5 + 0.5) ---
+	mul r1.x, myc.w, r0.x                 ; 0.5*arg
+	add r1.x, myc.w, r1.x                 ; + 0.5
+	flr r1.x, r1.x                        ; k = floor(.)
+	mul r1.x, myc.z, r1.x                 ; (-2)*k
+	add r0.x, r1.x, r0.x                  ; arg + (-2k)  -> [-1,1)
+
+	; --- x = arg * PI  in [-PI, PI) ---
+	mul r0.x, pic.x, r0.x
+
+	; --- sin(x) via Nick's approximation (accurate across the full [-PI,PI]) ---
+	; base: y = B*x + C*x*|x|   (|x| = max(x,-x); mad forbids a const operand, so mul+add)
+	max r6.x, r0.x, -r0.x                 ; |x|
+	mul r7.x, sconst.y, r0.x              ; C*x
+	mul r7.x, r7.x, r6.x                  ; C*x*|x|
+	mul r8.x, sconst.x, r0.x              ; B*x
+	add r3.x, r8.x, r7.x                  ; y = B*x + C*x*|x|
+	; refine: y = 0.775*y + 0.225*y*|y|
+	max r6.x, r3.x, -r3.x                 ; |y|
+	mul r9.x, r3.x, r6.x                  ; y*|y|
+	mul r9.x, sconst.z, r9.x              ; 0.225 * y*|y|
+	mul r8.x, sconst.w, r3.x              ; 0.775 * y
+	add r3.x, r8.x, r9.x                  ; sin approx
+
+	; --- disp = sin * tremor * A ---
+	mul r3.x, wave.y, r3.x                ; tremor * sin
+	mul r3.x, r3.x, inwav.y               ; * A (=sqrt(vz))
+
+	; --- the pickup burst's tube ripple (see the header) ---
+	ifu rippleOn
+	; dc = col - col0, wrapped to the nearest image on a closed web
+	add r10.x, -rip.x, inwav.z            ; dc = col - col0
+	rcp r11.y, rip2.x                     ; 1/period
+	mul r11.x, r10.x, r11.y               ; dc/period
+	add r11.x, myc.w, r11.x               ; + 0.5
+	flr r11.x, r11.x                      ; k = floor(.)
+	mul r11.x, rip2.x, r11.x              ; k * period
+	add r10.x, r10.x, -r11.x              ; dc - k*period
+	mul r10.x, rip2.y, r10.x              ; -> lanes (/GRID_LOD_X)
+	; dr = (row - row0) * unitsPerRow
+	add r10.y, -rip.y, inwav.w
+	mul r10.y, rip2.z, r10.y
+	; d = sqrt(dc^2 + dr^2), eps-guarded
+	mul r11.x, r10.x, r10.x
+	mad r11.x, r10.y, r10.y, r11.x
+	max r11.x, ripc.x, r11.x              ; >= eps
+	rsq r11.y, r11.x                      ; 1/sqrt
+	mul r11.x, r11.x, r11.y               ; d = d2 * rsq(d2)
+	; x = (d - radius) / width
+	add r11.x, -rip.z, r11.x
+	mul r11.x, rip.w, r11.x
+	; w = 3.5 * x * max(0, 1 - x^2)^2
+	mul r12.x, r11.x, r11.x               ; x^2
+	add r12.x, myc.y, -r12.x              ; 1 - x^2
+	max r12.x, myc.x, r12.x               ; max(0, .)
+	mul r12.x, r12.x, r12.x               ; q^2
+	mul r12.x, r12.x, r11.x               ; x * q^2
+	mul r12.x, ripc.y, r12.x              ; * 3.5
+	; pin the front ring: * min(1, A)  (A = sqrt(row): 0 on the rim, 1 from row 1)
+	min r13.x, myc.y, inwav.y             ; min(1, sqrt(row))
+	mul r12.x, r12.x, r13.x
+	mul r12.x, rip2.w, r12.x              ; * amp
+	add r3.x, r3.x, r12.x                 ; disp += ripple
+	.end
+
+	; --- pos = basePos + normal*disp  (normal.z=0 so z stays basePos.z) ---
+	mov r4.xyz, inpos
+	mov r4.w,   ones
+	mad r4.x, innrm.x, r3.x, r4.x         ; input*temp + temp (no const)
+	mad r4.y, innrm.y, r3.x, r4.y
+
+	; --- clip = mvp * pos ---
+	dp4 outpos.x, mvp[0], r4
+	dp4 outpos.y, mvp[1], r4
+	dp4 outpos.z, mvp[2], r4
+	dp4 outpos.w, mvp[3], r4
+
+	; --- fog factor: ff = clamp((-viewZ - START) * invRange, 0, 1) ---
+	dp4 r5.x, vrow, r4                     ; viewZ = dot(vrow, pos)
+	mul r5.x, pic.w, r5.x                 ; -viewZ            (pic.w = -1)
+	add r5.x, -fog.x, r5.x                ; -viewZ - START    (uniform src1, negated)
+	mul r5.x, fog.y, r5.x                 ; * invRange
+	max r5.x, myc.x, r5.x                 ; max(0, .)
+	min r5.x, myc.y, r5.x                 ; min(1, .)
+
+	; --- outputs: rgb passthrough, alpha = fog factor ---
+	mov outclr.xyz, inclr
+	mov outclr.w,   r5.x
+	mov outtc0, intex        ; texA uvs (tex1) -> TEXTURE0
+	mov outtc1, inuv1        ; texB uvs (tex2) -> TEXTURE1 (TEV grid merge)
+
+	end
+.end

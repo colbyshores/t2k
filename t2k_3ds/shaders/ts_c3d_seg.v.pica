@@ -1,0 +1,167 @@
+; ts_c3d_seg.v.pica — GPU-SIDE LINE-SEGMENT EXPANSION (PoC, poc/gpu-tick-lerp).
+;
+; WHY THIS EXISTS. On the OG CPU profile the `line` stage is 15.1 ms, 36% of the
+; whole CPU budget, and a measured 85.7% of it is not the geometry BUILD -- it
+; is the per-eye loop that projects each segment to NDC, expands it to a quad
+; and writes four vertices (renderer_c3d.cpp). That loop runs TWICE, once per
+; eye, because the expansion bakes the camera into every vertex.
+;
+; This shader moves the projection and the expansion onto the GPU, so the CPU
+; writes each segment's four vertices ONCE, in world space, and both eyes draw
+; the same buffer with only the mvp uniform differing. What leaves the CPU:
+; two mat4 x vec4 per segment per eye, three reciprocals, a square root, the
+; perpendicular, and half the vertex stores.
+;
+; THE TRADE IS RIGHT FOR THIS HARDWARE and that is the whole argument: the OG
+; profile is 78-88% CPU-bound with gpu_wait flat at ~8 ms of a ~50 ms frame, so
+; the GPU is the idle resource. Each of the four corner vertices re-projects
+; BOTH endpoints, so total vertex-shader work rises ~2.5x -- paid out of that
+; idle, to buy CPU time that is the actual constraint.
+;
+; VERTEX (36 B, three attributes):
+;   v0 = float4 (ax, ay, az, halfPx)   world endpoint A; |w| = half-width in
+;                                      PIXELS, and its SIGN picks the side of
+;                                      the quad -- so no separate corner byte.
+;   v1 = float4 (bx, by, bz, baseSel)  world endpoint B; w = 0 puts this vertex
+;                                      at A, w = 1 puts it at B.
+;   v2 = ubyte4 colour                 raw 0..255, scaled by 1/255 here exactly
+;                                      as ts_c3d_part.v.pica does (PICA does
+;                                      NOT normalise integer attributes).
+;
+; UNIFORMS:
+;   mvp[4]        the EYE's projection*view (differs per eye; the whole point)
+;   segparams.xy  pixel -> NDC (invHalfW, invHalfH)
+;   segparams.zw  NDC -> pixel (halfW, halfH) -- the direction is normalised
+;                 in PIXEL space, see below
+;
+; The output is written with w = 1 because the perspective divide has already
+; been done here, matching what the CPU used to hand the identity-MVP draw.
+
+.fvec mvp[4]
+.fvec segparams
+
+.constf myconst(0.0, 1.0, 0.0039215686, 0.5)
+; A squared-length floor, in PIXEL^2. 1e-6 px^2 is a millionth of a
+; pixel and cannot move a real line, but it turns rsq(0) = +inf --
+; and the NaN vertex that follows -- into a merely huge finite number
+; that the clipper handles normally.
+.constf segeps(0.000001, 0.001, 1.0e12, 0.0)
+.alias  zero    myconst.xxxx
+.alias  ones    myconst.yyyy
+.alias  inv255  myconst.zzzz
+
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+
+.alias inA   v0
+.alias inB   v1
+.alias inclr v2
+
+.proc main
+	; ---- project endpoint A -------------------------------------------------
+	mov r0.xyz, inA
+	mov r0.w,   ones
+	dp4 r1.x, mvp[0], r0
+	dp4 r1.y, mvp[1], r0
+	dp4 r1.z, mvp[2], r0
+	dp4 r1.w, mvp[3], r0
+
+	; ---- project endpoint B -------------------------------------------------
+	mov r2.xyz, inB
+	mov r2.w,   ones
+	dp4 r3.x, mvp[0], r2
+	dp4 r3.y, mvp[1], r2
+	dp4 r3.z, mvp[2], r2
+	dp4 r3.w, mvp[3], r2
+
+	; ---- FLOOR w BEFORE THE DIVIDE -- this is the transition softlock -------
+	; The CPU rejects endpoints below SEG_NEAR_W_MIN (renderer_c3d.cpp) in
+	; FLOAT32. This shader recomputes the same w in FLOAT24 (16-bit mantissa,
+	; relative eps 2^-17), and w is a sum of terms as large as the vertex's
+	; view-axis distance -- ~270 during a level transition's arrival glide. The
+	; float24 error is then ~2e-3, so a w the CPU measured as safely positive
+	; can land at zero or NEGATIVE here. rcp(0) = +inf, and the `mad` below
+	; evaluates inf * 0 = NaN for the baseSel = 0 corners; a NaN position on a
+	; part with NO GUARD BAND (PICA clips all six planes) stalls the GPU.
+	;
+	; w is a pure CANCELLATION -- mvp row 3 is (0,0,-1,eye.z), so w = eye.z -
+	; z_world and its float24 grid spacing is |eye.z| * 2^-17. Any CPU-accepted
+	; w below half that quantum lands on EXACTLY 0.0 here. The crossing window
+	; is the EXIT DIVE (eye.z 9 -> ~-59, quantum 2.4e-4..4.9e-4), NOT the
+	; arrival glide, which sits five times past the far plane and crosses
+	; nothing.
+	;
+	; The CPU threshold is ~22x that quantum, so this floor should never fire.
+	; It is here so that it CANNOT fire into a NaN if the estimate is ever
+	; wrong -- a structural guarantee costs two instructions, and a wrong guess
+	; costs a hardware softlock. 1e-3 is a thousandth of the projection's near
+	; plane, so a vertex it clamps was entirely inside the near clip anyway and
+	; could not have contributed a pixel.
+	;
+	; NB the uniform/constant must be the FIRST source on PICA, same as
+	; ts_c3d_grid.v.pica's `max r11.x, ripc.x, r11.x`.
+	max r1.w, segeps.y, r1.w
+	max r3.w, segeps.y, r3.w
+
+	; ---- perspective divide, both endpoints ---------------------------------
+	; The CPU did exactly this (reciprocal-once, multiply-many).
+	rcp r4, r1.w
+	mul r5, r4, r1                 ; ndcA
+	rcp r6, r3.w
+	mul r7, r6, r3                 ; ndcB
+
+	; ---- d = ndcB - ndcA ----------------------------------------------------
+	add r8, r7, -r5
+
+	; ---- base = ndcA + d * baseSel  (w=0 -> A, w=1 -> B) --------------------
+	mad r9, r8, inB.wwww, r5
+
+	; ---- THE DIRECTION IS NORMALISED IN PIXEL SPACE, NOT NDC ----------------
+	; The screen is 240x400, so halfW (120) != halfH (200) and a direction
+	; normalised in NDC is a DIFFERENT unit vector than one normalised in
+	; pixels. The CPU path scales d by (halfW, halfH) FIRST and normalises
+	; there; normalising in NDC instead skews the perpendicular by the aspect
+	; ratio, which makes a line's WIDTH depend on its ANGLE -- up to 1.67x
+	; wrong on a diagonal. segparams.zw carry (halfW, halfH) for exactly this.
+	mul r15.x, segparams.z, r8.x
+	mul r15.y, segparams.w, r8.y
+	mul r10, r15, r15
+	add r11.x, r10.x, r10.y
+	; FLOOR THE LENGTH. Two endpoints that project to the same point give
+	; rsq(0) = +inf, and inf * halfPx is a NaN vertex -- which on a part with no
+	; guard band is a clipper hazard, not just an invisible triangle. The CPU
+	; path rejected these before expanding; this buffer is shared between eyes,
+	; so a segment can be degenerate in one eye and not the other and the reject
+	; cannot be done once on the CPU. Costs one add.
+	add r11.x, segeps.x, r11.x   ; uniform must be src1 on PICA
+	; CEILING AS WELL AS FLOOR. Flooring w stops rcp returning inf, but it
+	; does NOT close the NaN path -- the SQUARING above can overflow to inf on
+	; its own (float24 tops out near 1.8e19, and r15 is an NDC delta already
+	; multiplied by halfW/halfH). Then rsq(inf) = 0, r13 = hpx*0 = 0, and
+	; `mul r14.x, -r15.y, r13` is inf*0 = NaN -- a NaN position, all six clip
+	; comparisons false, and the guard-band-less clipper never retires the
+	; primitive. Clamping the squared length keeps rsq finite, r15 is finite
+	; by construction, so the offset can only ever be finite.
+	min r11.x, segeps.z, r11.x
+	rsq r12, r11.x
+
+	; ---- offset = perp(d_px) * halfPx * invLen * (pixel->NDC) ---------------
+	; perp is taken on the PIXEL-space direction, then converted back with the
+	; two different pixel->NDC scales -- exactly the CPU's kx/ky.
+	mul r13, inA.wwww, r12         ; halfPx * invLen   (sign = which side)
+	mul r14.x, -r15.y, r13
+	mul r14.y,  r15.x, r13
+	mul r14.x, segparams.x, r14.x
+	mul r14.y, segparams.y, r14.y
+
+	; ---- out ----------------------------------------------------------------
+	add outpos.xy, r9, r14
+	mov outpos.z,  r9.z
+	mov outpos.w,  ones
+
+	mul outclr, inv255, inclr
+	mov outtc0, zero
+
+	end
+.end

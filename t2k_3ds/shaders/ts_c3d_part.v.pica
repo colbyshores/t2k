@@ -1,0 +1,55 @@
+; ts_c3d_part.v.pica — particle/shatter DOT vertex shader.
+;
+; Identical to ts_c3d.v.pica except for the colour scale. The dot streams
+; (build_ParticleText, build_ShatterWorld) are the largest per-frame vertex
+; write on the 3DS — measured at ~0.33 ms per 1000 verts on real hardware, and
+; that cost is essentially pure CPU store bandwidth (the fitted fixed overhead
+; is ~7 us). So their vertex is packed down from the shared 36-byte C3DVertex
+; to a 20-byte PartVertex: float3 position, UNSIGNED BYTE x4 colour, UNSIGNED
+; BYTE x2 texcoord.
+;
+; PICA200 does NOT normalise integer vertex attributes — an unsigned byte
+; arrives in the shader as its raw 0..255 value, not as v/255. (Ground truth:
+; devkitPro's own loop_subdivision example feeds a small integer "valence"
+; through GPU_UNSIGNED_BYTE and consumes it as that integer.) Two consequences,
+; and they are the whole reason this file exists:
+;   - colour must be scaled by 1/255 HERE, which the shared passthrough shader
+;     must not do (every other draw feeds it real 0..1 floats);
+;   - the texcoords need no scaling at all, because the only values a dot quad
+;     ever uses are exactly 0 and 1, which survive the raw conversion intact.
+;
+; Inputs:  v0 = position (xyz), v1 = colour (rgba 0..255), v2 = texcoord0 (uv 0/1)
+; Outputs: clip-space position, colour, texcoord0
+
+.fvec mvp[4]
+
+.constf myconst(0.0, 1.0, 0.0039215686, 0.5)
+.alias  ones    myconst.yyyy
+.alias  inv255  myconst.zzzz
+
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+
+.alias inpos v0
+.alias inclr v1
+.alias intex v2
+
+.proc main
+	; r0 = (pos.xyz, 1.0)
+	mov r0.xyz, inpos
+	mov r0.w,   ones
+
+	; clip = mvp * r0
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; colour arrives as raw 0..255 bytes (see the note above)
+	; (uniform must be src1 on PICA; src2 takes only v/r registers)
+	mul outclr, inv255, inclr
+	mov outtc0, intex
+
+	end
+.end

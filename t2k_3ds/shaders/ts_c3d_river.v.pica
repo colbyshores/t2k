@@ -1,0 +1,60 @@
+; ts_c3d_river.v.pica — Citro3D vertex shader for the GATES bonus round's RIVER.
+;
+; The one thing the shared passthrough shader (ts_c3d.v.pica) cannot do: carry
+; TWO texcoord sets. The river samples the LEVEL's procedural texture PAIR
+; (texA + texB) with the web's own dual-texture blend law — the second proof
+; verdict's contract, and the reason the GL side authored RIVER_SURFACE_FRAG so
+; every one of its terms maps 1:1 onto the PICA200's fixed-function TEV chain
+; (renderer_c3d.cpp configureTevRiver). Two textures need two uv streams, so
+; the river needs its own DVLE, exactly as the grid does for the same reason
+; (ts_c3d_grid.v.pica's outtc0/outtc1) — this is that shader minus the whole
+; vertex-wave/fog apparatus, which the river does not want: its fog is authored
+; PER ROW by the shared builder and rides the vertex ALPHA slot, so it must pass
+; through untouched rather than being recomputed from view depth.
+;
+; Positions arrive ALREADY IN NDC (the CPU projects the UI-space strip through
+; the same Mtx_OrthoTilt the particle/dot streams use, and applies the per-eye
+; stereo shear there), so the MVP this is fed is the identity. Keeping the dp4s
+; anyway costs nothing measurable for 403 verts and keeps the shader honest if a
+; future caller wants to hand it a real matrix.
+;
+; Uniforms:
+;   mvp[0..3] (c0..c3) — model-view-projection (identity for the current caller)
+;
+; Inputs:  v0 = position (xyz), v1 = color (rgba: rgb = river tint, a = FOG),
+;          v2 = texcoord0 (texA uv), v3 = texcoord1 (texB uv)
+; Outputs: clip-space position, color, texcoord0, texcoord1
+
+.fvec mvp[4]
+
+.constf myconst(0.0, 1.0, -1.0, 0.5)
+.alias  ones  myconst.yyyy
+
+.out outpos position
+.out outclr color
+.out outtc0 texcoord0
+.out outtc1 texcoord1
+
+.alias inpos v0
+.alias inclr v1
+.alias intc0 v2
+.alias intc1 v3
+
+.proc main
+	; r0 = (pos.xyz, 1.0)
+	mov r0.xyz, inpos
+	mov r0.w,   ones
+
+	; clip = mvp * r0
+	dp4 outpos.x, mvp[0], r0
+	dp4 outpos.y, mvp[1], r0
+	dp4 outpos.z, mvp[2], r0
+	dp4 outpos.w, mvp[3], r0
+
+	; passthrough: tint+fog in the colour, both uv sets
+	mov outclr, inclr
+	mov outtc0, intc0
+	mov outtc1, intc1
+
+	end
+.end
