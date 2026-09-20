@@ -143,6 +143,20 @@ bool run_z_sequence(GameEngine& engine, bool arrival_held) {
     return false;
 }
 
+// Is the camera ON RAILS for a stage transition right now -- the exit dive out
+// of the old web or the slide-in glide into the new one? These are exactly the
+// two stage-transition branches of run_z_sequence above (out_animation, and
+// init_animation with the web still displaced). While either holds, the sequence
+// drives world_trans.z relative to the view's seat cam_target.z, so a view
+// change moves that seat under the running sequence and jars the camera (and can
+// land the arrival short or long). The death pull-back and the jump own z too,
+// but they are not stage transitions, so they are deliberately NOT included.
+bool in_stage_transition(const GameEngine& engine) {
+    const PlayerInfo& p = engine.player;
+    return p.out_animation > 0
+        || (p.init_animation > 0 && engine.cam_web_z > 0.0f);
+}
+
 } // namespace
 
 // =============================================================================
@@ -319,6 +333,13 @@ void camera_set(GameEngine& engine) {
 // =============================================================================
 
 void camera_cycle_view(GameEngine& engine) {
+    // Disabled while the camera is on rails entering or exiting a stage. The
+    // transition sequence drives world_trans.z off the view's seat
+    // (cam_target.z = STANDOFF + VIEWS[cam_view].z); cycling the view mid-rail
+    // moves that seat under the running sequence, which jars the camera and can
+    // land the slide-in short or long. The SELECT press is dropped, not
+    // deferred -- see in_stage_transition.
+    if (in_stage_transition(engine)) return;
     engine.cam_view = (engine.cam_view + 1) % tscam::VIEW_COUNT;
 }
 

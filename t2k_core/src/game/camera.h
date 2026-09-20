@@ -410,6 +410,10 @@ void camera_set(GameEngine& engine);
 
 // select_viewpoint -- step to the next view, a plain +1 with wrap at
 // VIEW_COUNT (four today: NEAR / MID / FAR / FIXED -- see the views[] block).
+// A NO-OP while the camera is on rails entering or exiting a stage (the exit
+// dive or the slide-in glide): the transition owns world_trans.z relative to
+// the view's seat, so a view change mid-rail jars the camera. The press is
+// dropped, not deferred.
 void camera_cycle_view(GameEngine& engine);
 
 // The level handover: recompute the planar lift + target for the NEW web and
