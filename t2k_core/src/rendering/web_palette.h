@@ -72,6 +72,20 @@ struct WebHueBatch { float h0, h1, s0, s1; };   // 0..1 normalised
 // EVERY BAND IS AN ADJACENT-HUE SWEEP, never a jump across the wheel -- that is
 // the "cycle shading" rule.
 //
+// WIDENED 2026-09-19 (user): the pink / light-blue / jade bands (2/3/4) swept
+// only ~0.06 of hue, so the two ends read as nearly the same colour -- "the
+// cycle shading between colors is too similar." The dark-blue (0) and red (1)
+// bands already carry a visibly wider sweep (0.245 and 0.085), and that spread
+// is what makes the cycle read as motion rather than a flat pulse. Bands 2/3/4
+// are widened to ~0.12-0.13 -- still adjacent hues, never a wheel jump -- to
+// match that. Two constraints held while widening:
+//   * band 4 keeps its LOWER bound at 0.420 (spike-chevron separation, below);
+//     it widens upward only, which moves the top of the sweep FURTHER from the
+//     0.356 spike green, so the widening is spike-safe by construction.
+//   * band 3 keeps its paler saturation (0.68->0.88 vs band 0's 1.00); the
+//     widened hue now overlaps band 0's low end more, and saturation is what
+//     keeps the pale sky band from reading as the saturated blue one.
+//
 // BAND 4 IS JADE AND NOT A TRUE GREEN, AND THAT IS A HAZARD DECISION. Grid
 // spikes are BRIGHT GREEN (line_geometry.h SPIKE_COLOR, hue 0.356) because they
 // are the one thing that kills you for descending a lane you would otherwise be
@@ -84,11 +98,11 @@ struct WebHueBatch { float h0, h1, s0, s1; };   // 0..1 normalised
 // Band 3 is deliberately PALE rather than another saturated hue: it and band 0
 // overlap in hue, and saturation is what keeps them apart.
 constexpr WebHueBatch WEB_COLOR_BATCHES[WEB_BATCH_COUNT] = {
-    { 0.555f, 0.800f, 1.00f, 1.00f },   // 0: blue -> purple
-    { 0.000f, 0.085f, 1.00f, 1.00f },   // 1: red -> orange
-    { 0.900f, 0.965f, 0.85f, 1.00f },   // 2: pink -> magenta
-    { 0.545f, 0.605f, 0.68f, 0.88f },   // 3: sky -> cornflower
-    { 0.420f, 0.480f, 0.95f, 1.00f },   // 4: emerald -> jade
+    { 0.555f, 0.800f, 1.00f, 1.00f },   // 0: blue -> purple        (span 0.245)
+    { 0.000f, 0.085f, 1.00f, 1.00f },   // 1: red -> orange         (span 0.085)
+    { 0.870f, 0.995f, 0.85f, 1.00f },   // 2: pink -> magenta       (span 0.125, widened from 0.065)
+    { 0.510f, 0.640f, 0.68f, 0.88f },   // 3: sky -> cornflower     (span 0.130, widened from 0.060; pale sat keeps it off band 0)
+    { 0.420f, 0.540f, 0.95f, 1.00f },   // 4: emerald -> jade       (span 0.120, widened from 0.060; low bound pinned at 0.420 for spike separation)
 };
 
 // ---------------------------------------------------------------------------
