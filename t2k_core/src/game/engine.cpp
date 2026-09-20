@@ -254,6 +254,25 @@ void GameEngine::clear_gameplay_entities() {
     // The same entity set init_level clears, minus the level/spawn/player setup.
     // Counts first, then the per-lane vectors, then the loose lists. clear()
     // keeps capacity, so this neither frees nor re-grows the reserved buffers.
+    //
+    // SCOPE -- what "the objects are GONE, not merely hidden" covers, and why
+    // the members left below are NOT gaps:
+    //   * The render side already drops every web-attached draw as the web
+    //     recedes (goEntFade / goSegFade / goWebFadeNow in 08_frame.inc), and
+    //     the bonus VBO is now clear-on-skip so no stale capsule survives the
+    //     build gate. This function makes the DATA match that on the one-shot
+    //     the tick the web finishes pulling away.
+    //   * zapper_chain is NOT touched here: it is killed by stop_looping_sfx()
+    //     at the instant of death (engine.cpp:250), which runs before this.
+    //   * ai_droid / ai_droid_state, enemies_todo[] and shatter_events[] are
+    //     deliberately left FROZEN, not cleared: each is render-gated for the
+    //     whole game-over sequence (buildAiDroid rides the goSegFade line pass,
+    //     shatter rides goWebFadeNow, enemies_todo draws nothing), and the next
+    //     init_level resets all three. Clearing enemies_todo[] here would also
+    //     make is_level_clear() report a cleared level mid-death, which is a
+    //     worse bug than a frozen counter nobody reads. Boot/level-lifetime
+    //     caches (grid geometry, grid VBO/IBO, web textures) are likewise NOT
+    //     freed -- the fade still samples them and the next level reuses them.
     memset(shots_nums, 0, sizeof(shots_nums));
     memset(enemies_nums, 0, sizeof(enemies_nums));
     memset(embrios_nums, 0, sizeof(embrios_nums));

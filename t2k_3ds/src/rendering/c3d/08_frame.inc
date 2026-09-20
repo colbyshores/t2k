@@ -890,6 +890,18 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
     // function self-gates on empty bonuses/!texReady).
     // Pickups leave with the web too -- a capsule still riding a lane that is
     // no longer there reads as a stray sprite.
+    //
+    // The zero lives HERE, not only inside build_Bonus. The build is gated, so
+    // when the gate fails the callee never runs and never clears its own count;
+    // draw_Bonus is UNCONDITIONAL (below) and reads bonusVtop[p], so a stale
+    // count there draws last frame's capsules at full brightness over the
+    // wordmark for the whole game-over screen -- the exact stray-sprite this
+    // gate was meant to prevent. Same clear-on-skip the line path uses at the
+    // GPU-expand branch ("a stale count is what wedged the GPU", ~line 717).
+    // The PC backend has no such gap: it rebuilds the bonus stream every frame
+    // and multiplies its alpha by the game-over fade (vk_scene.cpp:1167), so
+    // the capsules fade out instead of freezing.
+    r->bonusVtop[p] = 0;
     if (goWebFadeNow(engine) > 0.004f) build_Bonus(r, engine, p);
     const u64 _perf_fxBonus = perfTick();   // fx split: after build_Bonus
 
