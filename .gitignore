@@ -1,0 +1,137 @@
+build/
+build_3ds/
+# any other out-of-tree build dir (build-ubsan/ once had a 4.9 MB binary committed)
+build-*/
+*.3dsx
+*.elf
+*.smdh
+*.cia
+*.map
+*.shbin
+.DS_Store
+*.o
+*.a
+*.so
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+# CMake-generated Makefiles/scripts only ever land inside a build dir (already
+# ignored above). The top-level Makefile and t2k_3ds/Makefile are SOURCE.
+build*/**/Makefile
+build*/**/*.cmake
+docs/validation/*.wav
+
+# data/music/ and music/: the DESKTOP runtime soundtrack folder (music_sdl.cpp
+# resolveMusicDir -- CWD-first, same lookup order as levels.json), populated
+# locally from soundtracks/dsp/ so a dev machine's build plays the same DSP
+# soundtrack the 3DS SD card does. Same "never commit copyrighted audio" rule
+# as the soundtracks/ block below -- this is a LOCAL staging copy, not source.
+# (The desktop is run from the repo root, so the staging copy stays at
+# /data/music even though the tracked level data moved to t2k_core/data/.)
+data/music/
+/music/
+
+# Soundtracks: version the pipeline scripts + folder structure only. Never
+# commit the audio (huge + copyrighted) or the big generated fingerprint data.
+soundtracks/**/*.flac
+soundtracks/**/*.wav
+soundtracks/**/*.mp3
+soundtracks/**/*.ogg
+soundtracks/**/*.mod
+soundtracks/**/*.dsp
+soundtracks/catalog.json
+soundtracks/unique.json
+
+# Binaries: compiled + reference executables/assets (build outputs are above).
+# Source, docs and validation images stay tracked.
+*.exe
+*.dll
+*.bin
+*.lib
+*.dylib
+*.pdb
+*.obj
+*.ico
+*.res
+.sfx_preview/
+# Audacity write-ahead logs are transient working state (the .aup3 single-file DB
+# is the source of truth) -- never commit them, anywhere.
+*.aup3-wal
+# Authoring scratch dropped at the repo ROOT stays out of history. The KEPT
+# authoring sources (source WAVs + Audacity projects) live under
+# t2k_core/assets/sfx/sources/ and ARE tracked; these root-anchored patterns only
+# catch stray copies left at the top level.
+/aww.wav
+/*.aup3
+/t2k_pickup.aup3
+/freesound_*.mp3
+
+# Reference-only trees consulted for reverse-engineering. NEVER commit these:
+# tempest2k/ is LEAKED proprietary Tempest 2000 source (its own headers say so,
+# and that it builds byte-identical to the retail 1994 game). It is read here for
+# BEHAVIOURAL facts only -- mechanisms, timings -- never for geometry or artwork.
+# Committing it would put third-party source in this repo's history permanently.
+tempest2k/
+# t2k_dos/ is the same leaked Tempest 2000 source family -- the DOS/PC port
+# (TASM x86: TEMPEST.ASM, VECTORS.ASM, WEBS.ASM, 3D.ASM ...), comments blanked
+# the same way tempest2k/'s are. Read for BEHAVIOURAL facts only (the camera
+# law, timings, mechanisms) -- never geometry, artwork or verbatim code.
+t2k_dos/
+# Same leaked DOS source family, but landed under names the `t2k_dos/` pattern
+# above does NOT catch: the archive and its extracted folder (3D.ASM, AUDIO.ASM,
+# BONUS1UP.ASM ...). Same rule -- behavioural facts only, never commit.
+Tempest2000_dos/
+Tempest 2000 (DOS, Source code).7z
+# ...and a loose copy of one of its translation units read at the repo root
+# (TEMPEST.ASM was dropped here on 2026-09-02 to recover the powerup message
+# strings). Same rule: never commit it.
+TEMPEST.asm
+TEMPEST.ASM
+soundtracks/
+
+# typhoon_extract/: the *.json under this tree (webs/, enemies/) are our own
+# derived extraction (legitimate RE work product, tracked normally). The raw
+# game binary itself -- packed and unpacked -- is not; never commit Typhoon
+# 2001's copyrighted executable/asset blob into this repo's history.
+typhoon_extract/typhoon.packed
+typhoon_extract/typhoon.unpacked
+
+# visual-validator drive frames/logs occasionally land in the repo ROOT rather
+# than the scratchpad. Evidence worth keeping belongs in docs/validation/.
+scratchpad_*
+
+# FUSE silly-rename leftovers: the Mandarine AppImage keeps deleted files open,
+# so unlinked zero-link-count stubs survive until the mount releases them.
+.fuse_hidden*
+
+# Python bytecode from the the shipped PC port_py reference port. 36 of these were
+# tracked, so every run of the reference implementation dirtied the working
+# tree and showed up in diffs.
+__pycache__/
+*.pyc
+
+# Tempest 3000 (Nuon): the disc image and anything extracted out of it that is
+# the game's own code/data are copyrighted -- never commit them. Same rule the
+# typhoon_extract/ block above applies: our DERIVED geometry JSON under
+# t3k_extract/ is tracked, the binaries and RAM dumps are not.
+Tempest 3000*.iso
+t3k_extract/nuon.run
+t3k_extract/nuon.n16
+t3k_extract/*.bin
+
+# The CIA packaging tools (makerom, bannertool) that get_cia_tools.sh
+# builds on demand -- neither ships with devkitPro.
+t2k_3ds/tools/.ciatools/
+
+# Swarm runner runtime state (recreated per run; never commit)
+tools/runner/state.json
+tools/runner/runner.lock
+tools/runner/logs/
+tools/runner/__pycache__/
+
+# NFS silly-rename artifacts. When a file is unlinked while another process
+# still holds it open, NFS renames it to .nfsXXXX rather than deleting it, and
+# it lingers until that handle closes. It is never ours to commit -- and it
+# would otherwise block tools/build_production.sh, which correctly refuses to
+# build from a dirty tree.
+.nfs*

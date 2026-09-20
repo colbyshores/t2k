@@ -1,0 +1,110 @@
+{
+  "album_sync": true,
+  "arcade_mode": false,
+  "audio_pulse_pct": 100,
+  "burst_test": false,
+  "config_version": 4,
+  "controls": {
+    "invert_move": false,
+    "jump": "B",
+    "move_left": "DPAD_LEFT+CPAD_LEFT",
+    "move_right": "DPAD_RIGHT+CPAD_RIGHT",
+    "pause": "START",
+    "quit": "SELECT",
+    "shoot": "A",
+    "tremor": "X",
+    "zapper": "Y"
+  },
+  "diag_log": false,
+  "enemy_set": 1,
+  "fov_deg": 60,
+  "fullscreen": false,
+  "gameover_style": 0,
+  "gameover_test": false,
+  "highscore_test": 0,
+  "highscores": [
+    {
+      "level": 83,
+      "name": "ccs",
+      "score": 4338117
+    },
+    {
+      "level": 98,
+      "name": "yak",
+      "score": 2307527
+    },
+    {
+      "level": 62,
+      "name": "llm",
+      "score": 1937645
+    },
+    {
+      "level": 39,
+      "name": "txk",
+      "score": 1887563
+    },
+    {
+      "level": 37,
+      "name": "zap",
+      "score": 1835784
+    },
+    {
+      "level": 66,
+      "name": "hvx",
+      "score": 1546066
+    },
+    {
+      "level": 60,
+      "name": "aic",
+      "score": 1000000
+    },
+    {
+      "level": 50,
+      "name": "clo",
+      "score": 800000
+    },
+    {
+      "level": 25,
+      "name": "vec",
+      "score": 375000
+    },
+    {
+      "level": 15,
+      "name": "web",
+      "score": 225000
+    },
+    {
+      "level": 5,
+      "name": "???",
+      "score": 75000
+    }
+  ],
+  "last_level": 33,
+  "level_best": 33,
+  "mist": false,
+  "mod_music": true,
+  "music_volume": 70,
+  "og_profile": false,
+  "perf_log": false,
+  "photosensitive_safe": false,
+  "pickup_burst": 1,
+  "pickup_detail": 0,
+  "screen_height": 1080,
+  "screen_width": 1920,
+  "seg_expand": 0,
+  "sfx_volume": 80,
+  "shot_intensity": 65,
+  "soundtrack": 2,
+  "soundtrack_name": "Album: Tempest 2000",
+  "visual_sync_ms": 0,
+  "warp_feedback": true,
+  "warp_test": "",
+  "web_alpha_pct": 50,
+  "web_brightness_pct": 100,
+  "web_color_cycle": true,
+  "web_cycle_pct": 100,
+  "web_glow": 1,
+  "web_glow_pct": 150,
+  "web_texture_brightness_pct": 100,
+  "web_transparent": true
+}
