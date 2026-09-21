@@ -281,6 +281,15 @@ bool ArcadeFlipper::shootable(const Enemy& enemy) {
     }
 }
 
+bool ArcadeFlipper::zappable(const Enemy& enemy) {
+    // Killable by the super zapper / tremor in EVERY mode except the inert
+    // arrival dot. The original short-circuits run_flipper on _sz and kills the
+    // flipper regardless of the mid-flip vulnerability window (see the header),
+    // so that window must not gate the area weapons here -- only the far 2x2
+    // arrival dot stays out.
+    return mode(enemy) != MODE_ARRIVAL;
+}
+
 int ArcadeFlipper::threatLane(const Enemy& enemy, int lane) {
     const int m = marker(enemy);
     // Both grab entry points require a NON-NEGATIVE marker (sec 2.1 S3). A

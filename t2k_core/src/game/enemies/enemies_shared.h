@@ -142,6 +142,14 @@ inline bool enemy_shootable(const Enemy& e) {
 // ---------------------------------------------------------------------------
 inline bool enemy_zappable(const Enemy& e) {
     if (e.id == ARCADE_FUSEBALL) return enemyfam::ArcadeFuseball::zappable(e);
+    // The flipper family: the super zapper (and the tremor, which this port
+    // treats the same) kills it in ANY mode. The original's run_flipper tests
+    // _sz before its mode dispatch and zappits regardless of the mid-flip
+    // vulnerability window (yak.s:11017), so that non-monotonic shootable()
+    // lockout is a bullet rule and must NOT gate the area weapons. Only the
+    // inert arrival dot stays out. (ARCADE_BEAST already returns true below.)
+    if (e.id == ARCADE_FLIPPER || e.id == ARCADE_SFLIPPER2 || e.id == ARCADE_SFLIPPER3)
+        return enemyfam::ArcadeFlipper::zappable(e);
     return enemy_shootable(e);
 }
 

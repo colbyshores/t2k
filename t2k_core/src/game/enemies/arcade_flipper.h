@@ -452,6 +452,15 @@ struct ArcadeFlipper {
     // sweeps and from the tremor (audit C9 / Z4). Correction (a) lives here.
     static bool shootable(const Enemy& enemy);
 
+    // THE SUPERZAPPER / TREMOR PREDICATE for this family. The original's
+    // run_flipper tests the superzap flag (_sz) BEFORE its mode dispatch and
+    // zappits the flipper in ANY mode -- rail, mid-flip, or parked (yak.s:11017;
+    // collie/xzcollie likewise route to zappit instead of the bullet check when
+    // _sz is set, yak.s:12925/12945). So the non-monotonic shootable() lockout
+    // is a BULLET rule only and must NOT gate the area weapons. The one exception
+    // is the inert arrival dot, which stays inert to everything.
+    static bool zappable(const Enemy& enemy);
+
     // THE LANE THIS FLIPPER CURRENTLY THREATENS, or -1 for none.
     // Correction (b) lives here: mid-flip it is the SOURCE lane, parked it is
     // the current lane, and a hatchling still carrying its -1/-2 marker
