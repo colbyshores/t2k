@@ -242,9 +242,13 @@ static void perfAccum(u64 t0, u64 tGxf, u64 tGlt, u64 tGtx, u64 tGrid,
 // pass so the GL backend could stop applying raw web_brightness -- the PC web
 // never ducked on the beat at all. Values here are unchanged.
 static float audioWebBrightness(const ts::GameEngine& engine) {
+    // The per-band multiplier (WebSet::band_additive, latched on the engine) is
+    // folded in here so BOTH the surface (v.color = vc*wb) and the texture glow
+    // (wtb = wb*web_tex_bright) inherit the sky/jade dim from one place.
     return ts::webAudioBrightness(engine.web_brightness,
                                   engine.audio.beat, engine.audio.rms,
-                                  engine.audio_pulse_k, engine.audio_safe_mode);
+                                  engine.audio_pulse_k, engine.audio_safe_mode)
+           * engine.web_band_additive;
 }
 
 static void drawBottomOverlay(RendererC3D* r);   // defined below (touch panel)

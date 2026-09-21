@@ -454,6 +454,12 @@ struct GameEngine {
     float web_alpha       = 0.5f;
     float web_brightness  = 1.0f;   // overall web brightness scale (0..2)
     float web_tex_bright  = 1.0f;   // extra scale on the additive texture glow
+    // Per-colour-band brightness multiplier for the CURRENT level, latched at
+    // change_current_level from levels().band_additive[webColorBandIndex(level)].
+    // Multiplies BOTH the web surface and the texture glow so the high-luminance
+    // sky/jade bands stop washing out the additive enemies on them. 1.0 = no
+    // change. See WebSet::band_additive (data/webs.h) for the why.
+    float web_band_additive = 1.0f;
     bool  invert_move     = false;  // false = corrected horizontal movement
     // 0 = off, non-zero = on (the additive vector-glow wire). The old
     // 1=cheap-TEV / 2=bloom split is retired; both backends test `!= 0`.

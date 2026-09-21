@@ -3,6 +3,7 @@
 #include "enemy_spawns.h"
 #include "enemies/enemies_shared.h"   // arcade_release: the arcade arrival
 #include "../data/webs_runtime.h"
+#include "../rendering/web_palette.h"   // webColorBandIndex: the one band-index law
 
 #include <algorithm>
 #include <cmath>
@@ -170,6 +171,11 @@ void GameEngine::change_current_level(int time, int nr) {
     // and their exact closure depends on staying raw.
     const WebSet& ws = levels();
     const WebDef& w  = ws.webs[nr % ws.count];
+
+    // Latch this level's per-band brightness multiplier (see WebSet::band_additive).
+    // Keyed to the colour band via the one band-index law, so the dim tracks the
+    // hue the renderer will draw, not the shape.
+    web_band_additive = ws.band_additive[webColorBandIndex(nr)];
 
     // lane_count is the TRUE face count: grid_element_pos indexes a FACE (the
     // midpoint between point i and i+1 mod N -- EXE-VERIFIED, FUN_0041039c),

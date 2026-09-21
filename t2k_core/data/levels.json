@@ -1,6 +1,7 @@
 {
  "_comment": "LEVEL DATA -- the game's one and only copy; parsed at boot. Edit it and the levels change, no rebuild (on 3DS edit the copy in sdmc:/3ds/the shipped PC port/, seeded from this file on first boot). dx/dy are FINAL per-lane step vectors and MUST NOT be normalized: Tsunami-derived webs are unit length (the shipped exe's rule), imported ones are deliberately not and their exact closure depends on staying raw. lane_count is implied by len(dx). No enemy data: enemies key off the level COUNTER, not the shape. The build embeds this file into the binary as the fallback, so a missing or broken copy on disk can never brick the game. Regenerate: tools/gen_webs.py; prove: tools/verify.sh.",
  "version": 3,
+ "band_additive": [1.0, 1.0, 1.0, 0.6, 0.6],
  "webs": [
   {"name": "Circle", "closed": true,
    "dx": [1.0, 1.0, 0.5, 0.25, -0.25, -0.5, -1.0, -1.0, -1.0, -1.0, -0.5, -0.25, 0.25, 0.5, 1.0, 1.0],

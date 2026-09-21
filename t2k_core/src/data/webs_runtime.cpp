@@ -19,6 +19,7 @@ namespace {
 struct Loaded {
     std::vector<WebDef> webs;
     std::vector<std::string> names;
+    float band_additive[5] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
     WebSet published{};
     bool ready = false;
 };
@@ -55,6 +56,23 @@ bool parseWebs(const nlohmann::json& data, Loaded& out) {
     if (!data.is_object()) return false;
     auto webs = data.find("webs");
     if (webs == data.end() || !webs->is_array() || webs->empty()) return false;
+
+    // Optional per-colour-band brightness multiplier (see WebSet::band_additive).
+    // Absent, wrong-typed, or short -> 1.0 for the missing bands, so an old file
+    // without the key behaves exactly as before. Clamped to a sane range so a
+    // typo can't black out or blow out a band.
+    out.band_additive[0] = out.band_additive[1] = out.band_additive[2] =
+    out.band_additive[3] = out.band_additive[4] = 1.0f;
+    if (auto ba = data.find("band_additive"); ba != data.end() && ba->is_array()) {
+        for (int k = 0; k < 5 && k < (int)ba->size(); ++k) {
+            if ((*ba)[k].is_number()) {
+                float v = (*ba)[k].get<float>();
+                if (v < 0.0f) v = 0.0f;
+                if (v > 2.0f) v = 2.0f;
+                out.band_additive[k] = v;
+            }
+        }
+    }
 
     const int n = (int)webs->size();
     out.webs.resize(n);
@@ -93,6 +111,7 @@ void publish(Loaded&& fresh) {
         l.webs[i].name = l.names[i].c_str();
     l.published.webs  = l.webs.data();
     l.published.count = (int)l.webs.size();
+    for (int k = 0; k < 5; ++k) l.published.band_additive[k] = fresh.band_additive[k];
     l.ready = true;
 }
 

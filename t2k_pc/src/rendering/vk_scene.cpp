@@ -552,7 +552,8 @@ void drawGameplay(Renderer& r, GameEngine& engine) {
         uint32_t* gi = static_cast<uint32_t*>(vkres::ringAlloc(*r.ring, sizeof(uint32_t) * (ni > 0 ? ni : 1), 64, gridIdxOff));
         if (gv && gi && (int)engine.vertex_pos.size() > cols) {
             const float wb = webAudioBrightness(engine.web_brightness, engine.audio.beat, engine.audio.rms,
-                                                engine.audio_pulse_k, engine.audio_safe_mode);
+                                                engine.audio_pulse_k, engine.audio_safe_mode)
+                           * engine.web_band_additive;   // per-band dim: sky/jade wash out additive enemies
             // -- the arcade web colour cycle (renderer_c3d.cpp, verbatim law) --
             const bool cyc = engine.web_color_cycle;
             const WebHueBatch& hb = currentWebColorBatch(engine.current_level);
@@ -1210,7 +1211,7 @@ void drawGameplay(Renderer& r, GameEngine& engine) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, translucent ? r.pipes.gridTranslucent : r.pipes.gridOpaque);
         bindFrameSet(r, r.pipes.layoutGrid);
         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, r.pipes.layoutGrid, 1, 1, &r.texgen[0].set2, 0, nullptr);
-        const float push[8] = {0.0f, 0.0f, 0.0f, 0.0f, engine.web_tex_bright, waFactor, 1.0f, 0.0f};
+        const float push[8] = {0.0f, 0.0f, 0.0f, 0.0f, engine.web_tex_bright * engine.web_band_additive, waFactor, 1.0f, 0.0f};
         vkCmdPushConstants(cmd, r.pipes.layoutGrid, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), push);
         vkpipe::setDynamic(cmd, ext, true, !translucent);
         vkCmdBindVertexBuffers(cmd, 0, 1, &r.ring->buf.buf, &gridOff);

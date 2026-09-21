@@ -36,9 +36,21 @@ struct WebDef {
 };
 
 // The whole level list: a pointer + count, published by levels().
+//
+// band_additive is a PER-COLOUR-BAND multiplier on the web's brightness, one
+// entry per band in rendering/web_palette.h's WEB_COLOR_BATCHES (index 0..4).
+// It exists because the high-luminance bands -- sky/light-blue (3) and
+// emerald/jade (4) -- wash out the additive enemies drawn on them: an additive
+// enemy adds light, so on a bright surface its delta saturates and the
+// silhouette is lost. Dimming the web on those bands restores the contrast.
+// Keyed to the band (the level counter), NOT the shape, because the colour is
+// keyed to the band too -- a dim shape moved onto a bright band would otherwise
+// be dim on a bright surface. Defaults to 1.0 (no change) so an absent field
+// is a no-op; the emergency square and any pre-parse consumer stay lit.
 struct WebSet {
     const WebDef* webs;
     int           count;
+    float         band_additive[5] = { 1.0f, 1.0f, 1.0f, 1.0f, 1.0f };
 };
 
 } // namespace ts

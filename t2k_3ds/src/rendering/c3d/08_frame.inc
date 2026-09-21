@@ -1759,7 +1759,7 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
         // visible under the wordmark. Both terms take the fade, so the surface
         // goes whichever blend path is active.
         const float waFactor = (webClear ? wa : 1.0f) * goWebNow;
-        configureTevGridMerged(fogColor, engine.web_tex_bright * goWebNow, waFactor);
+        configureTevGridMerged(fogColor, engine.web_tex_bright * engine.web_band_additive * goWebNow, waFactor);
         if (webClear) {
             C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
             C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD,
