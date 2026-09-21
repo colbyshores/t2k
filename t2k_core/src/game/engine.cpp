@@ -4,6 +4,7 @@
 #include "enemies/enemies_shared.h"   // arcade_release: the arcade arrival
 #include "../data/webs_runtime.h"
 #include "../rendering/web_palette.h"   // webColorBandIndex: the one band-index law
+#include "../rendering/enemy_death_color.h"  // enemyDeathColor: the kill bloom carries the enemy's hue
 
 #include <algorithm>
 #include <cmath>
@@ -863,9 +864,23 @@ void GameEngine::emit_explosion_record(int energy, int lane, float z,
     explosion.id2 = ex_id2;
     explosion.z = z;
     explosion.grid_element_pos = lane;
-    explosion.r = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
-    explosion.g = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
-    explosion.b = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
+    // An enemy's kill bloom carries the enemy's OWN hue instead of the random
+    // desaturated white the other types still use, so the light spreads into the
+    // web in the colour of the thing that died (see enemy_death_color.h). The
+    // flipper family resolves through the current web band, exactly as it is
+    // drawn. ex_id2 is the enemy id for EXPLOSION_ENEMY.
+    if (ex_id == EXPLOSION_ENEMY) {
+        float dc[3];
+        enemyDeathColorWebBlended(ex_id2, webColorBandIndex(current_level),
+                                 static_cast<uint32_t>(time), dc);
+        explosion.r = dc[0];
+        explosion.g = dc[1];
+        explosion.b = dc[2];
+    } else {
+        explosion.r = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
+        explosion.g = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
+        explosion.b = (rand() / (float)RAND_MAX) * 0.75f + 0.25f;
+    }
     explosion.strength = energy * 0.01f;
     explosion.max_animation = max_anim;
     explosion.oo_max_animation = 1.0f / max_anim;
