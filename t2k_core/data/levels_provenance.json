@@ -416,16 +416,16 @@
    "closed": false
   },
   {
-   "name": "star",
+   "name": "claw",
    "from": "tubes",
-   "from_index": 11,
+   "from_index": 12,
    "lanes": 16,
    "closed": true
   },
   {
-   "name": "claw",
+   "name": "star",
    "from": "tubes",
-   "from_index": 12,
+   "from_index": 11,
    "lanes": 16,
    "closed": true
   },
@@ -444,11 +444,11 @@
    "closed": false
   },
   {
-   "name": "triple loop",
-   "from": "tubes",
-   "from_index": 15,
-   "lanes": 16,
-   "closed": true
+   "name": "Irregular bumpy",
+   "from": "tsunami",
+   "from_index": 6,
+   "lanes": 15,
+   "closed": false
   },
   {
    "name": "Alternating spikes",
@@ -465,11 +465,11 @@
    "closed": false
   },
   {
-   "name": "Irregular bumpy",
-   "from": "tsunami",
-   "from_index": 6,
-   "lanes": 15,
-   "closed": false
+   "name": "triple loop",
+   "from": "tubes",
+   "from_index": 15,
+   "lanes": 16,
+   "closed": true
   },
   {
    "name": "Asymmetric wave",
