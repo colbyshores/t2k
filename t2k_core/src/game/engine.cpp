@@ -680,6 +680,20 @@ void GameEngine::init_embrio() {
     // identical whether or not the gate fires.
     if (player.init_animation > 0) return;
 
+    // ---- THE UFO JUMP GATE (rate-preserving) ------------------------------
+    // The saucer (ARCADE_ADROID) must not appear until the player holds the
+    // jump powerup: jump is the only way to destroy it once the super zapper
+    // is spent (user request 2026-09-26). The gate DROPS the spawn after the
+    // draw rather than filtering the pool, so the pool, the type draw, the lane
+    // draw and the throttle all consume exactly the rand() draws they would
+    // have without the gate. That keeps the RNG stream byte-identical to the
+    // ungated game and every OTHER enemy at its original rate -- the UFO's
+    // own rate is unchanged too; only its START is delayed to the moment jump
+    // is acquired, and it stops if jump is lost (live gate). Its enemies_todo
+    // budget is never decremented while gated, so the per-level cap is intact
+    // for when jump arrives, and is_level_clear() ignores the remainder.
+    if (en_id == ARCADE_ADROID && !player.has_jump) return;
+
     // ---- THE ARCADE ARRIVAL (enemies/enemies_shared.h arcade_release) ---------
     // docs/design/arcade_enemies.md §3.4: the arcade set keeps THIS port's
     // population model -- everything above this line, which is why every
@@ -1214,6 +1228,12 @@ void GameEngine::trigger_shatter(int kind, const char* text) {
 
 bool GameEngine::is_level_clear() {
     for (int i = 0; i < ENEMIES_NUM_IDS; i++) {
+        // The UFO's unspawned budget never blocks the clear: its spawn is
+        // dropped until the player holds jump (the UFO jump gate in
+        // init_embrio), so it may legitimately remain if the player never
+        // picks jump up. A UFO already on the grid is still caught by the
+        // num_enemies test below.
+        if (i == ARCADE_ADROID) continue;
         if (enemies_todo[i] > 0) return false;
     }
     for (int i = 0; i < lane_count; i++) {
