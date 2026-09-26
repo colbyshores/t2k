@@ -203,11 +203,12 @@ inline bool enemy_uses_shared_player_collision(int id) { return !isArcadeEnemy(i
 // against the arcade life of 1 it would kill either in one hit AND consume the
 // bullet the family was about to hand back.
 //
-// !! IT IS PER-ENEMY, NOT PER-ID, AND THE BEAST IS WHY. Its horn-shedding
-//    search is `beastRail` -- the RAIL dispatch slot, and the WHOLE of the
-//    Beast's own code. It is not reached in any other mode: once a Beast lands
-//    it runs the ordinary flipper stopped handler, which in this port takes its
-//    bullets from the SHARED sweep exactly as every other flipper does.
+// !! IT IS PER-ENEMY, NOT PER-ID, AND THE BEAST IS WHY -- though the Beast no
+//    longer needs the per-mode half of that gate. Its horn-shedding search was
+//    `beastRail`, the RAIL dispatch slot, and the WHOLE of the Beast's own
+//    code. It was not reached in any other mode: once a Beast landed it ran the
+//    ordinary flipper stopped handler, which in this port took its bullets from
+//    the SHARED sweep exactly as every other flipper does.
 //
 //    Excluding the Beast by ID alone therefore made a parked Beast
 //    BULLET-PROOF IN EVERY MODE BUT ONE. Measured: a Beast that reached the rim
@@ -218,17 +219,36 @@ inline bool enemy_uses_shared_player_collision(int id) { return !isArcadeEnemy(i
 //    control run says the shape of it plainly: an identical PLAIN flipper in
 //    the same setup died to gunfire at tick 240 for 150 points.
 //
-//    So the exclusion is exactly as wide as the family's own test: RAIL only.
-//    In RAIL the Beast sheds a horn and hands the bullet back; anywhere else it
-//    is a plain flipper and one shot kills it, which is also what the recovery
-//    says about its stopped behaviour ("stdstop -- identical, not the supers'
-//    scarper"). The MIRROR needs no such gate: its search lives in its own
-//    update() and runs in every live mode.
+//    The narrow RAIL-only exclusion solved that by letting the shared sweep kill
+//    a Beast outside RAIL -- which is what the recovery describes, but it made
+//    the horn counter a mode-dependent health bar: the SAME Beast shed a horn or
+//    died outright depending on whether the shot landed while it was railing,
+//    flipping or parked. Two ways to fix that coupling, and they pull in opposite
+//    directions: narrow the shed to the shared sweep, or widen the shed to every
+//    live mode. The horn counter is the Beast's identity -- "shoot it, it sheds"
+//    is the whole read of the enemy -- so the shed won, and ArcadeFlipper::update
+//    now runs the Beast's search ahead of its own mode dispatch. The exclusion
+//    here can therefore be total, and the two halves MUST move together: widen
+//    this without widening the shed and the Beast goes bullet-proof again.
+//
+//    The inert arrival dot stays out of the shed (see the gate in update()) so
+//    the inbound 2x2 dot keeps the meaning every other flipper's dot has; it is
+//    not a Beast yet and there is nothing on it to shed.
+//
+//    The MIRROR needs no such gate: its search lives in its own update() and
+//    already runs in every live mode.
 // ---------------------------------------------------------------------------
 inline bool enemy_uses_shared_shot_collision(const Enemy& e) {
     if (e.id == ARCADE_MIRROR) return false;
-    if (e.id == ARCADE_BEAST)
-        return enemyfam::ArcadeFlipper::mode(e) != enemyfam::ArcadeFlipper::MODE_RAIL;
+    // The Beast is excluded ONLY while it is railing -- the one mode in which
+    // its own beastRail() shed runs (arcade_flipper.cpp RAIL arm). Outside RAIL
+    // it is left to this shared sweep and dies in one hit like a plain flipper,
+    // exactly as the reference's ordinary stopped/flip handler killed it. This
+    // is the mirror half of the RAIL-only shed: widen this without narrowing
+    // the shed and the Beast goes bullet-proof outside RAIL.
+    if (e.id == ARCADE_BEAST &&
+        enemyfam::ArcadeFlipper::mode(e) == enemyfam::ArcadeFlipper::MODE_RAIL)
+        return false;
     return true;
 }
 

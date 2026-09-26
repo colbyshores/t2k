@@ -3,28 +3,38 @@
 //
 //   tools/demo_audit.sh [levels] [ticks]
 //
-// The demo's promises are all NEGATIVE ("no enemy fire", "no mirrors", "no
-// electric bolts"), and a negative is exactly the kind of claim that looks true
-// because nothing happened to disprove it. Watching the attract loop and seeing
-// no mirror proves nothing: mirrors only spawn on some levels, in some rosters,
-// after some delay.
+// The demo's promises are mostly NEGATIVE ("no mirrors", "no electric bolts"),
+// and a negative is exactly the kind of claim that looks true because nothing
+// happened to disprove it. Watching the attract loop and seeing no mirror proves
+// nothing: mirrors only spawn on some levels, in some rosters, after some delay.
 //
 // So this runs the REAL engine with the REAL pilot -- no stubs -- across many
 // levels and BOTH rosters, and asserts the invariants every tick:
 //
-//   1. NO HOSTILE SHOT EVER EXISTS. Anything at or above ARCADE_REFLECT_SHOT is
-//      fire aimed at the pilot, including a mirrored copy of its own shot.
-//   2. NO BANNED FAMILY EVER EXISTS, as an enemy OR as an embryo -- an embryo
+//   1. ENEMY FIRE IS LIVE IN ATTRACT MODE. This used to be the opposite ("no
+//      hostile shot ever exists"). It flipped on 2026-09-26 when the firing
+//      suppression came out and the pilot learned to dodge (game/demo_ai.h):
+//      attract mode now SHOWS the beast shedding and the fleet shooting, and the
+//      promise is that the pilot survives it. A demo with no hostile shots is now
+//      INCONCLUSIVE, not passing -- it means the run never exercised the thing
+//      the pilot's hazard scan exists for.
+//   2. THE PILOT DOES NOT DIE. The scan's entire job. Counted as a drop in
+//      player.lives, which is the same signal the frontends end the demo on.
+//   3. NO BANNED FAMILY EVER EXISTS, as an enemy OR as an embryo -- an embryo
 //      is drawn with its own id before it hatches, so a mirror that is only
-//      substituted at hatch time is still a mirror on screen.
-//   3. WHEN A CAPSULE IS ON THE WEB, THE PILOT IS GOING FOR IT. This is the
-//      one positive claim, and it is the one the user asked for: the demo
-//      should look like it knows what it is doing.
+//      substituted at hatch time is still a mirror on screen. This is the one
+//      suppression that SURVIVED: mirrors and the electrocuting families change
+//      what a shot DOES rather than how fast it arrives, and the scan has no
+//      answer for a bullet that turns around.
+//   4. WHEN A CAPSULE IS ON THE WEB AND ITS LANE IS SAFE, THE PILOT IS GOING
+//      FOR IT. Qualified since the dodge landed: yielding a capsule lane that a
+//      horn is falling down is correct behaviour, and counting it as a miss made
+//      the old invariant punish the thing the new code was added to do.
 //
 // AND IT PROVES IT CAN FAIL. Every check is re-run with demo_mode OFF, where
-// hostile shots and banned families are expected to APPEAR. A gate that passes
-// in both configurations is not measuring anything -- that control is the
-// difference between this file and a test that always says yes.
+// banned families are expected to APPEAR. A gate that passes in both
+// configurations is not measuring anything -- that control is the difference
+// between this file and a test that always says yes.
 // ============================================================================
 
 #include <cassert>
@@ -55,13 +65,92 @@ bool isBannedFamily(int id) {
         || id == ARCADE_MIRROR;
 }
 
+// Was a hazard the pilot CLAIMS to dodge actually touching the claw when its
+// lives dropped? Written INDEPENDENTLY of demo_ai.h's scan -- the audit is
+// checking that model, so reusing the model to grade itself would pass by
+// agreement instead of by fact. Each clause is the family's own lethal test:
+//
+//   hostile shot  -- swept plane (collision.cpp) or the reflect's |dz| window
+//   pulsar        -- the global lethal phase, same lane, any depth
+//   spark         -- same lane, CatchDz
+//   adroid        -- ZAPPAGE, same lane (its dodge is a jump; the pilot has none)
+//
+// Anything that kills WITHOUT one of these is RIM CONTACT: an enemy the pilot was
+// shooting reached the rim first. That is a kill-race the recovered pilot has
+// always won or lost, not a dodge, and it predates attract-mode enemy fire -- so
+// it is reported, not asserted. A demo that refused to enter a lane with an enemy
+// in it would never shoot anything.
+static bool modelledHazard(const GameEngine& e, int lane) {
+    if (lane < 0 || lane >= (int)e.grid.size()) return false;
+    const GridElement& g = e.grid[lane];
+    const float pz = e.player.z;
+
+    for (int i = 0; i < g.num_shots && i < (int)g.shots.size(); ++i) {
+        const Shot& s = g.shots[i];
+        if (s.id == ARCADE_REFLECT_SHOT) {
+            const float d = s.z - pz;
+            if (d <= enemyfam::ArcadeReflectedShot::LethalDz
+                && -d <= enemyfam::ArcadeReflectedShot::LethalDz) return true;
+        } else if (s.id >= ENEMY_SHOT1) {
+            const float dz = SHOT_DZ[s.id];
+            if (s.z >= pz && s.z + dz <= pz) return true;   // the swept crossing
+        }
+    }
+    for (int i = 0; i < g.num_enemies && i < (int)g.enemies.size(); ++i) {
+        const Enemy& en = g.enemies[i];
+        if (en.id == ARCADE_PULSAR && enemyfam::ArcadePulsar::pulseLethal()) return true;
+        if (en.id == ARCADE_PULSAR_SPARK) {
+            const float d = en.z - pz;
+            if (d <= enemyfam::ArcadePulsarSpark::CatchDz
+                && -d <= enemyfam::ArcadePulsarSpark::CatchDz) return true;
+        }
+        if (en.id == ARCADE_ADROID
+            && enemyfam::ArcadeAdroid::mode(en) == enemyfam::ArcadeAdroid::MODE_ZAPPAGE) {
+            return true;
+        }
+    }
+    return false;
+}
+
 struct Counts {
-    long hostileShots = 0;   // shots with id >= ARCADE_REFLECT_SHOT
+    long hostileShots = 0;    // shots with id >= ARCADE_REFLECT_SHOT
     long bannedEnemies = 0;
     long bannedEmbryos = 0;
-    long capsuleTicks = 0;   // ticks where a capsule was on the web
-    long capsuleMissed = 0;  // ...and the pilot was NOT heading for its lane
+    long capsuleTicks = 0;    // ticks where a capsule was on the web
+    long capsuleMissed = 0;   // ...its lane was SAFE and the pilot was not going for it
+    long capsuleYielded = 0;  // ...its lane was HAZARDOUS, so yielding is correct
+    long pilotDeaths = 0;     // killed by a hazard the scan claims to dodge
+    long contactDeaths = 0;   // rim contact with the enemy being shot -- pre-existing
+    long tooFastDeaths = 0;   // a modelled hazard that landed inside one lane step
+    long blindSpotDeaths = 0; // the hazard did not exist on the tick the pilot chose
+    // What the world looked like on each death, for the first few. The death's
+    // own text id goes straight into the shatter/text path and is not kept on the
+    // engine, so the audit reads the CAUSE off the lane instead of adding
+    // test-only state to the sim: whatever was standing in the claw's lane when
+    // its lives dropped is what killed it.
+    std::vector<std::string> deathNotes;
+    std::vector<std::string> contactNotes;
+    std::vector<std::string> tooFastNotes;
+    std::vector<std::string> blindSpotNotes;
 };
+
+static std::string laneContents(const GameEngine& e, int lane) {
+    std::string s;
+    if (lane < 0 || lane >= (int)e.grid.size()) return s;
+    const GridElement& g = e.grid[lane];
+    for (int i = 0; i < g.num_enemies && i < (int)g.enemies.size(); ++i) {
+        s += "e"; s += std::to_string(g.enemies[i].id);
+        s += "@"; s += std::to_string((int)(g.enemies[i].z * 100));
+        s += " ";
+    }
+    for (int i = 0; i < g.num_shots && i < (int)g.shots.size(); ++i) {
+        if (g.shots[i].id < ARCADE_REFLECT_SHOT) continue;
+        s += "s"; s += std::to_string(g.shots[i].id);
+        s += "@"; s += std::to_string((int)(g.shots[i].z * 100));
+        s += " ";
+    }
+    return s;
+}
 
 void scan(const GameEngine& e, Counts& c) {
     const int lanes = (int)e.grid.size();
@@ -86,7 +175,15 @@ void scan(const GameEngine& e, Counts& c) {
 
     if (capsuleLane >= 0) {
         c.capsuleTicks++;
-        if (demoai::demoTargetLane(e) != capsuleLane) c.capsuleMissed++;
+        // ASKED OF THE PILOT'S OWN SCAN, not a copy of its hazard rules: a
+        // second implementation of "is this lane dangerous" here would drift
+        // from the one being audited and pass by agreement instead of by fact.
+        const demoai::LaneScan t = demoai::scanLanes(e);
+        const bool capsuleDangerous =
+            capsuleLane < demoai::MAX_LANES
+            && t.eta[capsuleLane] <= (float)demoai::HAZARD_HORIZON;
+        if (capsuleDangerous) c.capsuleYielded++;
+        else if (demoai::demoTargetLane(e) != capsuleLane) c.capsuleMissed++;
     }
 }
 
@@ -128,8 +225,50 @@ Counts run(bool demo, int enemySet, int levels, int ticks) {
         for (int t = 0; t < ticks; ++t) {
             // The REAL pilot drives, exactly as the frontends drive it.
             const InputFrame in = demo ? demoai::demoInput(e) : InputFrame{};
+            // What the scan said about the claw's lane on the SAME state the
+            // pilot acted on. This is the difference between "the pilot was
+            // warned and stayed" and "the hazard arrived faster than the claw
+            // can cross a lane", and only the first one is a bug.
+            int laneNow = e.player.grid_element_pos;
+            if (laneNow < 0 || laneNow >= demoai::MAX_LANES) laneNow = 0;
+            const float etaPrev = demo ? demoai::scanLanes(e).eta[laneNow]
+                                     : demoai::NO_ETA;
+            const int livesBefore = e.player.lives;
             game_tick(e, in, tick_ms);
             tick_ms += 16;
+            // `lives <` is the demo's own death signal -- the frontends end the
+            // slice on exactly this (main_3ds.cpp), not on gameover_animation,
+            // which free-runs on the menu.
+            if (e.player.lives < livesBefore) {
+                const int lane = e.player.grid_element_pos;
+                const std::string note = "lv" + std::to_string(lv) + " t" + std::to_string(t)
+                                     + " lane" + std::to_string(lane) + " z"
+                                     + std::to_string((int)(e.player.z * 100))
+                                     + " etaPrev=" + std::to_string((int)etaPrev) + ": "
+                                     + laneContents(e, lane);
+                if (!modelledHazard(e, lane)) {
+                    c.contactDeaths++;
+                    if (c.contactNotes.size() < 4) c.contactNotes.push_back(note);
+                } else if (etaPrev >= demoai::NO_ETA * 0.5f) {
+                    // The scan saw NOTHING in this lane on the tick the pilot
+                    // acted, and a modelled hazard killed it anyway: the hazard
+                    // came into existence during the tick. No lane-based scan can
+                    // dodge a thing that was not there when the decision was
+                    // made -- this is the pulsar's IN-PLACE becomeFromFlipper and
+                    // the UFO's zap onset, both of which the reference answers
+                    // with a jump rather than a lane.
+                    c.blindSpotDeaths++;
+                    if (c.blindSpotNotes.size() < 4) c.blindSpotNotes.push_back(note);
+                } else if (etaPrev > demoai::CLAW_LANE_STEP_TICKS) {
+                    // Warned in time and still there.
+                    c.pilotDeaths++;
+                    if (c.deathNotes.size() < 6) c.deathNotes.push_back(note);
+                } else {
+                    // A modelled hazard, but it arrived inside one lane step.
+                    c.tooFastDeaths++;
+                    if (c.tooFastNotes.size() < 4) c.tooFastNotes.push_back(note);
+                }
+            }
             scan(e, c);
         }
     }
@@ -424,15 +563,60 @@ int main(int argc, char** argv) {
         std::printf("   %-22s demo=%-8ld normal=%-8ld\n", "hostile shots",  d.hostileShots,  n.hostileShots);
         std::printf("   %-22s demo=%-8ld normal=%-8ld\n", "banned enemies", d.bannedEnemies, n.bannedEnemies);
         std::printf("   %-22s demo=%-8ld normal=%-8ld\n", "banned embryos", d.bannedEmbryos, n.bannedEmbryos);
-        std::printf("   capsule on web %ld ticks, pilot not going for it %ld\n",
-                    d.capsuleTicks, d.capsuleMissed);
+        std::printf("   %-22s demo=%-8ld\n", "hazard deaths", d.pilotDeaths);
+        std::printf("   %-22s demo=%-8ld\n", "too-fast to leave", d.tooFastDeaths);
+        std::printf("   %-22s demo=%-8ld\n", "came into existence", d.blindSpotDeaths);
+        std::printf("   %-22s demo=%-8ld\n", "rim contact deaths", d.contactDeaths);
+        std::printf("   capsule on web %ld ticks: yielded (lane hazardous) %ld, missed %ld\n",
+                    d.capsuleTicks, d.capsuleYielded, d.capsuleMissed);
 
         // ---- the invariants -------------------------------------------------
-        if (d.hostileShots  != 0) { std::printf("   FAIL: demo fired at the pilot\n"); failures++; }
+        // Fire is LIVE in attract mode now, so a demo run that produced no
+        // hostile shot did not prove the pilot was safe -- it proved the run
+        // never reached the situation the scan exists for.
+        if (d.hostileShots == 0) {
+            std::printf("   INCONCLUSIVE: the demo saw no hostile shot at all --\n"
+                        "                 the hazard scan was never exercised\n");
+            failures++;
+        }
+        if (d.pilotDeaths != 0) {
+            std::printf("   FAIL: the pilot died %ld time(s) it had more than a lane\n"
+                        "         step's warning for -- the hazard scan is not working\n",
+                        d.pilotDeaths);
+            for (const std::string& n : d.deathNotes) std::printf("        %s\n", n.c_str());
+            failures++;
+        }
+        // REPORTED, NOT ASSERTED. Both of these are cases where the lane is the
+        // wrong answer rather than no answer:
+        //   too-fast -- the hazard arrived inside CLAW_LANE_STEP_TICKS. The
+        //     pulsar's becomeFromFlipper metamorphosis is IN PLACE, mid-tube,
+        //     and the reference's dodge for it is a jump; this pilot does not
+        //     jump, so no scan can promise zero here.
+        //   rim contact -- an enemy the pilot was shooting reached the rim
+        //     first. That is the game's core kill-race, it predates attract-mode
+        //     enemy fire, and refusing those lanes would stop the demo shooting
+        //     anything at all.
+        if (d.tooFastDeaths != 0) {
+            std::printf("   note: %ld death(s) arrived inside one lane step (no jump in\n"
+                        "         this pilot) -- watch the rate, not the count\n",
+                        d.tooFastDeaths);
+            for (const std::string& n : d.tooFastNotes) std::printf("        %s\n", n.c_str());
+        }
+        if (d.blindSpotDeaths != 0) {
+            std::printf("   note: %ld death(s) from a hazard that did not exist when the\n"
+                        "         pilot chose its lane -- a lane scan cannot dodge those\n",
+                        d.blindSpotDeaths);
+            for (const std::string& n : d.blindSpotNotes) std::printf("        %s\n", n.c_str());
+        }
+        if (d.contactDeaths != 0) {
+            std::printf("   note: %ld rim-contact death(s) -- pre-existing kill-race,\n"
+                        "         not a dodge failure\n", d.contactDeaths);
+            for (const std::string& n : d.contactNotes) std::printf("        %s\n", n.c_str());
+        }
         if (d.bannedEnemies != 0) { std::printf("   FAIL: demo spawned a banned family\n"); failures++; }
         if (d.bannedEmbryos != 0) { std::printf("   FAIL: demo showed a banned embryo\n"); failures++; }
-        if (d.capsuleTicks > 0 && d.capsuleMissed != 0) {
-            std::printf("   FAIL: pilot ignored a capsule\n"); failures++;
+        if (d.capsuleMissed != 0) {
+            std::printf("   FAIL: pilot ignored a capsule sitting in a safe lane\n"); failures++;
         }
 
         // ---- THE CONTROL: the check must be able to fail --------------------

@@ -92,6 +92,12 @@ float descentWorld(int wave) {
 // index shuffling under the caller, and no chance of the caller holding a
 // dangling reference. A life-0 player shot is inert in the meantime -- the
 // shared mutual-subtraction exchange subtracts zero and raises no explosion.
+//
+// THE TINK rides the absorb, not the shed: the player hears the horn deflect
+// the bullet, which is the event that matters, and the one-per-tick early
+// return means a volley cannot stack the voice. Fixed pitch, by way of
+// AbsorbSfxPitch -- see that constant for why the spike's height ramp is not
+// reproduced here.
 // ---------------------------------------------------------------------------
 void absorbPlayerShot(GameEngine& engine, int lane, const Shot& self) {
     GridElement& elem = engine.grid[lane];
@@ -107,6 +113,9 @@ void absorbPlayerShot(GameEngine& engine, int lane, const Shot& self) {
         if (d < ArcadeReflectedShot::AbsorbDz
             && d > -ArcadeReflectedShot::AbsorbDz) {
             s.life = 0;
+            engine.sfx.push(ArcadeReflectedShot::AbsorbSfx,
+                           SfxAction::ONE_SHOT,
+                           ArcadeReflectedShot::AbsorbSfxPitch);
             return;                                       // one per tick
         }
     }

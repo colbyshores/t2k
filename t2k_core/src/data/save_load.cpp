@@ -62,6 +62,7 @@ void saveConfig(const GameConfig& config, const std::string& directory) {
         {"soundtrack_name", config.soundtrack_name},
         {"album_sync", config.album_sync},
         {"warp_feedback", config.warp_feedback},
+        {"bonus_music", config.bonus_music},
         {"enemy_set", config.enemy_set},
         {"pickup_burst", config.pickup_burst},
         {"arcade_unlocked", config.arcade_unlocked},
@@ -196,6 +197,7 @@ GameConfig loadConfig(const std::string& directory) {
     // reach for it finds it already in the file rather than having to know the
     // name — which is what makes it a recovery route rather than a secret.
     config.warp_feedback   = getBool(data, "warp_feedback", config.warp_feedback);
+    config.bonus_music     = getBool(data, "bonus_music", config.bonus_music);
     // Enemy roster (see save_load.h). Missing key -> 0 = Classic = today, so
     // no CONFIG_VERSION bump.
     config.enemy_set       = getInt(data, "enemy_set", config.enemy_set);

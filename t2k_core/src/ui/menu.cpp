@@ -94,6 +94,7 @@ void Menu::build() {
     n = 0;
     screens_[SCR_BOOT][n++] = A("Start Game", MENU_START_GAME);
     screens_[SCR_BOOT][n++] = SUB("Options", SCR_OPTIONS);
+    screens_[SCR_BOOT][n++] = A("High Scores", MENU_SHOW_HIGHSCORES);
     screens_[SCR_BOOT][n++] = A("Quit", MENU_QUIT_APP);
     counts_[SCR_BOOT] = n;
 
@@ -117,6 +118,7 @@ void Menu::build() {
     if (hasMusic) {
         screens_[SCR_OPTIONS][n++] = TOG("Music", &cfg_->mod_music);
         screens_[SCR_OPTIONS][n++] = SLD("Music Volume", &cfg_->music_volume, 0, 100, 10);
+        screens_[SCR_OPTIONS][n++] = TOG("Bonus Music", &cfg_->bonus_music);
     }
     if (hasSfx) screens_[SCR_OPTIONS][n++] = SLD("SFX Volume", &cfg_->sfx_volume, 0, 100, 10);
     // The Style toggle is COMPLETION-GATED: it appears only once the player has
@@ -243,9 +245,11 @@ void Menu::adjust(Item& it, int dir) {
 int Menu::activate(Item& it) {
     switch (it.kind) {
         case Item::ACTION:
-            // Start Game leaves the title screen: fade first, hand the action
-            // back when the fade-out completes (update()). Quit is immediate.
-            if (fadeScreens_ && it.target == MENU_START_GAME) {
+            // Start Game / High Scores leave the title screen: fade first, hand
+            // the action back when the fade-out completes (update()). Quit is
+            // immediate.
+            if (fadeScreens_ &&
+                (it.target == MENU_START_GAME || it.target == MENU_SHOW_HIGHSCORES)) {
                 pendingKind_ = 3; pendingArg_ = it.target;
                 screenFade().fadeOut(FADE_MENU_SCREEN);
                 return MENU_NONE;

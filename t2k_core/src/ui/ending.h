@@ -46,6 +46,16 @@ public:
     static constexpr float SPEED      = 0.055f;  // UI units per SECOND
     static constexpr float HOLD_MS    = 900.0f;  // beat before it starts moving
 
+    // The credits' type, as writeAfont args. Constants rather than literals at
+    // the two draw sites for the same reason the scroll law lives here: the 3DS
+    // and the desktop both draw this screen, and a look carried twice drifts.
+    // Glyph height is sy (the affine scales sy*0.5 over a 0..2 glyph), so sy
+    // must stay under LINE_STEP or the lines touch; the widest authored line is
+    // 24 chars, which at these numbers spans 0.96 of the 1.3333-wide box.
+    static constexpr float TEXT_SX    = 0.029f;  // was 0.025
+    static constexpr float TEXT_SY    = 0.035f;  // was 0.03
+    static constexpr float TEXT_TH    = 0.10f;   // was 0.08 -- the stroke weight
+
     // Called when the ENDING state is entered. Safe to call repeatedly.
     void begin(int wallMs) {
         if (running_) return;

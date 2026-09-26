@@ -153,6 +153,16 @@ struct GameConfig {
     // the soundtrack_name/warp_test doctrine above.
     bool warp_feedback = true;
 
+    // BONUS-ROUND MUSIC (design 2026-09-26): when true, the two OG T2K
+    // bonus-round tracks are hard-mapped to the bonus round TYPES — GATES plays
+    // "08_glidecontrol" and RAIL plays "10_2000dub" — overriding the player's
+    // current selection for the duration of the round. When false, the bonus
+    // round just plays whatever the player already has selected. On bonus end the
+    // player's own selection resumes (album mode remaps via the level modulo;
+    // otherwise the saved track is re-selected by name). Missing key -> true, no
+    // CONFIG_VERSION bump: a stale on-disk value cannot be wrong, only absent.
+    bool bonus_music = true;
+
     // TEST KNOB (3DS): pretend this is an Old 3DS — skip the New 3DS
     // clock/L2 speedup, take the OG spare-core layout, and squeeze RAM toward
     // an OG-sized budget, so an OG-profile measurement can be taken on a New

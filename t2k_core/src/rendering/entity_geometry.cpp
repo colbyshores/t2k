@@ -1246,7 +1246,8 @@ static inline glm::vec3 arcadeXform(const glm::mat4& m, float x, float y) {
 // are fminf/fmaxf (VFP vmax/vmin). No float comparison drives a branch (R3).
 // ===========================================================================
 static void emitAdroidRimDots(const glm::mat4& mm,
-                             const AudioFeatures& audio, int time_ms) {
+                             const AudioFeatures& audio, int time_ms,
+                             bool safeMode) {
     constexpr int DOTS = 5;      // lamps across the face (user 2026-09-18: fewer, larger)
     constexpr int HUES = 12;     // rainbow palette resolution
 
@@ -1308,6 +1309,12 @@ static void emitAdroidRimDots(const glm::mat4& mm,
                                  mm[0][1] * mm[0][1] +
                                  mm[0][2] * mm[0][2]);
 
+    // Pulse DEPTH, hoisted out of the lamp loop: safeMode caps it (the same
+    // photosensitivity cap web_palette.h / shatter_frame.h apply). Loop-
+    // invariant, so it is computed once rather than as a float ternary in the
+    // body (which would be an R3 register-file round trip per lamp).
+    const float depth = safeMode ? 0.35f : 1.0f;
+
     for (int j = 0; j < DOTS; ++j) {
         const float u = (float)j * INV_DOTS;
 
@@ -1327,12 +1334,21 @@ static void emitAdroidRimDots(const glm::mat4& mm,
         const float wd = 0.5f - fabsf(fabsf(d) - 0.5f);
         const float bump = fmaxf(0.0f, 1.0f - wd * INV_WAVE);
 
-        // Brightness: a visible base plus the FFT band and the chase on top, but
-        // LOWERED (user 2026-09-18: "lower the additive on the UFO") so the
-        // lamps read as coloured lights instead of blowing out to a white sheet
-        // on the body underneath.
-        const float a = fminf(1.0f, 0.6f + 0.1f * energy + 0.3f * bump);
-        const float gain = 0.6f + 0.25f * energy + 0.45f * bump;
+        // MUSIC PULSE (design 2026-09-26): the lamps breathe between DIM and
+        // BRIGHT with the music. The engine's idiom is additive-always with
+        // brightness carried by vertex ALPHA, so "additive glow" = high alpha
+        // (strong add) and "dim without additive" = low alpha (barely adds).
+        // The gate is BRANCHLESS (fminf -> VFP vmin, no R3 violation) and
+        // rides the beat envelope plus overall level, scaled by the hoisted
+        // `depth` (safeMode caps it). A nonzero dim floor keeps the saucer
+        // visible through silence (all-zero AudioFeatures is legal).
+        const float gate  = fminf(1.0f, audio.beat + 0.5f * audio.rms) * depth;
+
+        // Brightness: a base that rides the pulse (dim->bright) plus the FFT
+        // band and the chase on top. The base swings with `gate` so the whole
+        // row pulses with the music, not just the chase.
+        const float a = fminf(1.0f, 0.22f + 0.55f * gate + 0.1f * energy + 0.3f * bump);
+        const float gain = 0.5f + 0.5f * gate + 0.25f * energy + 0.45f * bump;
 
         const glm::vec3 p = arcadeXform(mm, DOTX[j], DOTY[j]);
         if (g_rimDotCount >= kMaxRimDots) return;
@@ -1385,16 +1401,19 @@ int buildArcadeEnemyGlowSegs(GameEngine& engine, linegeom::Seg* out, int cap,
 
                 const glm::mat4 dm = enemyModelMatrixArcade(engine, v, enemy, dg);
 
-                // THE UFO wears dancing rainbow rim-lights instead of a stroked
-                // outline (see emitAdroidRimDots). The lights are WORLD-SPACE
-                // dotTex sprites, not line segments, so they are emitted ONCE
-                // (gp == 0) into the shared g_rimDots list -- the 3-pass glow
-                // stack is a line-path concept and does not apply to the sprite.
-                // The enemy then skips the generic ring-stroke below.
-                if (enemy.id == ARCADE_ADROID) {
-                    if (gp == 0)
-                        emitAdroidRimDots(dm, engine.audio, engine.time);
-                    continue;
+                // THE UFO now wears BOTH: a vector border glow (the generic
+                // 3-pass stroked octagon below, like every other arcade enemy)
+                // AND its dancing rainbow rim-lights. The rim-lights are
+                // WORLD-SPACE dotTex sprites, not line segments, so they are
+                // emitted ONCE (gp == 0) into the shared g_rimDots list; the
+                // UFO then FALLS THROUGH to the ring-stroke instead of skipping
+                // it (design 2026-09-26: "place a vector style glow around the
+                // border of it"). The ring data already exists (rings[0] = the
+                // closed octagon v1..v8), so the border traces the saucer rim
+                // on both backends automatically.
+                if (enemy.id == ARCADE_ADROID && gp == 0) {
+                    emitAdroidRimDots(dm, engine.audio, engine.time,
+                                      engine.audio_safe_mode);
                 }
 
                 // The SAME copy rules buildEnemies applies, read off the same

@@ -277,6 +277,18 @@ private:
     ts::PauseFx pauseFx_;         // the pause presentation ramp (ui/pause_fx.h)
     int pauseFxLastMs_ = -1;      // wall clock of the previous ramp step
     bool warpInited_ = false;     // one-shot InitWarp latch for the WARP state
+    bool bonusMusicOverride_ = false; // true while a bonus track is forced on
+    // BONUS-ROUND MUSIC HARD-MAP (design 2026-09-26). Resolve a loose-pool
+    // track by display name (basename, extension stripped) to its track-list
+    // index, or -1 if absent. Mirrors main_3ds.cpp's findTrackByName.
+    static int findTrackByName(const char* name) {
+        const int n = ts::modmusic::music_track_count();
+        for (int i = 0; i < n; ++i) {
+            const char* tn = ts::modmusic::music_track_name(i);
+            if (tn && std::strcmp(tn, name) == 0) return i;
+        }
+        return -1;
+    }
     int warpTestLevel_ = -1;      // --warp harness; -1 = normal game
     int playLevel_ = -1;          // --play harness; -1 = normal game
     int hsTestScore_ = -1;        // --highscores harness; -1 = normal game
@@ -767,8 +779,13 @@ void Game::run() {
                     ts_render_level_ready(renderer_, engine_.current_level);
                 attract_.reset();
                 engine_.demo_mode = false;
-                engine_.state     = GameState::MENU;
-                initMenu();
+                // ATTRACT HIGH-SCORE LEG: show the leaderboard on its own so
+                // all scores are visible during the demo. View-only (score -1),
+                // auto-dismissed after the dwell; FADE_HIGHSCORES_DONE then
+                // reopens the boot menu.
+                highScores_.open(config_, -1, engine_.current_level, 8.0f);
+                highScoreLastMs_ = -1;
+                engine_.state = GameState::HIGHSCORES;
             }
             engine_.demo_word_fade = attract_.wordFade();
         }
@@ -876,6 +893,14 @@ void Game::updateMenu(const InputState& input) {
         levelSelectLastMs_ = -1;
         menu_.close();
         saveConfig(config_);
+        break;
+    case MENU_SHOW_HIGHSCORES:
+        // View-only leaderboard: score -1 opens straight on the TABLE with no
+        // initials entry. No auto-dismiss -- the player leaves with any button.
+        highScores_.open(config_, -1, engine_.current_level);
+        levelSelectLastMs_ = -1;
+        menu_.close();
+        engine_.state = GameState::HIGHSCORES;
         break;
     case MENU_QUIT_APP:
         running_ = false;
@@ -1169,6 +1194,18 @@ void Game::updateWarp(const InputState& input) {
         warpInited_ = true;
     }
 
+    // BONUS-ROUND MUSIC HARD-MAP: GATES -> 08_glidecontrol, RAIL -> 10_2000dub,
+    // when the Bonus Music setting is on. Applied once per round on the init
+    // frame. The per-frame level-sync only drives music in album-sync mode, so
+    // this explicit select is not fought over.
+    if (config_.bonus_music && !bonusMusicOverride_) {
+        const char* bonusTrack =
+            (engine_.warp.round == ts::WARP_ROUND_RAIL) ? "10_2000dub"
+                                                       : "08_glidecontrol";
+        const int idx = findTrackByName(bonusTrack);
+        if (idx >= 0) { ts::modmusic::music_select(idx); bonusMusicOverride_ = true; }
+    }
+
     // Pause on a bonus round: the same pause menu as gameplay's, drawn as the
     // frost-box overlay over the frozen round (ui/pause_fx.h) -- no melt here.
     // AFTER the init latch, so pausing on the round's very first frame cannot
@@ -1232,6 +1269,18 @@ void Game::updateWarp(const InputState& input) {
     // (the reference source:588-593 -> ReInitGamePlay).
     if (engine_.warp.warp_level_end) {
         warpInited_ = false;
+
+        // RESUME THE PLAYER'S OWN MUSIC after a forced bonus track.
+        // Album mode: the per-frame level-sync remaps via the level modulo
+        // (the level just advanced), so nothing to do here. Non-album:
+        // re-select the saved track by name.
+        if (bonusMusicOverride_) {
+            bonusMusicOverride_ = false;
+            if (ts::modmusic::music_album_current() < 0) {
+                const int idx = findTrackByName(config_.soundtrack_name.c_str());
+                if (idx >= 0) ts::modmusic::music_select(idx);
+            }
+        }
 
         // --warp harness: loop straight back into the same round at the same
         // baseline course/speed (deterministic proof, not a difficulty ramp).
@@ -1333,7 +1382,8 @@ void Game::render() {
                 float y = endingScroll().lineY(i);
                 if (y > 0.0f && y < 1.0f) {
                     writeAfont(endingText[i].c_str(), 0.6666f, y,
-                               0.025f, 0.03f, 0.0f, 0.08f,
+                               EndingScroll::TEXT_SX, EndingScroll::TEXT_SY,
+                               0.0f, EndingScroll::TEXT_TH,
                                0.6f, 0.8f, 1.0f, 0.7f, true);
                 }
             }

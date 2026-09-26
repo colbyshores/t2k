@@ -220,16 +220,18 @@ struct ArcadeReflectedShot {
     static constexpr float LethalDz = 2.0f * UNIT_Z;                    // 0.3125
 
     // ---- EXPIRY ------------------------------------------------------------
-    // The reference expires the shot 29 world-z PAST the rim plane, so it
-    // visibly flies through and behind the player before vanishing rather than
-    // popping out at the claw. (The later port uses 53; cosmetic, and the
-    // arcade reference wins -- recovery sec 8 row 8.)
+    // The reference kills the shot at -11*(webscale/4) (REF.ASM reshh),
+    // which is 53 world-z PAST the rim plane -- it flies visibly through and
+    // behind the player before vanishing rather than popping out at the claw.
     //
-    // NB this is INSIDE the shared shot-removal bound of
-    // -GRID_ELEMENT_LENGTH * 0.25 = -6.25, so it always fires first and the
-    // shared bound can never be the thing that removes a reflected shot. That
-    // matters, because the shared bound would not return the player's slot.
-    static constexpr float ExpiryZ = -29.0f * UNIT_Z;                   // -4.53125
+    // The shared shot-removal bound (-GRID_ELEMENT_LENGTH * 0.25 = -6.25) can
+    // NEVER be the thing that removes a reflected shot: collision.cpp branches
+    // the whole arcade-reflected pipeline out (shot_is_arcade_reflected) BEFORE
+    // its bounds check is reached, so this tick() owns both the expiry and the
+    // player-slot release. That is why the expiry may sit past -6.25 here --
+    // the old "must expire inside the shared bound" assert was guarding a hazard
+    // the branch already prevents.
+    static constexpr float ExpiryZ = -53.0f * UNIT_Z;                   // -8.28125
 
     // ---- THE BEAST'S ABSORPTION -------------------------------------------
     // Only KIND_BEAST runs it. It finds an ordinary player bullet in its own
@@ -244,6 +246,18 @@ struct ArcadeReflectedShot {
     // answer to a screen full of horns, which is exactly the kind of thing the
     // powerup ladder is for.
     static constexpr float AbsorbDz = 6.0f * UNIT_Z;                    // 0.9375
+
+    // The absorb raises a tink. It reuses the spike's sample -- a hard object
+    // shrugging off a bullet is the same gesture -- but at a FIXED pitch: the
+    // spike's own tink ramps with the spike's remaining height (engine.cpp
+    // init_explosion), and a horn has no height to ramp against, so a ramp
+    // here would read as an unintended wobble across a volley.
+    //
+    // 0.35 sits BELOW the spike's own working range (254/(len+524) puts that
+    // tink at ~0.46-0.48 in normal play), so a horn hit is audibly deeper
+    // than a spike kill and the two never blur into each other.
+    static constexpr SfxId AbsorbSfx = SfxId::SPIKE;
+    static constexpr float AbsorbSfxPitch = 0.35f;
 
     // ======================================================================
     // ENTRY POINTS
@@ -270,26 +284,25 @@ struct ArcadeReflectedShot {
     // on to give the right player his shot back.
     static void takeOver(GameEngine& engine, Shot& shot, Kind kind,
                          int hornVariant = 0) {
-        // ---- ATTRACT MODE NEVER SHOWS A SHOT FLYING AT THE PILOT ----------
-        // This is the ONE hostile projectile that does not come from
-        // init_shot: it re-tasks a LIVE PLAYER BULLET IN PLACE, so the demo
-        // guard in engine.cpp's init_shot (`shot_id >= ARCADE_REFLECT_SHOT`)
-        // cannot see it. Substituting the family away is not enough either --
-        // demoSubstituteEnemy maps ARCADE_MIRROR to ARCADE_FLIPPER, but the
-        // BEAST is flipper SUB_BEAST (arcade_flipper.h), not ARCADE_MIRROR, so
-        // it survives substitution and kept re-tasking bullets.
+        // ---- ATTRACT MODE SHOWS THE HORN (user request, 2026-09-26) -------
+        // This used to consume the bullet instead of converting it when
+        // `engine.demo_mode`, because the attract pilot could not dodge what
+        // this produced -- and it is the ONE hostile projectile that does not
+        // come from init_shot (it re-tasks a LIVE PLAYER BULLET IN PLACE), so
+        // the firing suppression that used to live there could not have covered
+        // it either way.
         //
-        // Consume the bullet instead of converting it: the enemy still
-        // absorbed the shot, which is what the demo viewer sees, and no
-        // hostile shot exists. `life = 0` is the tree's own reap convention
-        // (move_shots collects it; nothing is removed mid-scan).
+        // The guard is gone because the pilot dodges now: game/demo_ai.h reads
+        // a horn's own speed and its |dz| lethal window and treats the lane it
+        // is in as unwalkable until it has passed. Shedding is the Beast's most
+        // legible thing on screen and hiding it in attract mode hid the enemy.
         //
-        // Found by tools/demo_audit.sh only AFTER that harness was fixed to
-        // call mathLutInit() and advance its clock -- with zeroed trig tables
-        // no enemy ever reached the depth gate, so the audit reported zero
-        // hostile shots and PASSED. A gate that cannot reach the situation it
-        // audits reports the answer you wanted.
-        if (engine.demo_mode) { shot.life = 0; return; }
+        // THE LESSON FROM THE GUARD STAYS. It was found by tools/demo_audit.sh
+        // only AFTER that harness was fixed to call mathLutInit() and advance
+        // its clock -- with zeroed trig tables no enemy ever reached the depth
+        // gate, so the audit reported zero hostile shots and PASSED. A gate
+        // that cannot reach the situation it audits reports the answer you
+        // wanted. Whatever the audit says now, that is why it says it.
 
         const int ownerShotId = shot.id;
         // 1-2. the drawn payload becomes the reflected shape, and the object
@@ -724,10 +737,12 @@ static_assert(ArcadeMirror::ParkZ == GRID_ELEMENT_LENGTH * 0.25f,
               "the park plane is 40 of the tube's 160 world-z above the rim, "
               "i.e. EXACTLY a quarter of the tube -- if this stops holding, "
               "either UNIT_Z or the park plane has been edited alone");
-static_assert(ArcadeReflectedShot::ExpiryZ > -GRID_ELEMENT_LENGTH * 0.25f,
-              "the reflected shot must expire INSIDE the shared shot-removal "
-              "bound, or the shared bound removes it first and the player "
-              "never gets his shot slot back");
+static_assert(ArcadeReflectedShot::ExpiryZ == -53.0f * ArcadeReflectedShot::UNIT_Z,
+              "reflected-shot expiry is the reference's -11*(webscale/4) = 53 "
+              "world-z past the rim (REF.ASM reshh). Safe past the shared "
+              "-6.25 bound because collision.cpp branches the whole arcade-"
+              "reflected pipeline out before that bound, so tick() owns expiry "
+              "and the player-slot release");
 static_assert(ArcadeMirror::SpawnZ == 71.875f,
               "arrival spawn depth must match ArcadeFlipper::SpawnZ -- one "
               "reference helper, one number");

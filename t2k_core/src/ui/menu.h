@@ -36,6 +36,7 @@ namespace ts {
 enum MenuAction {
     MENU_NONE = 0,
     MENU_START_GAME,     // boot: Start Game
+    MENU_SHOW_HIGHSCORES,// boot: view the leaderboard (no initials entry)
     MENU_RESUME,         // pause: Resume
     MENU_QUIT_TO_MENU,   // pause: end game -> boot menu
     MENU_QUIT_APP,       // boot: Quit application

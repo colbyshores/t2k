@@ -31,6 +31,7 @@ SRC=(
   src/game/enemies/arcade_spiker.cpp
   src/game/enemies/arcade_tanker.cpp
   src/game/enemies/arcade_fuseball.cpp
+  src/game/enemies/arcade_adroid.cpp
   src/game/enemies/arcade_mirror.cpp
   src/game/enemies/arcade_pulsar.cpp
   src/game/player.cpp

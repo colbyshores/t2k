@@ -234,7 +234,7 @@ void textRight(const char* s, float xRight, float y, float sx, float sy,
 // State
 // ============================================================================
 
-void HighScores::open(const GameConfig& cfg, int score, int level) {
+void HighScores::open(const GameConfig& cfg, int score, int level, float autoDoneAfter) {
     score_  = score;
     level_  = level;
     rank_   = (score > 0) ? checkHighscore(cfg, score) : -1;
@@ -246,6 +246,7 @@ void HighScores::open(const GameConfig& cfg, int score, int level) {
     tableT_  = 0.0f;
     bob_     = 0.0f;
     dismiss_ = 0.0f;
+    autoDoneAfter_ = autoDoneAfter;
     phase_   = (rank_ >= 0) ? ENTRY : TABLE;
 }
 
@@ -329,6 +330,9 @@ HighScores::Result HighScores::update(GameConfig& cfg, const Input& in, float dt
         dismiss_ += dt;
         // Long enough that the landing reads, short enough not to feel stuck.
         if (in.anyButton && dismiss_ > 0.5f) return DONE;
+        // Attract/demo: leave on our own after the configured dwell, with no
+        // input. Only when autoDoneAfter_ is set (the normal open leaves it 0).
+        if (autoDoneAfter_ > 0.0f && dismiss_ >= autoDoneAfter_) return DONE;
         break;
     }
     return RUNNING;

@@ -550,23 +550,19 @@ void GameEngine::init_enemy(int lane, int enemy_id) {
 }
 
 void GameEngine::init_shot(int lane, float z, int shot_id) {
-    // ---- THE DEMO'S PILOT IS NEVER SHOT AT (user request) -------------------
-    // The attract pilot targets the nearest enemy and nothing else -- it does
-    // not dodge, because it cannot see a shot coming. Watching it get picked
-    // off by fire it was never able to answer makes the game look punishing
-    // rather than making the demo look good, which is the opposite of what an
-    // attract mode is for.
+    // ENEMY FIRE IS LIVE IN ATTRACT MODE (user request, 2026-09-26). It used to
+    // be suppressed here, on the argument that the pilot cannot see a shot coming
+    // and so cannot dodge one. That argument is retired: every hazard in this game
+    // is lane-addressed and the pilot can read the whole web, so it now dodges --
+    // see game/demo_ai.h's hazard scan, which is the reason this guard is gone
+    // and must not be put back. Firing is suppressed nowhere else either: if the
+    // pilot starts dying, the fix belongs in the scan, not in a muzzle.
     //
-    // ONE GUARD, HERE, because init_shot is the sole way any shot enters the
-    // world -- both rosters' fire paths and both reflect shots funnel through
-    // it, so this cannot be missed by a family added later. Placed ABOVE the
-    // sfx push so a suppressed shot is silent too.
-    //
-    // Everything below ENEMY_SHOT1 is the player's or a pickup, and is
-    // untouched; ARCADE_REFLECT_SHOT (9) is included because a mirrored shot is
-    // hostile even though the player fired it.
-    if (demo_mode && shot_id >= ARCADE_REFLECT_SHOT) return;
-
+    // The ONE thing still kept out of attract mode is the family list, not the
+    // trigger: demoSubstituteEnemy() below still swaps mirrors and the
+    // electrocuting families out, because those change what a shot DOES rather
+    // than how fast it arrives, and the scan has no answer for a bullet that
+    // turns around.
     GridElement& elem = grid[lane];
     if (elem.num_shots >= MAX_SHOTS || shots_nums[shot_id] >= SHOT_MAX[shot_id])
         return;

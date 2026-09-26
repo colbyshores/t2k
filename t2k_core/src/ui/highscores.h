@@ -74,7 +74,13 @@ public:
     // `score` < 0 (or a score that does not beat the last row) opens straight
     // on the TABLE -- the qualification decision lives HERE so the two
     // frontends cannot disagree about it.
-    void open(const GameConfig& cfg, int score, int level);
+    //
+    // `autoDoneAfter` (seconds): when > 0, the finished TABLE returns DONE on
+    // its own after that many seconds with NO input. This is the attract/demo
+    // path -- nobody presses a button in a demo, so the board must leave by
+    // itself. Pass <= 0 for the normal player-driven open (dismiss on any
+    // button only).
+    void open(const GameConfig& cfg, int score, int level, float autoDoneAfter = 0.0f);
 
     // dt in SECONDS. Mutates cfg: the row is inserted the moment the third
     // letter is confirmed, so the board can draw it as a GAP for the trio to
@@ -108,6 +114,10 @@ private:
     // dismiss lockout -- and without one, the A that locked the third letter
     // would be followed a frame later by a board the player never sees.
     float dismiss_ = 0.0f;
+
+    // Attract/demo auto-dismiss threshold in seconds; <= 0 disables it (the
+    // normal player-driven open). Set by open(), read in the TABLE phase.
+    float autoDoneAfter_ = 0.0f;
 
     void  confirmLetter();
 };

@@ -1306,7 +1306,7 @@ inline std::vector<std::string> getEndingText(bool arcadeUnlocked = false) {
     // keep their exact order and timing.
     std::vector<std::string> out = ENDING_TEXT;
     static const char* const NOTICE[] = {
-        "", "arcade unlocked.",
+        "", "Tsunami 2010 mode", "unlocked.",
         "new enemies, new bursts,", "the old songs.",
         "look in options.",
     };

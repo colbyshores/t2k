@@ -369,10 +369,19 @@ bool tryGrab(GameEngine& engine, const EnemyCtx& ctx, int lane, Enemy& enemy) {
 // shed path returns rather than falling through, and that one skipped tick per
 // hit is observable as a hitch in the descent.
 //
-// THE SHED HORN IS THE PROJECTILE. A non-fatal hit does not damage the Beast
+// THE SHED HORN IS THE PROJECTILE, AND THE HORN IS INDESTRUCTIBLE (corrected
+// 2026-09-26 -- an earlier pass here removed the shed entirely, which was a
+// regression: the shed IS the Beast). A non-fatal hit does not damage the Beast
 // in any sense this engine would call damage -- it takes the bullet away and
-// hands it back as the horn that just came off, spinning, at half speed. That
-// is the readable tell that tells the player what they just did.
+// hands it back as the horn that just came off, spinning, at half speed, at
+// the player. The player cannot shoot that horn down: ArcadeReflectedShot::tick
+// runs absorbPlayerShot for KIND_BEAST, which kills the incoming bullet and
+// leaves the horn alone (only the particle laser passes through it).
+//
+// THE BEAST ITSELF IS STILL KILLABLE, and the horn counter is its health bar:
+// the hit that empties the counter kills the body here, and outside RAIL the
+// shared sweep kills it like any other flipper (enemies_shared.h scopes the
+// Beast's own test to RAIL only).
 //
 // THE KILLING SHOT IS NOT CONSUMED (recovery sec 1.5, sec 10 item 2): the
 // death branch below jumps away BEFORE the take-over, so the bullet the
@@ -417,6 +426,11 @@ bool beastRail(GameEngine& engine, int lane, Enemy& enemy) {
                                                      : F::BeastHornSecond;
     // NO SOUND. The Mirror plays one on every non-fatal hit; the Beast plays
     // none, and the recovery states that as an explicit contrast.
+    //
+    // The shot this produces is the indestructible one: KIND_BEAST spins at
+    // half speed and absorbs ordinary player bullets on the way in
+    // (arcade_mirror.cpp absorbPlayerShot), so the horn the player just shot
+    // off cannot be shot out of the air.
     ArcadeReflectedShot::takeOver(engine, *bullet,
                                   ArcadeReflectedShot::KIND_BEAST, hornVariant);
     return true;
@@ -538,6 +552,20 @@ bool ArcadeFlipper::update(GameEngine& engine, const EnemyCtx& ctx,
     // frame and would take a second flip step. See arcade_flipper.h.
     if (stamp(enemy) == ctx.time) return false;
     stamp(enemy) = ctx.time;
+
+    // ---- THE BEAST SHEDS ONLY ON THE RAIL (matches the reference) ------
+    // The reference's shed lives in `beastrail`, the RAIL dispatch slot, and
+    // NOWHERE else. A Beast hit in FLIP or STOPPED fell to the ordinary flipper
+    // kill and died in one shot, exactly like a plain flipper. This port matches
+    // that: the shed is reached only through the RAIL arm's beastRail() call
+    // below, and OUTSIDE RAIL the Beast is left to the shared shot sweep
+    // (enemies_shared.h 2b excludes it only while MODE_RAIL). THE TWO HALVES
+    // MOVE TOGETHER: this RAIL-only shed and that RAIL-only exclusion are one
+    // decision -- widen either without the other and the Beast goes bullet-proof
+    // outside RAIL again.
+    //
+    // MODE_ARRIVAL is inert for every flipper (the inbound 2x2 dot) and never
+    // reaches a shed in either mode.
 
     // ---- S-1 ARRIVAL ----------------------------------------------------
     if (mode(enemy) == MODE_ARRIVAL) {

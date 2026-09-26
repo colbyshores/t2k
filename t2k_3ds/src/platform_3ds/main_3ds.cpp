@@ -559,6 +559,21 @@ int main(int argc, char** argv) {
     bool warpInited       = false; // one-shot InitWarp latch (mirrors warpInited_)
     bool endingUnlockFired = false; // one-shot: fire the completion unlock on ENDING entry
 
+    // BONUS-ROUND MUSIC HARD-MAP (design 2026-09-26). Resolve a loose-pool track
+    // by its display name (basename, extension stripped) to its track-list index,
+    // or -1 if the pool does not carry it. Used to force the OG bonus tracks on
+    // round entry and to restore the player's own selection on round exit.
+    auto findTrackByName = [](const char* name) -> int {
+        const int n = ts::modmusic::music_track_count();
+        for (int i = 0; i < n; ++i) {
+            const char* tn = ts::modmusic::music_track_name(i);
+            if (tn && std::strcmp(tn, name) == 0) return i;
+        }
+        return -1;
+    };
+    bool bonusMusicOverride = false; // true while a bonus track is forced on
+    bool demoHsShow = false; // true while the attract loop auto-shows the board
+
     // ---- SILENCE ACROSS TRANSITIONS, DETECTED IN ONE PLACE ------------------
     // A HELD loop (THUNDER, YES) only stops on an explicit game event, and the
     // SFX backlog only drains forward -- so anything that interrupts the thing
@@ -803,6 +818,11 @@ int main(int argc, char** argv) {
                     break;
                 case ts::FADE_HIGHSCORES_DONE:
                     engine.state = GameState::MENU;
+                    // Coming off the attract auto-show, the boot menu was never
+                    // opened, so open it here. A player-driven high-score view
+                    // returns to an already-open menu, so only the demo path
+                    // triggers openBoot().
+                    if (demoHsShow) { demoHsShow = false; menu.openBoot(); }
                     break;
                 case ts::FADE_ENDING_DONE:
                     highScores.open(config, hsScoreFor(engine.player.score),
@@ -922,8 +942,15 @@ int main(int argc, char** argv) {
                     ts_render_level_ready(renderer, engine.current_level);
                 attract.reset();
                 engine.demo_mode = false;
-                engine.state     = GameState::MENU;
-                menu.openBoot();
+                // ATTRACT HIGH-SCORE LEG: instead of going straight back to the
+                // boot menu, show the leaderboard on its own so all scores are
+                // actually visible during the demo (they otherwise only appear
+                // after a qualifying game). View-only (score -1), auto-dismissed
+                // after the dwell; FADE_HIGHSCORES_DONE then opens the boot menu.
+                highScores.open(config, -1, engine.current_level, 8.0f);
+                lastSelMs = -1;
+                demoHsShow = true;
+                engine.state = GameState::HIGHSCORES;
             }
             engine.demo_word_fade = attract.wordFade();
         }
@@ -960,6 +987,15 @@ int main(int argc, char** argv) {
                 levelSelect.open(config);
                 lastSelMs = -1;
                 menu.close(); saveConfig(config, CONFIG_DIR_3DS);
+                break;
+            case MENU_SHOW_HIGHSCORES:
+                // View-only leaderboard: score -1 opens straight on the TABLE
+                // with no initials entry (highscores.cpp owns that decision).
+                // No auto-dismiss -- the player leaves it with any button.
+                highScores.open(config, -1, engine.current_level);
+                lastSelMs = -1;
+                menu.close();
+                engine.state = GameState::HIGHSCORES;
                 break;
             case MENU_RESUME:                      // un-pause gameplay
                 gameplayStart += engine.time - pauseStart;
@@ -1221,6 +1257,18 @@ int main(int argc, char** argv) {
             }
             if (!warpInited) { init_warp(engine, engine.warp, wallMs); warpInited = true; }
 
+            // BONUS-ROUND MUSIC HARD-MAP: GATES -> 08_glidecontrol, RAIL ->
+            // 10_2000dub, when the Bonus Music setting is on. Applied once per
+            // round on the init frame. The per-frame level-sync only drives music
+            // in album-sync mode, so this explicit select is not fought over.
+            if (config.bonus_music && !bonusMusicOverride) {
+                const char* bonusTrack =
+                    (engine.warp.round == ts::WARP_ROUND_RAIL) ? "10_2000dub"
+                                                              : "08_glidecontrol";
+                const int idx = findTrackByName(bonusTrack);
+                if (idx >= 0) { ts::modmusic::music_select(idx); bonusMusicOverride = true; }
+            }
+
             // Pause on a bonus round: the same pause menu as gameplay's, drawn
             // as the frost-box overlay over the frozen round (ui/pause_fx.h) --
             // no melt here. AFTER the init latch, so pausing on the round's
@@ -1255,6 +1303,18 @@ int main(int argc, char** argv) {
                       warpUp, warpDown, wallMs);
             if (engine.warp.warp_level_end) {
                 warpInited = false;
+
+                // RESUME THE PLAYER'S OWN MUSIC after a forced bonus track.
+                // Album mode: the per-frame level-sync remaps via the level
+                // modulo (the level just advanced), so nothing to do here.
+                // Non-album: re-select the saved track by name.
+                if (bonusMusicOverride) {
+                    bonusMusicOverride = false;
+                    if (ts::modmusic::music_album_current() < 0) {
+                        const int idx = findTrackByName(config.soundtrack_name.c_str());
+                        if (idx >= 0) ts::modmusic::music_select(idx);
+                    }
+                }
 
                 // warp_test harness: loop straight back into the same round
                 // at the same baseline course/speed (mirrors main.cpp).
@@ -1399,7 +1459,8 @@ int main(int argc, char** argv) {
                     float y = ts::endingScroll().lineY(i);
                     if (y > 0.0f && y < 1.0f)
                         writeAfont(endingText[i].c_str(), 0.6666f, y,
-                                   0.025f, 0.03f, 0.0f, 0.08f,
+                                   ts::EndingScroll::TEXT_SX, ts::EndingScroll::TEXT_SY,
+                                   0.0f, ts::EndingScroll::TEXT_TH,
                                    0.6f, 0.8f, 1.0f, 0.7f, true, false, 0, 0, 1.0f);
                 }
             }
