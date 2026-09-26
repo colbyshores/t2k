@@ -1,47 +1,45 @@
-# Tsunami 2010 — Free the reference build → C++ port (PC + Nintendo 3DS)
+# T2K — a procedural tube shooter on the OpenTS engine
 
-A from-scratch C++ port of the Free the reference build shareware game **Tsunami 2010** (a *Tempest 2000*-style
-procedural tube shooter), engineered to run on **two very different machines behind a single
-codebase**:
+**T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **OpenTS**, a
+cross-platform C++ game engine engineered so that **one codebase runs on two very different
+machines**:
 
 - **PC / x86-64** — SDL2 + **Vulkan 1.3** (SDF vector lines, a bloom pyramid, live-seething
   procedural textures in fragment shaders, multiview stereo for OpenXR; the arcade/VR target).
 - **Nintendo 3DS / ARM11** — libctru + **Citro3D / PICA200** (the performance target).
 
-The game is built as **"C with classes"** — data-oriented aggregate structs + free functions,
-no virtual dispatch / RTTI / exceptions in the hot paths — so the same logic compiles to a
-desktop Vulkan build *and* a 268 MHz handheld without `#ifdef`-ing away gameplay.
+The engine is written as **"C with classes"** — data-oriented aggregate structs + free functions,
+no virtual dispatch / RTTI / exceptions in the hot paths — so the same simulation compiles to a
+desktop Vulkan build *and* a 268 MHz handheld without `#ifdef`-ing away gameplay. The 3DS build is
+the reference for what the game contains; the PC is free in how it draws it (see the Aesthetic
+Contract in `DOCTRINE.md`).
 
 ---
 
 ## Highlights (the stuff worth bragging about)
 
-### Reverse-engineering the shipped game as ground truth
-- The recovered the reference build source is an **earlier build** than the shipped `the shipped PC port.exe`. When they
-  disagree, **the binary wins.** The `.exe` is decompiled with **Ghidra** (headless `GhidraScript`
-  runs, image base `0x400000`) and used as the deciding oracle.
-- The **web geometry bug** ("stretched top segment / you can circle a broken web") was traced this
-  way: the shipped exe builds each lane as a **unit vector** (`dy = grid_y/127` as the *sine* of the
-  lane angle, `dx = ±√(1−dy²)` the cosine), which is what makes "round" levels close into clean
-  polygons. The recovered the reference build used a constant `dx = ±1` (an alpha bug). The port follows the exe.
-- Exe-verified draw counts, player-clamp behavior, and lane vectors — cross-checked against the
-  x86 decompile, not trusted from the readable-but-wrong the reference build.
-
 ### One renderer seam, two GPUs
-- A single flat **C-API render seam** (`rendering/render.h`): free functions every backend
-  implements identically, GPU objects crossing as opaque `void*` handles. Shared game code never
-  sees a `GLuint` or a `C3D_Tex`.
+- A single flat **C-API render seam** (`t2k_core/src/rendering/render.h`): free functions every
+  backend implements identically, GPU objects crossing as opaque `void*` handles. Shared game code
+  never sees a `GLuint` or a `C3D_Tex`.
 - **One backend per target tree, exactly one compiled in** (`t2k_pc/src/rendering/renderer_vk.cpp`
   / `t2k_3ds/src/rendering/renderer_c3d.cpp`), selected at **build time** — no virtual `IRenderer`,
   no runtime cost. Geometry comes from shared builders in `t2k_core/src/rendering/`; a backend file
-  only submits. The 3DS build is the reference for what the game contains; the PC is free in how it
-  draws it (see the Aesthetic Contract in `DOCTRINE.md`).
+  only submits.
+
+### Procedural geometry that closes
+- The web is generated, not authored. **Round levels close into clean polygons** because each lane is
+  built as a **unit vector** — `dy = grid_y/127` as the *sine* of the lane angle and
+  `dx = ±√(1−dy²)` the cosine — so the ring meets itself exactly instead of leaving a stretched
+  top segment or a gap you can circle around.
+- Enemy, shot, spike and explosion geometry is emitted from the same shared builders on both targets,
+  so a kill bloom or a blaster bolt is the same shape everywhere the game runs.
 
 ### PICA200 / Citro3D graphics engineering
 - **Rotated top-screen target** (the panel is physically 240×400, rendered 90° rotated) with the
   NDC depth remap `[-1,1] → [-1,0]` folded into the projection.
-- **Procedural texture DSL** (the original `Tex*.inc` language) executed on the CPU to RGBA8, then
-  **Morton/Z-order tile-swizzled** and uploaded as PICA ABGR8 textures.
+- **Procedural texture DSL** executed on the CPU to RGBA8, then **Morton/Z-order tile-swizzled**
+  and uploaded as PICA ABGR8 textures.
 - **Stereoscopic 3D** — genuine per-eye projection (the web, plasma, and glow all carry honest
   parallax depth), not a fake 2D offset.
 - **Fixed-function TEV** shading (6 stages; PICA has *no* programmable fragment shader) driving
@@ -56,8 +54,8 @@ desktop Vulkan build *and* a 268 MHz handheld without `#ifdef`-ing away gameplay
   4,480 vertices, plus re-uploading all their positions). It's now a **static base mesh uploaded
   once per level** + a **grid-only picasso vertex shader** that applies the wave displacement
   (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the **GPU vertex unit**.
-- PICA has no `sin` instruction, so the shader uses **Nick's polynomial approximation** over
-  `[-π, π]` after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel).
+- PICA has no `sin` instruction, so the shader uses a **polynomial approximation** over `[-π, π]`
+  after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel).
 - The wave is bound *only* for the grid draw and restored afterward, so entities/HUD never wave.
   Gated so the PC/GL oracle stays byte-identical.
 
@@ -71,35 +69,30 @@ desktop Vulkan build *and* a 268 MHz handheld without `#ifdef`-ing away gameplay
   (~268 MHz) is CPU-bound — so the GPU wave offload is *headroom* on New and *decisive* on OG.
 - Plasma trails composited at low res (32×32) to collapse two full-screen additive passes into one.
 
-### Configurable views & camera framing (beyond the original)
-
-The port is faithful by default but is not limited to the original's presentation:
-
+### Configurable views & camera framing
 - **Live Field-of-View control** — a graphics-menu slider (40–75°) *and* the **New 3DS C-stick**
-  as a zoom, both applying in real time and persisted to the SD config. (The shipped original hard-codes
-  45°; Typhoon 2001, a sibling remake, likewise drives FOV from a runtime setting rather than a constant.)
+  as a zoom, both applying in real time and persisted to the SD config.
 - **Two camera modes**, toggled live with **SELECT**:
-  - *Classic* — bit-exact to the shipped binary (`camZ 7.5`, `camY −1.25`, `0.6/0.4` follow blend,
-    all recovered from the decompile).
+  - *Classic* — a fixed, tuned framing.
   - *Auto-framing* — camera distance and offset **derived from the web's measured bounding box**,
     so every playfield shape frames itself instead of inheriting constants tuned for one level.
     A single-radius heuristic over-pulls on elongated webs by ~2.4×; a per-axis fit (accounting for
     which world axis maps to which screen axis after the 90° screen rotation) does not.
   - Both modes run through **one eased smoother**, so switching crossfades rather than snapping, and
-    all camera terms ease at the *same* rates as the original's follow (`0.025`/`0.03`) — easing a
-    derived term faster than the follow makes them fight and reads as jitter.
+    all camera terms ease at matched rates — easing a derived term faster than the follow makes them
+    fight and reads as jitter.
 - **Honest stereoscopic 3D** — the web, plasma, wireframe glow, and the line entities
   (shots/blaster/explosions) are each projected **per eye**. CPU-projected geometry is built into
   per-eye buffer regions; sharing one buffer silently gives both eyes the same projection, which looks
   like shots firing into the neighbouring lane.
 
-### Audio, clean-room
-- A **clean-room ProTracker MOD replayer** ported from the original's x86/MMX assembly, streamed as
-  mono S16 @ 44.1 kHz through **ndsp on a worker thread pinned to a spare CPU core**.
-- The Mandelbrot fractal background is **gone** (see DOCTRINE.md "Intentional deviations") — the 3DS
-  core it used to occupy now runs an **audio-reactive FFT analyzer** driving the starfield background
-  and a bass-triggered web colour duck, at effectively no extra cost: the analyzer piggybacks on
-  samples the DSP-ADPCM decoder already computes per-frame.
+### Audio engine
+- A **clean-room ProTracker MOD replayer** streamed as mono S16 @ 44.1 kHz through **ndsp on a
+  worker thread pinned to a spare CPU core**.
+- An **audio-reactive FFT analyzer** drives the starfield background and a bass-triggered web colour
+  duck at effectively no extra cost: the analyzer piggybacks on samples the DSP-ADPCM decoder already
+  computes per-frame.
+- The full soundtrack is bundled into the shipped build's romfs (multiple albums, DSP-compressed).
 
 ### Exception-free, allocation-disciplined
 - `-fno-exceptions -fno-rtti` clean throughout. JSON config/highscores use the **exception-free
@@ -109,7 +102,7 @@ The port is faithful by default but is not limited to the original's presentatio
 
 ### Player-facing polish
 - On-SD JSON config with **remappable controls**, audio-source and rendering toggles (see-through
-  web, glow, plasma, detail), and persisted high scores — all under `sdmc:/3ds/the shipped PC port/`.
+  web, glow, plasma, detail), and persisted high scores — all under `sdmc:/3ds/t2k/`.
 
 ---
 
@@ -129,9 +122,9 @@ Documented in full in the shared port-docs vault; the short list, because each o
 - **The emulator hides some of these.** Citra/Mandarine computes above `float24` precision and does not
   run PICA geometry shaders, so a class of bug is emulator-clean and hardware-only. A looked-at frame on
   real hardware is the only pass.
-- **Measure at the CPU/GPU boundary before editing.** Five plausible theories for one vanishing-geometry
-  bug were all wrong; a host-side harness linking the real engine data plus the real citro3d matrix
-  semantics is what localised it in one pass.
+- **Measure at the CPU/GPU boundary before editing.** Plausible theories for a vanishing-geometry bug can
+  all be wrong; a host-side harness linking the real engine data plus the real citro3d matrix semantics
+  is what localises it in one pass.
 
 ## Repository layout
 
@@ -145,8 +138,9 @@ Documented in full in the shared port-docs vault; the short list, because each o
 | `t2k_core/tools/` | Level generator + verifier, harnesses, bin2h |
 | `t2k_3ds/` | The 3DS target: `Makefile`, `src/platform_3ds/` entry point, `src/rendering/renderer_c3d.cpp` (Citro3D), ndsp audio sinks, `shaders/*.v.pica` |
 | `t2k_pc/` | The desktop target: `CMakeLists.txt`, `src/main.cpp` (SDL2), the Vulkan 1.3 renderer (`renderer_vk.cpp` + `vk_*.cpp`, GLSL in `shaders/`), SDL audio sinks |
-| `the reference source/` | Authoritative original source + the shipped `the shipped PC port.exe` (RE oracle) |
-| `the shipped PC port_py/` | Completed Python (pygame + PyOpenGL) reference port |
+| `soundtracks/` | Soundtrack source + conversion tooling (MOD/DSP prep for the bundled audio) |
+| `docs/` | Design notes, validation write-ups, and the engine doctrine (`DOCTRINE.md`) |
+| `tools/` | Repo-level runner + gate scripts (VFP hot-path contract, ARM11 math audit) |
 
 ## Building
 
@@ -170,3 +164,19 @@ make 3ds           # -> t2k_3ds/t2k.3dsx  (make -C t2k_3ds under the hood)
 - **API gate** `__3DS__` / `PLATFORM_3DS` — SDL2+GL vs libctru+Citro3D.
 - **CPU gate** `ARM` / `PLATFORM_ARM` — unaligned-access shims, ARMv6K vs ARMv7 ops.
 - Kept independent, and gameplay logic is never `#ifdef`'d out to make a platform build pass.
+
+## License
+
+The **OpenTS engine** (all C++ sources, build files, shaders, and tooling) is
+released under the **MIT License** — see [`LICENSE`](LICENSE). The engine is a
+clean-room implementation of Tempest-genre gameplay behaviour; it is not derived
+from any original Tempest 2000 source code.
+
+**Game assets are separate.** Bundled audio and sound effects that reproduce or
+were derived from commercially released games remain under their original
+copyright and are **not** covered by the MIT grant. They are tracked in this
+repository so the project clones and builds as intended, but they are not
+licensed to you by MIT — remove them and supply your own audio, or hold the
+separate rights to anything you redistribute. See [`NOTICE.txt`](NOTICE.txt)
+for the full breakdown of asset categories and the vendored third-party library
+licenses.

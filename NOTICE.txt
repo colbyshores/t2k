@@ -1,0 +1,45 @@
+NOTICE — OpenTS / T2K
+=====================
+
+The OpenTS engine source is licensed under the MIT License (see LICENSE).
+This file lists material that is NOT covered by that MIT grant because it is
+owned by third parties. The engine code is a clean-room implementation: it
+re-implements Tempest-genre gameplay behaviour and is not derived from any
+original Tempest 2000 source code. The assets below are a separate matter.
+
+1. THIRD-PARTY AUDIO / SFX ASSETS (NOT MIT — excluded from the grant)
+--------------------------------------------------------------------
+Audio and sound-effect assets that reproduce or were derived from commercially
+released games remain under their original copyright. They are NOT licensed
+under MIT and are NOT included in the engine's grant. This includes, but is
+not limited to:
+
+  - t2k_core/assets/sfx/tempest2000/   (Tempest 2000 sound effects)
+  - t2k_core/assets/sfx/sources/       (editing projects built from ripped audio)
+  - soundtracks/**                     (ripped MOD/FLAC/DSP game music)
+
+These files are tracked in this repository so the project clones and builds as
+originally intended, but they are NOT covered by the MIT license and are NOT
+granted to you by it. Anyone redistributing the engine or a build of it must
+either remove these assets and supply their own audio, or hold the separate
+rights to any audio they redistribute alongside it. The MIT license grants no
+rights to these assets.
+
+2. ORIGINAL ASSETS AUTHORED FOR THIS PROJECT (covered by MIT)
+-----------------------------------------------------------
+  - t2k_core/assets/sfx/custom/        (original sound effects)
+
+3. VENDORED THIRD-PARTY LIBRARIES (their own licenses)
+----------------------------------------------------
+Bundled under t2k_core/third_party/ and t2k_pc/third_party/, each under its
+own permissive license, retained with attribution:
+
+  - glm            — MIT / Happy Bunny License
+  - nlohmann/json  — MIT
+  - volk           — MIT
+  - Vulkan headers — Khronos MIT-style license
+  - OpenXR headers — Apache License 2.0
+
+These are compatible with the engine's MIT license. Their original license
+texts and copyright notices remain in force and must be preserved in any
+redistribution.

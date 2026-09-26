@@ -42,6 +42,9 @@ soundtracks/**/*.dsp
 soundtracks/catalog.json
 soundtracks/unique.json
 
+# Third-party SFX + the editing projects built from them are TRACKED so the
+# repo clones and builds exactly as envisioned (see NOTICE.txt: these assets
+# are NOT covered by the MIT grant and carry their own copyright).
 # Binaries: compiled + reference executables/assets (build outputs are above).
 # Source, docs and validation images stay tracked.
 *.exe

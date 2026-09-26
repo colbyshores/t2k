@@ -303,5 +303,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     # nondeterministic GameEngine corruption -- the exact class of bug an
     # optimized-but-unprotected desktop build would be exposed to as well.
     target_compile_options(t2k PRIVATE -fno-strict-aliasing)
+    # Matches t2k_3ds/Makefile: the engine is written exception-free / RTTI-free
+    # (no try/catch/throw/dynamic_cast/typeid in t2k_core), so enforce the same
+    # contract on the desktop build rather than only asserting it in the README.
+    target_compile_options(t2k PRIVATE -fno-exceptions -fno-rtti)
     set_source_files_properties(third_party/volk/volk.c PROPERTIES COMPILE_FLAGS "-w")
 endif()

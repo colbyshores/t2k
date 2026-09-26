@@ -324,7 +324,7 @@ CIA_SMDH      := $(BUILD)/$(TARGET).smdh
 # asked for it is not evidence that it happened.
 APP_TITLE        := T2K
 APP_DESCRIPTION  := Psychedelic Tube Shooter
-APP_AUTHOR       := Colby Shores
+APP_AUTHOR       := OpenTS
 # UniqueId is the title's identity to the console: change it and an install
 # becomes a SECOND, separate title rather than an update of the first (the old
 # one keeps its save data and stays on the menu). 0xF7A2C is in the homebrew
