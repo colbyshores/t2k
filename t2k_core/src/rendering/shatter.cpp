@@ -86,7 +86,7 @@ constexpr float ASPECT = 1.55f;
 //
 constexpr float YES_OUTLINE_STEP = 0.0167f;        // wordmark units between dots
 constexpr float YES_OUTLINE_FAT  = 1.35f;          // dot half-extent / step, for stroke closure
-constexpr float YES_THICK        = 1.0f;           // half-thickness (user, 2026-09-27: comparison)
+constexpr float YES_THICK        = 0.75f;          // half-thickness (user, 2026-09-27: -25% border)
 constexpr float YES_BRITE        = 1.0f;           // full brightness (user, 2026-09-26: 2x)
 // V ADJUSTMENT. The module stretches v by ASPECT for every style (kY = k *
 // ASPECT). The wordmark's own proportions are already correct, so the bake
@@ -623,6 +623,13 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
         // degrade, never freeze.
         const bool haveBeats = (yesBeatMs && yesBeatCount > 0);
 
+        // The live colour-cycle scheme, hoisted out of the per-copy loop. Each
+        // YES is sampled at a different phase of the SAME wave the web cycles
+        // through, so the copies read as distinct hues and sweep together.
+        const WebHueBatch& hb = currentWebColorBatch(currentLevel);
+        const float cycPhase = (float)nowMs * 0.001f / ts::WEB_SWEEP_PERIOD_S * 6.2831853f;
+        const float cycStep  = 6.2831853f / (float)YES_COUNT;
+
         for (int inst = 0; inst < YES_COUNT && n < cap; ++inst) {
             int ak;
             if (haveBeats) {
@@ -640,12 +647,15 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
             const float tdI  = clamp01(((float)ak - FLIGHT) * (1.0f / 260.0f));
             const float spreadI = 1.0f + 2.4f * tdI * tdI;
 
-            // Per-sign shade from the LIVE WEB's colour band, lifted toward
+            // Per-sign colour from the LIVE colour-cycle scheme: each YES sits a
+            // cycStep further round the cycle wave, so every copy is a different
+            // hue and the whole set animates with the web's cycle. Lifted toward
             // white so the glyph separates from the same-hue tube behind it.
+            const float hueT = 0.5f + 0.5f * fastSin(cycPhase + (float)inst * cycStep);
+            const float hue  = hb.h0 + (hb.h1 - hb.h0) * hueT;
+            const float sat  = hb.s0 + (hb.s1 - hb.s0) * hueT;
             float cr, cg, cb;
-            webLevelColor(currentLevel,
-                          (float)inst * (1.0f / (float)(YES_COUNT - 1)),
-                          cr, cg, cb, 1.0f);
+            webHsv2rgb(hue, sat, 1.0f, cr, cg, cb);
             cr = cr * 0.72f + 0.28f;
             cg = cg * 0.72f + 0.28f;
             cb = cb * 0.72f + 0.28f;
