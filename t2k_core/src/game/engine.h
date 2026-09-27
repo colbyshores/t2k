@@ -84,6 +84,15 @@ struct GameEngine {
     int embrios_nums[ENEMIES_NUM_IDS] = {};
     int enemies_todo[ENEMIES_NUM_IDS] = {};
 
+    // DEPLOY-ON-JUMP latch (test directive 2026-09-26). Set when the player
+    // picks up the jump powerup; consumed by the next init_embrio() that can
+    // actually release the saucer, forcing that one spawn to be the UFO so it
+    // is on the web while the player can still answer it. Cleared on release,
+    // and cleared by init_level so it never leaks across a level or a death
+    // re-entry. After the one forced release the pool is ordinary random again,
+    // saucer included, subject to the live jump gate in init_embrio.
+    bool spawn_ufo_next = false;
+
     // ---- Which enemy ROSTER is in play (docs/design/arcade_enemies.md §4) -----
     // `enemy_set` is what THIS LEVEL is running; `enemy_set_pref` is what the
     // config/menu asked for. init_level latches pref -> active, so a change

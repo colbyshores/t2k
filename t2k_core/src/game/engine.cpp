@@ -327,6 +327,11 @@ void GameEngine::init_level(int time, int nr) {
     // its own shoot_freq.
     arcade_fire_timer = 0;
 
+    // The deploy-on-jump latch is per-level: a fresh level (or a death
+    // re-entering one) starts with no saucer pending. The player has to pick
+    // jump up again to arm it.
+    spawn_ufo_next = false;
+
     // ...and so does the fleet-wide PULSE, for the same reason and at the same
     // moment. The pulsar family infers a wave start from a level-number change
     // or a backwards tick clock, which covers everything EXCEPT the one case
@@ -607,7 +612,43 @@ void GameEngine::init_embrio() {
         if (keep > 0) spawnable_count = keep;
     }
 
+    int level_mod = current_level % GRID_NUM_TEX;
+    // the reference source:3844 — 3 + sqrt(mod div 6); the "/6" is INTEGER division.
+    float max_per_type = 3.0f + sqrtf((float)(level_mod / 6));
+
+    // ---- DEPLOY-ON-JUMP: force the next spawn to be the saucer ----------
+    // (test directive 2026-09-26) When the player has just picked up jump,
+    // the next enemy that spawns on a saucer level is forced to be the UFO,
+    // so it is on the web while the player can still answer it. The force is
+    // only taken when the saucer is actually releasable THIS opportunity --
+    // in this level's pool, budget left, under the per-type cap -- so a
+    // forced draw never suppresses a spawn some other type could have made.
+    // If the saucer can never appear this level (not in the pool, or its
+    // budget is gone) the latch is dropped. After the one forced release the
+    // pool is ordinary random again, saucer included, under the live jump
+    // gate below. The type draw below still consumes its rand() whether or
+    // not the force is taken, so the RNG stream is unchanged.
+    bool force_ufo = false;
+    if (spawn_ufo_next) {
+        if (!player.has_jump) {
+            spawn_ufo_next = false;            // lost jump before the deploy
+        } else {
+            bool in_pool = false;
+            for (int i = 0; i < spawnable_count; ++i)
+                if (spawnable[i] == ARCADE_ADROID) { in_pool = true; break; }
+            if (!in_pool || enemies_todo[ARCADE_ADROID] <= 0) {
+                spawn_ufo_next = false;        // not a saucer level / budget gone
+            } else if ((embrios_nums[ARCADE_ADROID] + enemies_nums[ARCADE_ADROID]) > max_per_type) {
+                // at the cap right now: leave the latch armed and let a normal
+                // spawn happen rather than suppress it; retry next opportunity.
+            } else {
+                force_ufo = true;
+            }
+        }
+    }
+
     int en_id = spawnable[rand() % spawnable_count];
+    if (force_ufo) en_id = ARCADE_ADROID;
 
     // Both branches now the SAME formula: lane_count is already the true face
     // count for whichever level is loaded (see change_current_level), so
@@ -627,7 +668,6 @@ void GameEngine::init_embrio() {
         }
     }
 
-    int level_mod = current_level % GRID_NUM_TEX;
     if (!field_empty) {
         // the reference source:3844 — random(round(sqrt(100-mod)*5+50)). The *5+50 is
         // OUTSIDE the sqrt (spawn is throttled to ~1/(5·sqrt+50), not 4× faster).
@@ -636,8 +676,6 @@ void GameEngine::init_embrio() {
             return;
     }
 
-    // the reference source:3844 — 3 + sqrt(mod div 6); the "/6" is INTEGER division.
-    float max_per_type = 3.0f + sqrtf((float)(level_mod / 6));
     if ((embrios_nums[en_id] + enemies_nums[en_id]) > max_per_type)
         return;
 
@@ -707,7 +745,10 @@ void GameEngine::init_embrio() {
     // is_level_clear()'s `num_embrios` test with nothing on screen. See the
     // long note at arcade_release.
     if (isArcadeEnemy(en_id)) {
-        arcade_release(*this, en_id, el_pos);
+        bool released = arcade_release(*this, en_id, el_pos);
+        // Consume the deploy-on-jump latch only on a release that actually
+        // happened; a refusal (lane full) leaves it armed to retry next tick.
+        if (force_ufo && released) spawn_ufo_next = false;
         return;
     }
 
@@ -1062,6 +1103,11 @@ void GameEngine::init_powerup(int time) {
     case POWERUP_SLOT_JUMP:
         show_powerup_text(time, 2);   // "jump enabled"
         p.has_jump = true;
+        // Arm the deploy-on-jump latch: on a level whose mask carries the
+        // saucer, the next enemy spawned is forced to be the UFO (see
+        // init_embrio). On a level without the saucer the latch is dropped
+        // there with no effect.
+        spawn_ufo_next = true;
         break;
 
     case POWERUP_SLOT_TREMOR:
