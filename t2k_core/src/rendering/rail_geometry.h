@@ -253,8 +253,10 @@ constexpr float RAIL_Z_PLAYER    = 8.0f;   // the player plane (head + tail
 // ---- END-OF-ROUND RETIREMENT (sixth rail verdict) ---------------------------
 // On WIN or FAIL the track swath and the comet retire gracefully instead of
 // cutting/fading in place, riding INSIDE the sim's existing outcome windows
-// (win white-out: 90 × 16 ms sim steps ≈ 1.44 s; fail fade: 300 steps = 4.8 s
-// — warp.cpp WHITE_ENV_STEP / FAIL_FADE_STEPS), so RAIL_RETIRE_S is sized
+// (win white-out: 90 × 16 ms sim steps ≈ 1.44 s; fail fade: 205 steps ≈ 3.28 s
+// — piecewise since 2026-09-18, warp.cpp WHITE_ENV_STEP / FAIL_FADE_STEPS /
+// BONUS_LOSE_SOUND_STEPS; both measured by
+// t2k_core/tools/warp_window_check.sh against the real sim), so RAIL_RETIRE_S is sized
 // under the SHORTER (win) window and the retreat always completes before the
 // round ends. A retirement clock t_r (0..1, RailFxState::retireT, wall-clock
 // integrated) starts at the PLAY→WIN/FAIL transition:
@@ -271,7 +273,7 @@ constexpr float RAIL_Z_PLAYER    = 8.0f;   // the player plane (head + tail
 //     the tail shrinks back into the head); the head's three dots fade LAST,
 //     from t_r = RAIL_RETIRE_HEAD_T to extinction at t_r = 1.
 // Coverage recedes rather than dims, so the motion reads THROUGH the win
-// white-out (whitening moves colour, not alpha) and LEADS the 4.8 s fail dim.
+// white-out (whitening moves colour, not alpha) and LEADS the 3.28 s fail dim.
 constexpr float RAIL_RETIRE_S      = 1.0f;   // retirement clock length, seconds
 constexpr float RAIL_RETIRE_SOFT   = 0.10f;  // front fade width, normalized depth
 constexpr float RAIL_RETIRE_HEAD_T = 0.60f;  // head fade starts here on the clock

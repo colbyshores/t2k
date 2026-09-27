@@ -28,15 +28,19 @@ trap 'rm -rf "$tmp"' EXIT
 fail() { printf 'CHECK FAILED: %s\n' "$1" >&2; exit 1; }
 gate() { printf '\n=== %s ===\n' "$1"; }
 
-r11_sigs() { grep -oE '[^ ]+:[0-9]+ +divisor=[^ ]+' "$1" | sort; }
+r11_sigs() { grep -v '^#' "$1" | grep . | sort; }
 
 if [ "${1:-}" = "--bless-r11" ]; then
-    python3 tools/runner/audit_r11_idiv.py > "$tmp/r11.txt" 2>&1 || true
+    python3 tools/runner/audit_r11_idiv.py --sig > "$tmp/r11.txt" 2>&1 || true
     {
         echo "# R11 candidate baseline -- docs/PRISTINE-SPEC.md 3.5."
-        echo "# One 'file:line divisor=EXPR' signature per candidate integer div/mod site"
-        echo "# reported by tools/runner/audit_r11_idiv.py. tools/check.sh fails if a NEW"
-        echo "# signature appears; a removed signature (fixed site) passes with a note."
+        echo "# One LINE-INDEPENDENT signature per candidate integer div/mod site"
+        echo "# reported by tools/runner/audit_r11_idiv.py --sig:"
+        echo "#     <file>  divisor=EXPR  xN  <normalized statement>"
+        echo "# tools/check.sh fails if a NEW signature appears; a removed signature"
+        echo "# (fixed site) passes with a note. Line numbers are deliberately absent:"
+        echo "# a file:line baseline reports the SAME site as new after any edit above"
+        echo "# it, which forces re-blessing and trains the reader to skip the gate."
         echo "# Regenerate with: tools/check.sh --bless-r11"
         r11_sigs "$tmp/r11.txt"
     } > "$R11_BASELINE"
@@ -65,7 +69,7 @@ grep "VERDICT" "$tmp/math.log"
 [ $rc -eq 0 ] || { grep -A20 "VIOLATIONS" "$tmp/math.log" | head -25; fail "audit_arm11_math exit $rc"; }
 
 gate "audit_r11_idiv (screen, baseline-compared -- NONE NEW)"
-python3 tools/runner/audit_r11_idiv.py > "$tmp/r11.txt" 2>&1 || true
+python3 tools/runner/audit_r11_idiv.py --sig > "$tmp/r11.txt" 2>&1 || true
 r11_sigs "$tmp/r11.txt" > "$tmp/now"
 grep -v '^#' "$R11_BASELINE" | grep . | sort > "$tmp/base"
 comm -13 "$tmp/base" "$tmp/now" > "$tmp/new"
@@ -76,7 +80,11 @@ if [ -s "$tmp/new" ]; then
     sed 's/^/    /' "$tmp/new" >&2
     fail "r11 candidates grew beyond the blessed baseline"
 fi
-[ -s "$tmp/gone" ] && echo "note: $(wc -l < "$tmp/gone") baseline candidate(s) no longer reported (fixed or shifted) -- re-bless with tools/check.sh --bless-r11"
+[ -s "$tmp/gone" ] && echo "note: $(wc -l < "$tmp/gone") baseline candidate(s) no longer reported (fixed, moved, or rewritten) -- re-bless with tools/check.sh --bless-r11"
+
+gate "warp_window_check (documented outcome windows vs the real sim)"
+bash t2k_core/tools/warp_window_check.sh > "$tmp/windows.log" 2>&1 || { tail -15 "$tmp/windows.log"; fail "warp_window_check"; }
+tail -3 "$tmp/windows.log"
 
 gate "verify.sh (level data, real parser)"
 bash t2k_core/tools/verify.sh > "$tmp/verify.log" 2>&1 || { tail -15 "$tmp/verify.log"; fail "verify.sh"; }

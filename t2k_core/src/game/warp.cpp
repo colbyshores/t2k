@@ -147,9 +147,11 @@ constexpr int   RAIL_BASE_STEP_FRAMES = 34;   // 64 steps ≈ 35 s at play 0
 constexpr int   RAIL_MIN_STEP_FRAMES  = 20;
 constexpr float TAIL_START = 3.0f;
 
-// Outcome envelopes. FAIL_FADE_STEPS is the fade's full-scale (the 300-step
-// ≈4.8 s count the fail fade is measured against). The win white-out is a
-// shorter crescendo (~1.4 s) into the level handover.
+// Outcome envelopes. FAIL_FADE_STEPS is the fade's FULL-SCALE denominator, not
+// its length: the fade runs 2x after BONUS_LOSE_SOUND_STEPS, so it lands at 205
+// steps (≈3.28 s), not at the 300-step / 4.8 s full scale. Measured, not
+// inferred: t2k_core/tools/warp_window_check.sh drives the real sim and baselines
+// both windows. The win white-out is a shorter crescendo (~1.4 s).
 constexpr int   FAIL_FADE_STEPS = 300;
 constexpr float WHITE_ENV_STEP  = 1.0f / 90.0f;
 // The fail "aww" (SFX_BONUS_LOSE) is 14070 samples @ 8 kHz ≈ 1.76 s ≈ 110

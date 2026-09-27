@@ -166,8 +166,8 @@ struct WarpState {
 
     // ---- outcome envelopes (render read-only) -------------------------------
     float white_env = 0.0f;        // 0..1 win white-out crescendo
-    float fail_fade = 0.0f;        // 0..1 lose fade (fail_ctr / 300)
-    int   fail_ctr  = 0;           // 16 ms steps into the fail fade (-> 300)
+    float fail_fade = 0.0f;        // 0..1 lose fade (piecewise, NOT fail_ctr/300)
+    int   fail_ctr  = 0;           // 16 ms steps into the fail fade (-> 205)
 };
 
 // Build the round for engine.current_level: select the round type, bump the
