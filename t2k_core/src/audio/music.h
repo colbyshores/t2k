@@ -80,6 +80,28 @@ int         music_album_count();
 const char* music_album_name(int a);
 int         music_album_track_count(int a);
 const char* music_album_track_name(int a, int t);   // basename, extension stripped
+// The inclusive 0-based LEVEL BAND an album track owns in SYNC mode, read
+// from the core's reserved-filtered rotation. lo > hi means the track owns
+// no band (a reserved bonus track). The deck reads this instead of
+// recomputing `level * n / 100`, which the reservation makes wrong.
+void        music_album_track_band(int a, int t, int* lo, int* hi);
+
+// ---- Bonus-round track reservation ----
+// WHICH tracks are reserved is data, not code: it comes from the
+// "bonus_rounds" key of the album map (t2k_core/data/albums_manifest.json,
+// embedded at build time; the card's own music/albums.json wins when present).
+// "default" is the pair every soundtrack uses, "albums" overrides it per
+// selected soundtrack, and the array index is the round id (0 = GATES,
+// 1 = RAIL, ts::WARP_ROUND_*).
+//
+// Returns the TRACK-LIST ROW to select, or -1 when nothing is configured or
+// nothing is on the card -- the caller then leaves the player's own music
+// alone. Pass `album` = music_album_current(); < 0 means "no album selected",
+// which uses the default pair.
+//
+// Reserved tracks are skipped by the level-synced album rotation and by Play
+// All (CD), and stay reachable by an explicit pick.
+int         music_bonus_track_row(int album, int round);
 int         music_album_current();                  // -1 when no album selected
 int         music_album_current_track();            // -1 until one has loaded
 bool        music_album_sync();                     // SYNC (level-driven) vs MANUAL

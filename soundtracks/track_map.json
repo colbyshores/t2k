@@ -891,7 +891,7 @@
   ],
   "mods": [
     {
-      "file": "t2000-1.mod",
+      "file": "00_thermalresolution.mod",
       "album_order": 0,
       "sha256": "18d4e3ffc5d04cdcc80ef18f9c78e40c3372226c7a5015bd1af9c2e5a8a04f0f",
       "source": {
@@ -899,51 +899,51 @@
       }
     },
     {
-      "file": "t2000-2.mod",
+      "file": "01_mindseye.mod",
       "album_order": 1,
-      "sha256": "7056ba03d7e7a5ab562548a99848eee4564d07aec926be686d0e8c26f4b72400",
-      "source": {
-        "path": "mod/t2k-2.mod"
-      }
-    },
-    {
-      "file": "t2000-3.mod",
-      "album_order": 2,
-      "sha256": "5e91b06b75881c651b703bb818e92a311ebd7860e1fba65b38edb4a914856a10",
-      "source": {
-        "path": "mod/t2k-3.mod"
-      }
-    },
-    {
-      "file": "t2000-4.mod",
-      "album_order": 3,
-      "sha256": "c7974e9aa378b583e772d3fcc4a4caa9d3b93898d7d4a3bbe9c09cc455fccb90",
-      "source": {
-        "path": "mod/t2k-4.mod"
-      }
-    },
-    {
-      "file": "t2000-5.mod",
-      "album_order": 4,
       "sha256": "4365c8caef0250e5b73f9f1bdd4c94fdd30076d24ba467184b438205eb8c5014",
       "source": {
         "path": "mod/t2k-5.mod"
       }
     },
     {
-      "file": "t2000-6.mod",
-      "album_order": 5,
+      "file": "02_digitalterror.mod",
+      "album_order": 2,
+      "sha256": "7056ba03d7e7a5ab562548a99848eee4564d07aec926be686d0e8c26f4b72400",
+      "source": {
+        "path": "mod/t2k-2.mod"
+      }
+    },
+    {
+      "file": "03_constructivedemolition.mod",
+      "album_order": 3,
       "sha256": "e9e1ac43d7bf8c832922ac23854881d5d5fbf13b7111c5d3ce46b73503727e59",
       "source": {
         "path": "mod/t2k-6.mod"
       }
     },
     {
-      "file": "t2000-7.mod",
-      "album_order": 6,
+      "file": "04_ultrayak.mod",
+      "album_order": 4,
       "sha256": "6c1337fbab99cd5c5c686ccc3579fc5c52c62ab12f6efd36aeba569a9796706b",
       "source": {
         "path": "mod/t2k-7.mod"
+      }
+    },
+    {
+      "file": "05_glidecontrol.mod",
+      "album_order": 5,
+      "sha256": "5e91b06b75881c651b703bb818e92a311ebd7860e1fba65b38edb4a914856a10",
+      "source": {
+        "path": "mod/t2k-3.mod"
+      }
+    },
+    {
+      "file": "06_constructivedemolition.mod",
+      "album_order": 6,
+      "sha256": "c7974e9aa378b583e772d3fcc4a4caa9d3b93898d7d4a3bbe9c09cc455fccb90",
+      "source": {
+        "path": "mod/t2k-4.mod"
       }
     }
   ],
@@ -996,31 +996,20 @@
       "08_glidecontrol.dsp",
       "09_ultrayak.dsp",
       "10_2000dub.dsp",
-      "10_2000dub.dsp",
       "11_berlin.dsp",
       "12_consciousness.dsp",
-      "04_constructivedemolition.dsp",
-      "06_digitalterror.dsp",
-      "02_easeyourself.dsp",
       "14_fridgean.dsp",
-      "05_futuretense.dsp",
       "13_flossiesfrolic.dsp",
       "20_ginswigger.dsp",
-      "08_glidecontrol.dsp",
-      "07_hyperprism.dsp",
       "15_inthezone.dsp",
       "16_lasereverywhere.dsp",
       "21_musicarena.dsp",
       "17_noisepulse.dsp",
       "33_limaverse.dsp",
-      "01_mindseye.dsp",
       "18_spaceiseverything.dsp",
       "34_t2km.dsp",
-      "00_thermalresolution.dsp",
       "35_title.dsp",
-      "03_trackingdepth.dsp",
       "19_tranceone.dsp",
-      "09_ultrayak.dsp",
       "22_youlikeit.dsp"
     ],
     "TxK": [
@@ -1053,13 +1042,25 @@
       "39_spa_04.dsp"
     ],
     "Tempest 2000 MOD": [
-      "t2000-1.mod",
-      "t2000-2.mod",
-      "t2000-3.mod",
-      "t2000-4.mod",
-      "t2000-5.mod",
-      "t2000-6.mod",
-      "t2000-7.mod"
+      "00_thermalresolution.mod",
+      "01_mindseye.mod",
+      "02_digitalterror.mod",
+      "03_constructivedemolition.mod",
+      "04_ultrayak.mod",
+      "05_glidecontrol.mod",
+      "06_constructivedemolition.mod"
     ]
+  },
+  "bonus_rounds": {
+    "default": [
+      "08_glidecontrol.dsp",
+      "10_2000dub.dsp"
+    ],
+    "albums": {
+      "Tempest 2000 MOD": [
+        "05_glidecontrol.mod",
+        "06_constructivedemolition.mod"
+      ]
+    }
   }
 }

@@ -345,6 +345,13 @@ int         music_album_count()            { return core::album_count(); }
 const char* music_album_name(int a)        { return core::album_name(a); }
 int         music_album_track_count(int a) { return core::album_track_count(a); }
 const char* music_album_track_name(int a, int t) { return core::album_track_name(a, t); }
+void        music_album_track_band(int a, int t, int* lo, int* hi) {
+    int l = 1, h = 0;                       // no band, if the core says nothing else
+    core::album_track_band(a, t, l, h);
+    if (lo) *lo = l;
+    if (hi) *hi = h;
+}
+int         music_bonus_track_row(int album, int round) { return core::bonus_track_row(album, round); }
 int         music_album_current()          { return core::album_current(); }
 int         music_album_current_track()    { return core::album_current_track(); }
 bool        music_album_sync()             { return core::album_sync(); }
@@ -384,6 +391,11 @@ int         music_album_count()                 { return 0; }
 const char* music_album_name(int)               { return ""; }
 int         music_album_track_count(int)        { return 0; }
 const char* music_album_track_name(int, int)    { return ""; }
+void        music_album_track_band(int, int, int* lo, int* hi) {
+    if (lo) *lo = 1;
+    if (hi) *hi = 0;                        // no audio, no bands
+}
+int         music_bonus_track_row(int, int)       { return -1; }
 int         music_album_current()               { return -1; }
 int         music_album_current_track()         { return -1; }
 bool        music_album_sync()                  { return true; }

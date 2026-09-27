@@ -91,6 +91,96 @@ def scan_pool(music_dir):
     return pool
 
 
+def display_name(fn):
+    """A pool filename as the game displays it: basename, extension stripped.
+    This is the string track_name() hands out for the loose row, and therefore
+    the only thing a reserved name in the JSON can be resolved against."""
+    return os.path.splitext(os.path.basename(fn))[0]
+
+
+def check_bonus_rounds(manifest, pool=None):
+    """Validate the bonus-round reservation. Returns (errors, warnings).
+
+    The reservation is DATA, not code -- the C++ reads these names and nothing
+    in the tree hardcodes a bonus track -- which makes this validator the only
+    thing standing between a typo and a bonus round that plays silence. So the
+    shape is checked hard everywhere, and pool presence wherever the pool is
+    available (it is not, at --emit-header time).
+
+    Schema:
+        "bonus_rounds": {
+          "default": ["<pool file>", ...],                 # round N plays entry N
+          "albums":  { "<album>": ["<pool file>", ...] }    # per-soundtrack override
+        }
+    The array index IS the bonus round id (0 = GATES, 1 = RAIL), the same
+    order ts::WARP_ROUND_* uses.
+    """
+    errs, warns = [], []
+    br = manifest.get("bonus_rounds")
+    if br is None:
+        warns.append('no "bonus_rounds" key -- no track is reserved for the '
+                    "bonus rounds")
+        return errs, warns
+    if not isinstance(br, dict):
+        return ['"bonus_rounds" must be an object'], warns
+
+    default = br.get("default")
+    per_album = br.get("albums", {})
+    if not isinstance(default, list) or not default:
+        errs.append('"bonus_rounds.default" must be a non-empty array of pool filenames')
+        default = []
+    if not isinstance(per_album, dict):
+        errs.append('"bonus_rounds.albums" must be an object of album -> filenames')
+        per_album = {}
+
+    lists = {"default": default}
+    for album, names in per_album.items():
+        if not isinstance(names, list) or not names:
+            errs.append(f"bonus_rounds.albums[{album!r}] must be a non-empty array")
+            continue
+        lists[album] = names
+
+    # Every list is indexed by round id, so a short one means that round falls
+    # back to the default pair by accident rather than by decision. Refuse.
+    lens = {k: len(v) for k, v in lists.items()}
+    if len(set(lens.values())) > 1:
+        errs.append(f"bonus_rounds lists differ in length {lens} -- each is indexed "
+                   "by round id and they must cover the same rounds")
+
+    albums = manifest.get("albums", {})
+    for album in per_album:
+        if album not in albums:
+            errs.append(f"bonus_rounds.albums[{album!r}] names no album in "
+                       '"albums" -- the override can never apply')
+
+    # The C++ resolves a reserved filename to a track-list row by DISPLAY name,
+    # so two pool files sharing one display name make the reservation
+    # ambiguous. Cheap to check, and it is exactly what a rename introduces.
+    by_display = collections.defaultdict(list)
+    for fn in (pool or {}):
+        by_display[display_name(fn)].append(fn)
+
+    for where, names in lists.items():
+        for fn in names:
+            if not isinstance(fn, str):
+                errs.append(f"bonus_rounds[{where!r}] entry {fn!r} is not a string")
+                continue
+            hits = by_display.get(display_name(fn), [])
+            if len(hits) > 1:
+                errs.append(f"bonus_rounds[{where!r}] {fn!r} is ambiguous: "
+                           f"{sorted(hits)} all display as {display_name(fn)!r}")
+            if pool is not None and fn not in pool:
+                errs.append(f"bonus_rounds[{where!r}] {fn!r} is not in the pool")
+        # Legal, but worth saying out loud: an override naming a file the album
+        # does not list reserves a track that album never shows.
+        if where in albums:
+            for fn in names:
+                if isinstance(fn, str) and fn not in albums[where]:
+                    warns.append(f"bonus_rounds[{where!r}] {fn!r} is not a track of "
+                               "that album -- reserved, but never listed there")
+    return errs, warns
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="verify only, write nothing")
@@ -114,12 +204,20 @@ def main():
                 errs.append(f"{name!r} lists {t!r} {tracks.count(t)} times")
             if not tracks:
                 errs.append(f"{name!r} is empty")
+        # Structure-only: the pool is not available at build time, so reserved
+        # names are checked for shape and ambiguity here, presence in --check.
+        berrs, bwarns = check_bonus_rounds(manifest, None)
+        errs += berrs
+        for w in bwarns:
+            print(f"  warn: {w}")
         if errs:
             for e in errs:
                 print(f"  ERROR: {e}")
             print("[albums] manifest INVALID -- refusing to embed")
             return 1
-        text = json.dumps({"albums": albums}, indent=1)
+        text = json.dumps({"albums": albums,
+                          "bonus_rounds": manifest.get("bonus_rounds", {})},
+                         indent=1)
         delim = "ALBJSON"
         if f"){delim}" in text:
             print("[albums] manifest contains the raw-string delimiter")
@@ -180,6 +278,15 @@ def main():
         warnings.append(f"{fn!r} is in the pool but on no album "
                         f"(still individually selectable)")
 
+    # ---- the bonus-round reservation ---------------------------------------
+    # The pool cross-check the build-time embed cannot do: a reserved name that
+    # is not on this card means that bonus round silently falls back to the
+    # default pair, and two pool files sharing one display name make the
+    # reservation ambiguous for the row lookup the C++ performs.
+    berrs, bwarns = check_bonus_rounds(manifest, pool)
+    errors += berrs
+    warnings += bwarns
+
     # ---- report -------------------------------------------------------------
     print(f"[albums] manifest {len(albums)} albums, pool {len(pool)} files "
           f"in {args.music}")
@@ -204,7 +311,11 @@ def main():
         print(f"[albums] no pool at {args.music} -- nothing written")
         return 0
     with open(out, "w") as fh:
-        json.dump({"albums": playable}, fh, indent=1)
+        # bonus_rounds rides along with the playable album list: the card's own
+        # albums.json WINS over the embedded map at load, so a card copy that
+        # omitted it would silently un-reserve the bonus tracks.
+        json.dump({"albums": playable,
+                   "bonus_rounds": manifest.get("bonus_rounds", {})}, fh, indent=1)
         fh.write("\n")
     total = sum(len(v) for v in playable.values())
     print(f"[albums] wrote {out}: {len(playable)} albums, {total} references "

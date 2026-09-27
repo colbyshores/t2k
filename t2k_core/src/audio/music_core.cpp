@@ -31,6 +31,8 @@
 #include <dirent.h>
 #include <vector>
 #include <string>
+#include <map>
+#include <set>
 #include <algorithm>
 
 #include <nlohmann/json.hpp>
@@ -69,6 +71,13 @@ struct Album {
     std::string name;
     std::vector<std::string> paths;
     std::vector<std::string> trackNames;   // display: basename, ext stripped
+    // Indices into paths/trackNames that the level-synced rotation may use,
+    // i.e. the album MINUS the reserved bonus tracks. The reserved tracks
+    // keep their REAL indices here (so album_track_name and the panel's
+    // live-row highlight stay correct) and simply never get a level band.
+    // Built by scanTracks; falls back to the full list if the filter would
+    // leave nothing (see the note there).
+    std::vector<int> syncIdx;
 };
 std::vector<Album> s_albums;
 bool s_albumMode  = false;                 // an "Album:" entry is selected
@@ -215,18 +224,134 @@ inline bool isDsp(int i) {   // streamable .dsp (Play All cycles these; .mod loo
     return i >= 0 && i < (int)s_paths.size() && s_paths[i].size() > 4 &&
            s_paths[i].substr(s_paths[i].size() - 4) == ".dsp";
 }
-int firstDsp() { for (int i = 0; i < (int)s_paths.size(); ++i) if (isDsp(i)) return i; return -1; }
+
+// ---- Bonus-round reservation, read from the album map ---------------------
+// Which tracks the bonus rounds own is CONFIGURATION, not code. It lives in
+// the "bonus_rounds" key of the album map -- t2k_core/data/albums_manifest.json,
+// embedded at build time by tools/gen_albums.py -- and the card's own
+// music/albums.json overrides it exactly as the album lists do:
+//
+//   "bonus_rounds": {
+//     "default": ["<pool file>", ...],                // round N plays entry N
+//     "albums":  { "<album>": ["<pool file>", ...] }   // per-soundtrack override
+//   }
+//
+// The array index IS the bonus round id (0 = GATES, 1 = RAIL), the same order
+// ts::WARP_ROUND_* uses, so a frontend maps a round straight onto it. A track
+// named here is RESERVED: the level-synced album rotation and the Play All
+// (CD) sequence both skip it, while an explicit pick still plays it.
+//
+// Entries are POOL FILENAMES, matched on the display form (basename, extension
+// stripped) because that is the string track_name() hands out for the loose
+// row, which is the row the bonus hard-map selects. gen_albums.py gates that
+// this mapping is never ambiguous.
+std::vector<std::string> s_bonusDefaultFiles;
+std::map<std::string, std::vector<std::string>> s_bonusAlbumFiles;  // album name
+std::vector<int> s_bonusDefaultRows;                                // track rows
+std::map<int, std::vector<int>> s_bonusAlbumRows;                   // album -> rows
+std::set<std::string> s_reservedNames;                              // display forms
+
+// Pool filename -> display form, the same strip the album scan applies.
+std::string displayOf(const std::string& fn) {
+    size_t slash = fn.find_last_of('/');
+    std::string n = (slash == std::string::npos) ? fn : fn.substr(slash + 1);
+    if (n.size() > 4) n = n.substr(0, n.size() - 4);
+    return n;
+}
+
+std::vector<std::string> stringList(const nlohmann::json& v) {
+    std::vector<std::string> out;
+    if (v.is_array())
+        for (auto& t : v) if (t.is_string()) out.push_back(t.get<std::string>());
+    return out;
+}
+
+// Read "bonus_rounds" out of the album-map document. Runs BEFORE the album
+// loop, because that loop needs the reserved-name set to build each album's
+// sync rotation.
+void parseBonusRounds(const nlohmann::json& j) {
+    s_bonusDefaultFiles.clear();
+    s_bonusAlbumFiles.clear();
+    s_reservedNames.clear();
+    auto bi = j.find("bonus_rounds");
+    if (bi == j.end() || !bi->is_object()) return;
+    auto def = bi->find("default");
+    if (def != bi->end()) s_bonusDefaultFiles = stringList(*def);
+    auto perAlbum = bi->find("albums");
+    if (perAlbum != bi->end() && perAlbum->is_object())
+        for (auto it = perAlbum->begin(); it != perAlbum->end(); ++it)
+            if (it->is_array()) s_bonusAlbumFiles[it.key()] = stringList(*it);
+    for (auto& f : s_bonusDefaultFiles) s_reservedNames.insert(displayOf(f));
+    for (auto& kv : s_bonusAlbumFiles)
+        for (auto& f : kv.second) s_reservedNames.insert(displayOf(f));
+}
+
+// Resolve the configured filenames to track-list rows. Called after the loose
+// rows are pushed: every pool file has a loose row carrying the same display
+// form, so this is the lookup the frontends used to hand-code, done once at
+// boot against the list that actually exists rather than a literal per target.
+void resolveBonusRows() {
+    auto rowByDisplay = [](const std::string& disp) {
+        for (int i = 0; i < (int)s_names.size(); ++i)
+            if (s_names[i] == disp) return i;
+        return -1;
+    };
+    s_bonusDefaultRows.assign(s_bonusDefaultFiles.size(), -1);
+    for (size_t r = 0; r < s_bonusDefaultFiles.size(); ++r)
+        s_bonusDefaultRows[r] = rowByDisplay(displayOf(s_bonusDefaultFiles[r]));
+    s_bonusAlbumRows.clear();
+    for (auto& kv : s_bonusAlbumFiles) {
+        int ai = -1;
+        for (size_t a = 0; a < s_albums.size(); ++a)
+            if (s_albums[a].name == kv.first) { ai = (int)a; break; }
+        if (ai < 0) continue;              // override names an album this card lacks
+        std::vector<int> rows(kv.second.size(), -1);
+        for (size_t r = 0; r < kv.second.size(); ++r)
+            rows[r] = rowByDisplay(displayOf(kv.second[r]));
+        s_bonusAlbumRows[ai] = rows;
+    }
+    // Boot log: the failure mode of a bad reservation is a bonus round that
+    // quietly keeps playing whatever was on before, so make it visible here.
+    for (size_t r = 0; r < s_bonusDefaultRows.size(); ++r)
+        std::printf("[music] bonus round %d default: %s\n", (int)r,
+                    s_bonusDefaultRows[r] >= 0
+                        ? s_names[s_bonusDefaultRows[r]].c_str()
+                        : "<not on the card>");
+    for (auto& kv : s_bonusAlbumRows)
+        for (size_t r = 0; r < kv.second.size(); ++r)
+            std::printf("[music] bonus round %d under album \"%s\": %s\n", (int)r,
+                        s_albums[kv.first].name.c_str(),
+                        kv.second[r] >= 0 ? s_names[kv.second[r]].c_str()
+                                         : "<not on the card>");
+}
+
+inline bool reservedName(const std::string& n) {
+    return s_reservedNames.find(n) != s_reservedNames.end();
+}
+// A track-list ROW that is reserved (s_names holds the display basename for
+// both the loose rows and the album display names).
+inline bool reservedRow(int i) {
+    return i >= 0 && i < (int)s_names.size() && reservedName(s_names[i]);
+}
+// In the Play All rotation: a streamable .dsp that is not reserved. The
+// rotation is the ONLY thing this excludes — an explicit select of a reserved
+// row still plays it, because apply_select() never consults this.
+inline bool rotatableDsp(int i) { return isDsp(i) && !reservedRow(i); }
+
+int firstDsp() { for (int i = 0; i < (int)s_paths.size(); ++i) if (rotatableDsp(i)) return i; return -1; }
 int nextDspIndex(int cur) {
     int n = (int)s_paths.size();
-    for (int s = 1; s <= n; ++s) { int j = (cur + s) % n; if (isDsp(j)) return j; }
+    for (int s = 1; s <= n; ++s) { int j = (cur + s) % n; if (rotatableDsp(j)) return j; }
     return cur;
 }
 
 // Scan <musicDir> for *.dsp AND *.mod into the loose pool, and albums.json into
 // the album list. Final track-list order: the 2 embedded MOD songs, one row per
-// album, a "Play All (CD)" row whenever the loose pool is non-empty (EITHER
-// extension), then the loose files themselves. NB Play All resolves through
-// firstDsp(), which only ever matches .dsp rows.
+// album, a "Play All (CD)" row whenever the rotation has something to play (a
+// non-reserved .dsp), then the loose files themselves. NB Play All resolves
+// through firstDsp(), which only ever matches NON-RESERVED .dsp rows: the two
+// bonus-round tracks are listed and individually selectable, but the rotation
+// never reaches them.
 void scanTracks() {
     s_names.clear(); s_paths.clear(); s_albums.clear();
     s_names.push_back("MOD: Song 1"); s_paths.push_back("");
@@ -294,6 +419,9 @@ void scanTracks() {
             j = nlohmann::json::parse(buf, nullptr, false);
         }
         if (!j.is_discarded() && j.is_object()) {
+            // First, so the album loop below can filter each album's sync
+            // rotation against the reserved names.
+            parseBonusRounds(j);
             auto ai = j.find("albums");
             if (ai != j.end() && ai->is_object()) {
                 for (auto it = ai->begin(); it != ai->end(); ++it) {
@@ -322,6 +450,27 @@ void scanTracks() {
                                 if (fn.size() > 4) fn = fn.substr(0, fn.size() - 4);
                                 al.trackNames.push_back(fn);
                             }
+                    // The sync rotation = this album minus the reserved
+                    // bonus-round tracks. If the filter would leave the album
+                    // with NOTHING to rotate through, keep the full list: a
+                    // soundtrack row that selects to silence is the dead-knob
+                    // failure this file already refuses above, and no shipped
+                    // album is all-bonus. The fallback is logged so it can
+                    // never be mistaken for the reservation working.
+                    for (size_t t = 0; t < al.trackNames.size(); ++t)
+                        if (!reservedName(al.trackNames[t])) al.syncIdx.push_back((int)t);
+                    // Only an album that actually HAS tracks can be an all-bonus
+                    // one. An album whose every file is missing from the card
+                    // reaches here with nothing filtered, and calling that
+                    // "every track is a reserved bonus track" blames the
+                    // reservation for what is really a half-copied card -- the
+                    // drop below reports that case with the right reason.
+                    if (al.syncIdx.empty() && !al.trackNames.empty()) {
+                        std::printf("[music] album \"%s\": every track is a reserved "
+                                    "bonus track -- syncing over the full list\n",
+                                    al.name.c_str());
+                        for (size_t t = 0; t < al.paths.size(); ++t) al.syncIdx.push_back((int)t);
+                    }
                     if (dropped)
                         std::printf("[music] album \"%s\": %d track(s) not on the card\n",
                                     al.name.c_str(), dropped);
@@ -341,11 +490,24 @@ void scanTracks() {
         s_names.push_back(std::string("Album: ") + s_albums[i].name);
         s_paths.push_back(m);
     }
-    if (!loose.empty()) { s_names.push_back("Play All (CD)"); s_paths.push_back("*ALL*"); }
+    // Play All only when the ROTATION has something to play. Gating on the
+    // loose pool alone would let a card holding nothing but reserved bonus
+    // tracks ship a "Play All (CD)" row that resolves to silence.
+    bool anyRotatable = false;
+    for (auto& fn : loose) {
+        if (fn.size() <= 4 || fn.substr(fn.size() - 4) != ".dsp") continue;
+        if (reservedName(fn.substr(0, fn.size() - 4))) continue;
+        anyRotatable = true; break;
+    }
+    if (anyRotatable) { s_names.push_back("Play All (CD)"); s_paths.push_back("*ALL*"); }
     for (auto& fn : loose) {
         s_names.push_back(fn.substr(0, fn.size() - 4));
         s_paths.push_back(s_musicDir + "/" + fn);
     }
+    // AFTER the loose rows: the reservation resolves against the list it just
+    // built, so a card missing a reserved file shows up as an unresolved row
+    // rather than a bonus round pointing at a row that is not there.
+    resolveBonusRows();
     std::printf("[music] %d entries, %d albums, %d loose\n",
                 (int)s_names.size(), (int)s_albums.size(), (int)loose.size());
 }
@@ -424,9 +586,18 @@ bool openTrackFile(const std::string& path) {
 // the album's own boundaries.
 //
 // THE ALBUM IS SPREAD OVER THE 100 LEVELS, one contiguous band per track:
-// track = level * n / TOTAL_LEVELS. Every track in the album is reached, the
-// bands are as equal as integer division allows (100/n levels each), level 0
-// always opens on track 0 and level 99 always lands on track n-1.
+// track = level * n / TOTAL_LEVELS, where n is the album's SYNC list length
+// -- the album MINUS the reserved bonus-round tracks. Every playable track is
+// reached, the bands are as equal as integer division allows (100/n levels
+// each), level 0 always opens on the first playable track and level 99 always
+// lands on the last one.
+//
+// THE RESERVED TRACKS ARE SKIPPED, NOT COMPRESSED AWAY. They keep their real
+// indices in the album (album_track_name, the panel's live-row highlight and
+// an explicit manual pick all still address them); they just never own a band,
+// so "playing through the game" cannot reach them. The band a track DOES own
+// is published by album_track_band() rather than recomputed by the UI, which
+// used to duplicate this formula and would now be wrong.
 //
 // IT USED TO BE TEN FIXED GROUPS of ten levels, mapped endpoint-inclusive
 // (g*(n-1)/9). That was the the reference build ancestor's CD model
@@ -446,12 +617,14 @@ void applyAlbumLevel(int level) {
     if (!s_syncMode) return;               // MANUAL lock: the pick stays put
     if (s_albumIdx < 0 || s_albumIdx >= (int)s_albums.size()) return;
     Album& al = s_albums[s_albumIdx];
-    int n = (int)al.paths.size();
-    if (n == 0) return;
+    const std::vector<int>& sync = al.syncIdx;
+    const int m = (int)sync.size();
+    if (m == 0) return;
     if (level < 0) level = 0;
     if (level >= TOTAL_LEVELS) level = TOTAL_LEVELS - 1;
-    int idx = (n > 1) ? (level * n) / TOTAL_LEVELS : 0;
-    if (idx >= n) idx = n - 1;             // belt and braces if TOTAL_LEVELS drifts
+    int k = (m > 1) ? (level * m) / TOTAL_LEVELS : 0;
+    if (k >= m) k = m - 1;               // belt and braces if TOTAL_LEVELS drifts
+    const int idx = sync[k];             // REAL album index; reserved tracks are absent
     if (idx == s_albumTrack) return;
     s_albumTrack = idx;
     if (openTrackFile(al.paths[idx])) {    // .mod or .dsp
@@ -459,9 +632,12 @@ void applyAlbumLevel(int level) {
         // One line per BOUNDARY CROSSING, not per level -- the guard above
         // means this can only fire when the track actually changes. It is the
         // only way to see the level->track mapping without a debugger, on
-        // either target (the 3DS writes stdout to its own log).
+        // either target (the 3DS writes stdout to its own log). The number
+        // printed is the track's REAL position in the album, not its position
+        // in the filtered rotation, so it lines up with what the deck shows.
         std::printf("[music] level %d -> album track %d/%d \"%s\"\n",
-                    level, idx + 1, n, al.trackNames[idx].c_str());
+                    level, idx + 1, (int)al.paths.size(),
+                    al.trackNames[idx].c_str());
     }
 }
 
@@ -737,6 +913,43 @@ const char* album_track_name(int a, int t) {
     if (a < 0 || a >= (int)s_albums.size()) return "";
     const Album& al = s_albums[a];
     return (t >= 0 && t < (int)al.trackNames.size()) ? al.trackNames[t].c_str() : "";
+}
+
+// The track-list ROW a bonus round should play. The selected album's override
+// wins when it has one AND that file is on the card; otherwise the default
+// pair; otherwise -1, which the frontend reads as "leave the player's own
+// music alone". Nothing here names a track -- the album map's "bonus_rounds"
+// key does, so the reservation is the same data the albums are configured from.
+int bonus_track_row(int album, int round) {
+    if (round < 0) return -1;
+    auto it = s_bonusAlbumRows.find(album);
+    if (it != s_bonusAlbumRows.end() && round < (int)it->second.size() &&
+        it->second[round] >= 0)
+        return it->second[round];
+    if (round < (int)s_bonusDefaultRows.size()) return s_bonusDefaultRows[round];
+    return -1;
+}
+
+// The inclusive 0-based level band an album track owns in sync mode, derived
+// from the SAME list applyAlbumLevel maps onto: track k of an m-track rotation
+// owns the levels where (level * m) / TOTAL_LEVELS == k, i.e.
+// ceil(k*TOTAL/m) .. ceil((k+1)*TOTAL/m)-1. A reserved bonus track is not in
+// the rotation, so it owns nothing: lo > hi (1 > 0), which every caller reads
+// as "no band" rather than as a one-level band.
+void album_track_band(int a, int t, int& lo, int& hi) {
+    lo = 1; hi = 0;
+    if (a < 0 || a >= (int)s_albums.size()) return;
+    const Album& al = s_albums[a];
+    if (t < 0 || t >= (int)al.paths.size()) return;
+    const std::vector<int>& sync = al.syncIdx;
+    const int m = (int)sync.size();
+    if (m == 0) return;
+    int k = -1;
+    for (int i = 0; i < m; ++i) if (sync[i] == t) { k = i; break; }
+    if (k < 0) return;                       // reserved: no band, by design
+    lo = (m > 1) ? (k * TOTAL_LEVELS + m - 1) / m : 0;
+    hi = (m > 1) ? ((k + 1) * TOTAL_LEVELS + m - 1) / m - 1 : TOTAL_LEVELS - 1;
+    if (hi > TOTAL_LEVELS - 1) hi = TOTAL_LEVELS - 1;
 }
 int  album_current()       { return s_albumMode ? s_albumIdx : -1; }
 int  album_current_track() { return s_albumMode ? s_albumTrack : -1; }

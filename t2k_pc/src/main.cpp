@@ -1194,15 +1194,16 @@ void Game::updateWarp(const InputState& input) {
         warpInited_ = true;
     }
 
-    // BONUS-ROUND MUSIC HARD-MAP: GATES -> 08_glidecontrol, RAIL -> 10_2000dub,
-    // when the Bonus Music setting is on. Applied once per round on the init
-    // frame. The per-frame level-sync only drives music in album-sync mode, so
-    // this explicit select is not fought over.
+    // BONUS-ROUND MUSIC HARD-MAP: the round's RESERVED track, resolved by the
+    // music core from the album map's "bonus_rounds" key -- the selected
+    // soundtrack's override if it has one, else the default pair. Applied once
+    // per round on the init frame. The per-frame level-sync only drives music
+    // in album-sync mode, so this explicit select is not fought over -- and
+    // the album rotation and Play All both skip the reserved tracks, so the
+    // round is the only way they come up unasked.
     if (config_.bonus_music && !bonusMusicOverride_) {
-        const char* bonusTrack =
-            (engine_.warp.round == ts::WARP_ROUND_RAIL) ? "10_2000dub"
-                                                       : "08_glidecontrol";
-        const int idx = findTrackByName(bonusTrack);
+        const int idx = ts::modmusic::music_bonus_track_row(
+            ts::modmusic::music_album_current(), engine_.warp.round);
         if (idx >= 0) { ts::modmusic::music_select(idx); bonusMusicOverride_ = true; }
     }
 

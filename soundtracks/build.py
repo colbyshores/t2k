@@ -147,7 +147,12 @@ def build(fetch=False):
     with open(os.path.join(DSP_DIR, "albums.json"), "w") as f:
         # indent=1 matches the committed file's style; a reformat here shows up
         # as a 115-line diff on a tracked file and hides real changes.
-        json.dump({"albums": m["albums"]}, f, indent=1)
+        # bonus_rounds rides along: it is not derivable from audio, and
+        # build_map.py reads it back out of this file when it regenerates the
+        # pinned map, so dropping it here would silently un-reserve the bonus
+        # tracks the next time the map is rebuilt.
+        json.dump({"albums": m["albums"],
+                  "bonus_rounds": m.get("bonus_rounds", {})}, f, indent=1)
 
     print(f"\ndsp/: {built} built, {cached} already correct, {mismatched} hash-differs")
     print(f"wrote dsp/albums.json ({sum(len(v) for v in m['albums'].values())} "
@@ -163,16 +168,24 @@ def check_embedded(m):
     if not os.path.exists(EMBEDDED_MANIFEST):
         print("[warn] embedded albums_manifest.json missing")
         return
-    emb = json.load(open(EMBEDDED_MANIFEST))["albums"]
+    emb = json.load(open(EMBEDDED_MANIFEST))
+    emb_albums = emb["albums"]
     pool = {t["dsp"] for t in m["tracks"]}
     problems = []
-    for album, names in emb.items():
+    for album, names in emb_albums.items():
         for n in names:
             if n.endswith(".dsp") and n not in pool:
                 problems.append(f"{album}: {n} is not in the pinned pool")
     for album in m["albums"]:
-        if album not in emb:
+        if album not in emb_albums:
             problems.append(f"{album}: in the map but not the embedded manifest")
+    # The bonus-round reservation is the one thing here that changes what the
+    # bonus rounds SOUND like, so it is compared as a whole rather than sampled.
+    if emb.get("bonus_rounds", {}) != m.get("bonus_rounds", {}):
+        problems.append(
+            "bonus_rounds differs: map "
+            f"{json.dumps(m.get('bonus_rounds', {}), sort_keys=True)} vs manifest "
+            f"{json.dumps(emb.get('bonus_rounds', {}), sort_keys=True)}")
     if problems:
         print("[warn] embedded album map drifts from the pinned map:")
         for p in problems:

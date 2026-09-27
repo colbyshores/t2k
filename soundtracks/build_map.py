@@ -40,6 +40,11 @@ DSP_DIR = os.path.join(HERE, "dsp")
 MAP_PATH = os.path.join(HERE, "track_map.json")
 ENCODER = os.path.join(ROOT, "tools", "bin", "dspadpcm")
 RATE = 32000
+# Album membership/order and the bonus-round reservation originate in the
+# embedded manifest, NOT in dsp/albums.json: that file is a build output and a
+# stale copy of it (the Tempest 4000 section carried duplicated tracks) would
+# otherwise be laundered back into the pinned map on every regeneration.
+EMBEDDED_MANIFEST = os.path.join(ROOT, "t2k_core", "data", "albums_manifest.json")
 
 # Source album folder -> KHInsider slug, for provenance recorded in the map.
 SOURCE_SLUGS = {
@@ -101,7 +106,13 @@ def collect_sources():
 def build():
     if not os.path.exists(ENCODER):
         sys.exit(f"missing encoder {ENCODER} — run tools/build_dspadpcm.sh first")
-    albums = json.load(open(os.path.join(DSP_DIR, "albums.json")))["albums"]
+    # The manifest is the source of truth for album membership, order, and the
+    # bonus-round reservation. dsp/albums.json is a build output; reading those
+    # sections from it lets a stale copy (e.g. duplicated Tempest 4000 tracks)
+    # propagate back into the pinned map.
+    emb = json.load(open(EMBEDDED_MANIFEST))
+    albums = emb["albums"]
+    bonus_rounds = emb.get("bonus_rounds", {})
 
     shipped = {}
     for name in sorted(os.listdir(DSP_DIR)):
@@ -150,8 +161,9 @@ def build():
                 break
 
     # MOD album: convert_dsp copies these into the deployable pool verbatim, and
-    # the deployable name is NOT the source name (source `mod/t2k-N.mod` ships as
-    # `t2000-N.mod`), so map them by content hash and record the rename.
+    # the deployable name is NOT the source name (source `mod/t2k-N.mod` ships
+    # under the song's own name, `NN_<title>.mod`), so map them by content hash
+    # and record the rename.
     mod_dir = os.path.join(HERE, "mod")
     mod_names = albums.get("Tempest 2000 MOD", [])
     mod_src = sorted(f for f in (os.listdir(mod_dir) if os.path.isdir(mod_dir) else [])
@@ -193,6 +205,7 @@ def build():
         "tracks": tracks,
         "mods": mods,
         "albums": albums,
+        "bonus_rounds": bonus_rounds,
     }
     with open(MAP_PATH, "w") as f:
         json.dump(out, f, indent=2)

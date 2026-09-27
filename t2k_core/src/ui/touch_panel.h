@@ -58,6 +58,12 @@ public:
         // and passed -1 -- see the call site.
         int         (*albumEntry)(int)            = nullptr;
         const char* (*albumTrackName)(int, int)   = nullptr;
+        // The level band a track owns in sync mode (inclusive, 0-based).
+        // Read from the music core's reserved-filtered rotation: lo > hi means
+        // the track owns NO band, because it is reserved for the bonus rounds.
+        // The panel must NOT recompute `level * n / 100` itself -- the core
+        // owns that mapping, and the reservation makes any local copy wrong.
+        void        (*albumTrackBand)(int, int, int*, int*) = nullptr;
         int         (*albumCurrent)()             = nullptr;  // -1 none
         int         (*albumCurrentTrack)()        = nullptr;
         bool        (*albumSync)()                = nullptr;

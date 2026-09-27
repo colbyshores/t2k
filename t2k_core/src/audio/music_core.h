@@ -146,10 +146,49 @@ int         track_select_base();   // 0 unlocked, MOD_TRACK_COUNT locked
 const char* track_name(int i);
 int         entry_album_index(int i);
 int         album_entry_index(int a);              // album -> track-list row (-1)
+
+// ---- Bonus-round track reservation ---------------------------------------
+// WHICH tracks are reserved is data, not code: it comes from the
+// "bonus_rounds" key of the album map (t2k_core/data/albums_manifest.json,
+// embedded at build time by tools/gen_albums.py; the card's own
+// music/albums.json wins when present, exactly as the album lists do).
+//
+//   "bonus_rounds": {
+//     "default": ["<pool file>", ...],                // round N plays entry N
+//     "albums":  { "<album>": ["<pool file>", ...] }   // per-soundtrack override
+//   }
+//
+// The array index IS the bonus round id: 0 = GATES, 1 = RAIL
+// (ts::WARP_ROUND_*). A track named there is RESERVED: the level-synced album
+// rotation and the Play All (CD) sequence both skip it. They stay fully
+// reachable by an EXPLICIT pick -- the jukebox's album-track tap, a loose
+// track row, the menu's soundtrack cycle.
+//
+// The reservation is deliberately NOT tied to GameConfig::bonus_music. That
+// setting decides whether a bonus round takes over the deck; this decides who
+// else may hear the tracks. Gating the reservation on the setting would make
+// turning bonus music OFF put the most identifiable tracks in the normal
+// rotation, which is the opposite of reserving them.
+//
+// Returns the TRACK-LIST ROW to select, or -1 when nothing is configured or
+// nothing is present -- the frontend then leaves the player's own music alone.
+// `album` is the selected album index (album_current()); pass < 1 for "no
+// album", which uses the default pair.
+int bonus_track_row(int album, int round);
+
 int         album_count();
 const char* album_name(int a);
 int         album_track_count(int a);
 const char* album_track_name(int a, int t);
+// The inclusive 0-based LEVEL BAND an album track owns in sync mode, read
+// from the SAME reserved-filtered list applyAlbumLevel maps onto. For a VALID
+// (album, track) pair, lo > hi means exactly one thing: the track is a
+// reserved bonus-round track and owns no band. Out-of-range input also yields
+// an empty band, so callers must only ask about rows they are looking at.
+// Callers MUST read the band here rather than recompute `level * n / 100` —
+// the touch panel used to duplicate that formula, and reservation makes the
+// duplicate silently wrong.
+void        album_track_band(int a, int t, int& lo, int& hi);
 int         album_current();
 int         album_current_track();
 bool        album_sync();

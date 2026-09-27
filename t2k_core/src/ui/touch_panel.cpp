@@ -400,18 +400,19 @@ void TouchPanel::render(int paletteLevel, int timeMs, const AudioFeatures& audio
                               ROW_SX, LABEL_W);
             isLive = (albumView_ == curAlbum && t == curTrack);
             rowA = albumView_; rowB = t;
-            // The level span this track owns in sync mode: the exact inverse
-            // of music_core's `idx = (level * n) / TOTAL_LEVELS`. idx == t when
-            // level*n is in [t*100, (t+1)*100), so the range is
-            // ceil(t*100/n) .. ceil((t+1)*100/n)-1, +1 to display 1-based.
-            const int n = hooks_.albumTrackCount ? hooks_.albumTrackCount(albumView_) : 0;
-            if (n > 0) {
-                const int TOTAL = 100;               // music_core TOTAL_LEVELS
-                int lo = (n > 1) ? (t * TOTAL + n - 1) / n : 0;
-                int hi = (n > 1) ? ((t + 1) * TOTAL + n - 1) / n - 1 : TOTAL - 1;
-                if (hi > TOTAL - 1) hi = TOTAL - 1;
-                if (lo <= hi)
-                    std::snprintf(caption, sizeof caption, "L%d-%d", lo + 1, hi + 1);
+            // The level span this track owns in sync mode, READ FROM THE CORE
+            // (music_core owns the mapping) instead of recomputed here -- the
+            // old local inverse of `idx = (level * n) / TOTAL_LEVELS` was a
+            // duplicate that the bonus-track reservation would have silently
+            // outlived. A reserved bonus-round track owns no span, because it
+            // never comes up while playing through the game; it reports that
+            // as lo > hi, so the row reads BONUS instead of a range it will
+            // never play at.
+            if (hooks_.albumTrackBand) {
+                int lo = 1, hi = 0;
+                hooks_.albumTrackBand(albumView_, t, &lo, &hi);
+                if (lo <= hi) std::snprintf(caption, sizeof caption, "L%d-%d", lo + 1, hi + 1);
+                else          std::snprintf(caption, sizeof caption, "BONUS");
             }
         }
 

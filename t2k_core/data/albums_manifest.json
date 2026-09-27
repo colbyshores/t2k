@@ -1,5 +1,5 @@
 {
- "_comment": "THE TRACK -> ALBUM MAP. See t2k_core/tools/gen_albums.py.",
+ "_comment": "THE TRACK -> ALBUM MAP, and the bonus-round reservation. See t2k_core/tools/gen_albums.py. \"bonus_rounds\" is the ONLY place a bonus-round track is named: \"default\" is the pair every soundtrack uses, \"albums\" overrides it per selected soundtrack, and the array index is the round id (0 = GATES, 1 = RAIL). Every track named here is RESERVED -- skipped by the level-synced album rotation and by Play All (CD), still reachable by an explicit pick.",
  "albums": {
   "Tempest 2000": [
    "00_thermalresolution.dsp",
@@ -95,13 +95,25 @@
    "39_spa_04.dsp"
   ],
   "Tempest 2000 MOD": [
-   "t2000-1.mod",
-   "t2000-2.mod",
-   "t2000-3.mod",
-   "t2000-4.mod",
-   "t2000-5.mod",
-   "t2000-6.mod",
-   "t2000-7.mod"
+   "00_thermalresolution.mod",
+   "01_mindseye.mod",
+   "02_digitalterror.mod",
+   "03_constructivedemolition.mod",
+   "04_ultrayak.mod",
+   "05_glidecontrol.mod",
+   "06_constructivedemolition.mod"
   ]
+ },
+ "bonus_rounds": {
+  "default": [
+   "08_glidecontrol.dsp",
+   "10_2000dub.dsp"
+  ],
+  "albums": {
+   "Tempest 2000 MOD": [
+    "05_glidecontrol.mod",
+    "06_constructivedemolition.mod"
+   ]
+  }
  }
 }
