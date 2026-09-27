@@ -167,7 +167,11 @@ void player_zapper(GameEngine& engine, int time) {
         engine.zapper_target = {pos.x, pos.y, -GRID_ELEMENT_LENGTH};
         engine.old_zapper_el_pos = -1;
         engine.old_zapper_num = -1;
-        engine.show_powerup_text(time, 8); // "zappo"
+        // "eat electric death!" shows when the superzapper is fired with a charge
+        // left in the rack after use. The last charge fires silently: stock >= 2
+        // is the multi-kill zap (stock == 1 is the single-kill zap), so the
+        // screen-clear zap gets "eat electric death" and the last one keeps "zappo".
+        engine.show_powerup_text(time, p.zapp_stock >= 2 ? 15 : 8);
         p.multiplier *= 0.5f;
         flash_raise(engine.flash, FLASH_SUPERZAP, time);
     }

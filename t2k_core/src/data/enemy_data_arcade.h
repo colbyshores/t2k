@@ -380,8 +380,8 @@ inline const std::array<Face, 6> ARCADE_TANKER_FACES = {{
 //   * HULL raised one step (1/2->3/4, 3/4->full) so the body ADDS light and
 //     reads brighter than the tube it climbs at every sweep phase.
 //   * CORE is now a RED internal accent, not the hull's own purple. This is
-//     the reference's own technique for a same-hue collision: the legacy
-//     tanker wears a red/blue badge over its purple body precisely so the
+//     the reference's own technique for a same-hue collision: the tanker
+//     wears a red/blue badge over its purple body precisely so the
 //     inside still reads when the outside matches the background. The tanker's
 //     identity stays purple (the hull); the accent is the payload, and it is
 //     what survives the collision. "hue is identity, intensity is event" is

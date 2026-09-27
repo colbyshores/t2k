@@ -619,7 +619,7 @@ struct GameEngine {
     // faithful 2x kill score (sweep pay + death pay): half the explosion
     // particles, same score. See init_explosion.
     // spike_height: the EXPLOSION_SPIKE's spike height (engine z-units) BEFORE
-    // this hit eroded it. Drives the "tink" pitch to mirror the legacy's
+    // this hit eroded it. Drives the "tink" pitch to mirror the reference's
     // decspike period override (sfx_pitch = (length & 0x1FF) + 524), which the
     // bank's table period (254 -> 14092.7 Hz) does NOT encode: the tink actually
     // plays at ~6.5-6.8 kHz and ramps UP as the spike is shot down. The pitch

@@ -778,10 +778,10 @@ void GameEngine::init_explosion(int time, int energy, int lane, float z,
                                  float spike_height) {
     // the reference source:2810-2833 -- explosion sound by type (spike gets its own "tink";
     // everything else gets the boom, pitched roughly by energy). The spike's
-    // pitch reproduces the legacy decspike period override (see engine.h): the
-    // bank stores the tink at its table period (254 -> 14092.7 Hz), so the
-    // multiplier 254/period brings it to the ~6.5-6.8 kHz the legacy actually
-    // plays, and it climbs as the spike's height falls. Computed here (once per
+    // pitch reproduces the reference decspike period override (see engine.h):
+    // the bank stores the tink at its table period (254 -> 14092.7 Hz), so the
+    // multiplier 254/period brings it to the ~6.5-6.8 kHz the reference
+    // actually plays, and it climbs as the spike's height falls. Computed here (once per
     // explosion) rather than at the collision site to keep the float->int off the
     // shot-sweep hot loop.
     if (ex_id == EXPLOSION_SPIKE) {

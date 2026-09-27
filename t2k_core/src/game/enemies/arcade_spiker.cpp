@@ -389,8 +389,8 @@ bool ArcadeSpike::shotHit(GameEngine& engine, int time, int lane, Shot& shot,
         return false;
     }
 
-    // Capture the spike's height BEFORE this hit chips it: the legacy decspike
-    // computes the tink's period from the length as it stood at the hit, so the
+    // Capture the spike's height BEFORE this hit chips it: the decspike computes
+    // the tink's period from the length as it stood at the hit, so the
     // ramp reflects the pre-hit height. Passed to init_explosion, which turns it
     // into the pitch (see engine.h).
     const float spike_height = elem.spike;

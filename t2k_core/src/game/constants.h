@@ -1139,7 +1139,7 @@ enum ExplosionId {
 //     `eat_elec_dth_link`. Confirmed externally as T2K's own banner
 //     phrase.
 //   * `outa.raw` renders as OUTTA HERE, two Ts. Contemporary coverage of the
-//     legacy release is consistent on the spelling, and the filename is no
+//     reference release is consistent on the spelling, and the filename is no
 //     more the rendered text here than `outstan` is.
 //
 // The link FORMAT was read from the consumer, not guessed: MODTEXT4.ASM's

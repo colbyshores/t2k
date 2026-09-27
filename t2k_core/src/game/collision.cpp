@@ -266,10 +266,10 @@ void move_shots(GameEngine& engine, int time) {
                     // unshootable. See DOCTRINE.md "Intentional deviations".
                     //
                     // Capture the spike's height BEFORE this hit erodes it: the
-                    // legacy decspike computes the tink's period from the length
-                    // as it stood at the hit, so the ramp reflects the pre-hit
-                    // height. Passed to init_explosion, which turns it into the
-                    // pitch (see engine.h).
+                    // tink's period is computed from the length as it stood at
+                    // the hit, so the ramp reflects the pre-hit height. Passed
+                    // to init_explosion, which turns it into the pitch (see
+                    // engine.h).
                     const float spike_height = elem.spike;
                     elem.spike -= SPIKE_EROSION_PER_HIT;
 
