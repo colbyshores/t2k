@@ -1,0 +1,12 @@
+# Python deps for the build pipeline (./build.sh bootstrap).
+#
+# Only three of these are ever needed to go from a bare clone to a built CIA:
+#   beautifulsoup4  parse the KHInsider album/track pages (soundtracks/download.py)
+#   curl_cffi       TLS that Cloudflare does not fingerprint (same script)
+#   pyflakes        the `check` gate's undefined-name screen (tools/check.sh)
+#
+# Pinned to the versions this pipeline was proven against on 2026-09-27. The
+# encoder itself is C (tools/vendor/gc-dspadpcm-encode) and needs no Python.
+beautifulsoup4==4.13.4
+curl_cffi==0.15.0
+pyflakes==3.4.0

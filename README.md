@@ -1,4 +1,4 @@
-# T2K — a procedural tube shooter on the TSEngine engine
+# T2K — a procedural tube shooter on TSEngine
 
 **T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **TSEngine**, a
 cross-platform C++ game engine engineered so that **one codebase runs on two very different
@@ -138,26 +138,142 @@ Documented in full in the shared port-docs vault; the short list, because each o
 | `t2k_core/tools/` | Level generator + verifier, harnesses, bin2h |
 | `t2k_3ds/` | The 3DS target: `Makefile`, `src/platform_3ds/` entry point, `src/rendering/renderer_c3d.cpp` (Citro3D), ndsp audio sinks, `shaders/*.v.pica` |
 | `t2k_pc/` | The desktop target: `CMakeLists.txt`, `src/main.cpp` (SDL2), the Vulkan 1.3 renderer (`renderer_vk.cpp` + `vk_*.cpp`, GLSL in `shaders/`), SDL audio sinks |
-| `soundtracks/` | Soundtrack source + conversion tooling (MOD/DSP prep for the bundled audio) |
-| `docs/` | Design notes, validation write-ups, and the engine doctrine (`DOCTRINE.md`) |
-| `tools/` | Repo-level runner + gate scripts (VFP hot-path contract, ARM11 math audit) |
+| `soundtracks/` | The soundtrack pipeline: fetch → decode → DSP-ADPCM encode → album map, pinned by `track_map.json` |
+| `docs/` | Design notes, validation write-ups, and the engine doctrine (`DOCTRINE.md`) — **local-only, not in the clone** |
+| `tools/` | Repo-level gate scripts + the vendored DSP-ADPCM encoder (`tools/vendor/`) |
 
-## Building
+## Building from scratch
 
-**Desktop (correctness oracle):**
+One command, from a bare clone:
+
 ```
-make pc            # -> t2k_pc/build/t2k   (cmake -S t2k_pc -B t2k_pc/build under the hood)
-                   #    needs: SDL2 + SDL2_mixer dev packages, glslang (glslang or
-                   #    glslangValidator on PATH / $VULKAN_SDK/bin / ~/.local/opt/glslang/bin),
-                   #    a Vulkan 1.3 driver at runtime (volk dlopens libvulkan.so.1; the
-                   #    headers, volk and the OpenXR headers are vendored in t2k_pc/third_party)
+./build.sh
 ```
 
-**Nintendo 3DS** (needs devkitPro: devkitARM, libctru, citro3d, picasso/tex3ds):
+That runs the whole chain and leaves `t2k_3ds/t2k.cia` plus its SHA-256:
+
+| # | Stage | What happens |
+|---|---|---|
+| 1 | **bootstrap** | checks `git` / `make` / `python3` / `ffmpeg` and devkitARM; installs the pinned Python build deps (`requirements-build.txt`) into the ambient interpreter if it already has them, otherwise into a project-local `.venv`; compiles the vendored DSP-ADPCM encoder into `tools/bin/dspadpcm` |
+| 2 | **fetch** | downloads the source FLACs from KHInsider into `soundtracks/<album>/` — resumable, existing files are skipped |
+| 3 | **audio** | `ffmpeg` → 32 kHz mono PCM → `dspadpcm` → `soundtracks/dsp/*.dsp`; copies the MOD album through unchanged; writes `dsp/albums.json`; **hash-checks every output** against `soundtracks/track_map.json`; stages the pool to `data/music/` |
+| 4 | **cia** | `make -C t2k_3ds cia` → `t2k_3ds/t2k.cia` |
+| 5 | **report** | artifact path, size, SHA-256 |
+
+If the fetch fails (Cloudflare, offline), the build **still finishes** as a
+pool-less CIA rather than leaving you with nothing — the game plays either way,
+because the MOD chiptunes and the album manifest are embedded in the binary.
+
+### Targets
+
+| Command | Does |
+|---|---|
+| `./build.sh` | bootstrap → fetch → audio → CIA |
+| `./build.sh bootstrap` | deps + Python env + the vendored encoder, nothing else |
+| `./build.sh fetch` | download the source FLACs only |
+| `./build.sh audio` | encode the DSP pool + MOD copy + `albums.json` + stage `data/music/` |
+| `./build.sh cia` | package the CIA from the current tree (dirty tree OK) |
+| `./build.sh production` | the strict, traceable CIA — refuses a dirty tree, always cleans, verifies banner / exheader / SMDH from the built bytes |
+| `./build.sh pc` | the desktop oracle (SDL2 + Vulkan 1.3) |
+| `./build.sh verify` | hash the built pool against `soundtracks/track_map.json` |
+| `./build.sh check` | the repo gate suite (VFP hot-path contract, ARM11 math audit, R11 screen, level/demo audits) |
+| `./build.sh clean` | generated pool + staging + build trees (keeps downloaded FLACs and `.venv`) |
+
+### Flags
+
+| Flag | Effect |
+|---|---|
+| `--no-audio` | build a CIA that provably carries **no** third-party audio (`T2K_MUSIC_POOL=none`) — ~2 MB, for licensing submissions or handing to a third party |
+| `--skip-fetch` | never hit the network; fail if the source FLACs are absent |
+| `--venv` | force a project-local `.venv` even if the system interpreter already has the deps (keeps conda/system site-packages out of the build) |
+| `--force` | re-encode every track even when it already matches the pinned hash — proves the map still holds under a changed encoder/ffmpeg |
+
+`./build.sh --help` prints this too.
+
+### Prerequisites
+
+- **System:** `git`, `make`, `python3` (3.10+), `ffmpeg`.
+- **3DS build:** devkitPro — `devkitARM`, `libctru`, `citro3d`, `picasso`. Read from
+  `$DEVKITPRO` / `$DEVKITARM`, defaulting to `/opt/devkitpro`.
+- **Python:** `beautifulsoup4`, `curl_cffi`, `pyflakes` — installed automatically
+  by the bootstrap stage from `requirements-build.txt`.
+- **Desktop build only:** CMake ≥ 3.16, SDL2 + SDL2_mixer dev packages, `glslang`
+  on PATH (or `$VULKAN_SDK/bin`), and a Vulkan 1.3 driver at runtime.
+
+### Where the audio comes from
+
+The soundtrack is copyrighted, so **neither the `.dsp` pool nor the source FLACs
+are in this repository**. What *is* here is `soundtracks/track_map.json`: every
+deployable file's canonical name, album, album order and SHA-256, derived by
+byte-exact encode match against the reference pool. The encoder that reproduces
+those bytes is vendored at `tools/vendor/gc-dspadpcm-encode` (MIT). So the pool
+is reproducible from source without ever being committed, and "correct file,
+correct name, correct order" is verified by hash rather than trusted.
+
+The five source albums are fetched from KHInsider into `soundtracks/`:
+
+| Album | Folder | KHInsider source |
+|---|---|---|
+| Tempest 2000 | `tempest2000_soundtrack/` | `tempest-2000-the-soundtrack-1995` (12) |
+| Tempest 3000 | `tempest3000_soundtrack/` | `tempest-3000-nuon-gamerip-2000` (19) |
+| Tempest 4000 | `tempest4000_soundtrack/` | `tempest-4000-gamerip` (144 → deduped) |
+| TxK | `TxK/` | `txk-ps-vita-gamerip-2014` (21) |
+| Space Giraffe | `Space_Giraffe/` | `space-giraffe-windows-gamerip-2009` (4) |
+
+The Tempest 2000 MOD album is **not** fetched — `soundtracks/mod/*.mod` is
+tracked, streams natively, and is copied (renamed `t2k-N.mod` → `t2000-N.mod`)
+rather than re-encoded.
+
+KHInsider sits behind Cloudflare, which answers `cf-mitigated: challenge` on a
+random fraction of requests (~42% pass measured 2026-09-27) — a per-request
+lottery, not a per-URL block. The downloader rebuilds its TLS + cookie session on
+every retry, which is what demonstrably clears it. If it throttles hard for a
+long stretch, solve the challenge in a browser and pass the clearance through:
+
 ```
-make 3ds           # -> t2k_3ds/t2k.3dsx  (make -C t2k_3ds under the hood)
+KHINSIDER_COOKIE='cf_clearance=…' KHINSIDER_UA='<the UA that solved it>' ./build.sh fetch
 ```
-> `make -C t2k_3ds clean` is mandatory when flipping any `-D` build flag.
+
+`cf_clearance` is bound to the User-Agent that solved the challenge, so the two
+must match.
+
+### Gates
+
+`./build.sh check` runs the repo's verification suite (both target builds, the VFP
+hot-path contract, the ARM11 math audit, the R11 integer-div screen, level +
+warp-window + demo audits, the `@vfp-exempt` pin floor, pyflakes).
+
+> The gate suite lives in `tools/runner/`, which is **local-only** (gitignored), as
+> is `docs/`. A bare clone therefore has no gate suite and `./build.sh check`
+> reports that it skipped rather than failing on a missing file. Everything needed
+> to *build* the game is tracked; the gates and the docs tree are the working
+> material of the primary checkout.
+
+### Installing on hardware
+
+Copy `t2k_3ds/t2k.cia` to the SD card and install it with your installer of
+choice (FBI, DreamTool, …). The soundtrack lives in the CIA's **romfs**, read in
+place — nothing needs to be copied to `sdmc:` besides the CIA itself. The first
+boot seeds `sdmc:/3ds/t2k/t2k_config.json` from the bundled template; that file
+is yours to edit (controls, audio source, render toggles).
+
+Anything leaving this machine should go through `./build.sh production`, not a
+bare `cia`: it refuses a dirty tree, always builds from clean, and re-reads the
+shipped bytes to verify the HOME-menu identity, the 16-bit stereo banner audio and
+the DSP-RAM exheader mapping — the three traps that build green and fail silently
+on a console.
+
+### Desktop (correctness oracle)
+
+```
+./build.sh pc      # -> t2k_pc/build/t2k
+```
+
+### Make targets
+
+`build.sh` is the front door; the underlying `make` targets still work:
+`make pc`, `make 3ds`, `make cia`, `make production`, `make check`, `make clean`.
+`make -C t2k_3ds clean` is mandatory when flipping any `-D` build flag.
 
 ## Ports & platform gating
 
@@ -167,8 +283,8 @@ make 3ds           # -> t2k_3ds/t2k.3dsx  (make -C t2k_3ds under the hood)
 
 ## License
 
-The **TSEngine engine** (all C++ sources, build files, shaders, and tooling) is
-released under the **MIT License** — see [`LICENSE`](LICENSE). The engine is a
+The **TSEngine** codebase (all C++ sources, build files, shaders, and tooling) is
+released under the **MIT License** — see [`LICENSE`](LICENSE). TSEngine is a
 clean-room implementation of Tempest-genre gameplay behaviour; it is not derived
 from any original Tempest 2000 source code.
 
