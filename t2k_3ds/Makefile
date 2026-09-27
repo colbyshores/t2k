@@ -315,6 +315,13 @@ CIA_SMDH      := $(BUILD)/$(TARGET).smdh
 # thing the collapse was standing in for until someone did. The publisher is a
 # real name by explicit instruction -- it is no longer a leak, it is a credit.
 #
+# THE PUBLISHER IS "TSEngine Devs", NOT "TSEngine" (user, 2026-09-27; codified
+# in AGENTS.md §9). The engine's internal name is not what ships on the home
+# menu: every new CIA must credit "TSEngine Devs" in the publisher field. The
+# guard reads this value and re-checks the built SMDH against it, so a CIA that
+# says "TSEngine" (or anything else) fails the production build rather than
+# reaching the console.
+#
 # The guard did not go away, it got sharper: it now checks each field against
 # its OWN expected string rather than against one shared name, so a stale or
 # swapped value still fails. Checked, not just written -- build_production.sh
@@ -324,7 +331,7 @@ CIA_SMDH      := $(BUILD)/$(TARGET).smdh
 # asked for it is not evidence that it happened.
 APP_TITLE        := T2K
 APP_DESCRIPTION  := Psychedelic Tube Shooter
-APP_AUTHOR       := OpenTS
+APP_AUTHOR       := TSEngine Devs
 # UniqueId is the title's identity to the console: change it and an install
 # becomes a SECOND, separate title rather than an update of the first (the old
 # one keeps its save data and stays on the menu). 0xF7A2C is in the homebrew

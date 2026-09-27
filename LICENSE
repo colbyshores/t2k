@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 The OpenTS Authors
+Copyright (c) 2026 The TSEngine Authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,7 +24,7 @@ SOFTWARE.
 
 SCOPE OF THIS LICENSE
 
-This license covers the OpenTS engine source code only: the C++ sources under
+This license covers the TSEngine engine source code only: the C++ sources under
 t2k_core/src/, t2k_3ds/, and t2k_pc/ (including their build files, shaders,
 and tooling), together with the original assets authored for this project.
 

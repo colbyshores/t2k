@@ -1,6 +1,6 @@
-# T2K — a procedural tube shooter on the OpenTS engine
+# T2K — a procedural tube shooter on the TSEngine engine
 
-**T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **OpenTS**, a
+**T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **TSEngine**, a
 cross-platform C++ game engine engineered so that **one codebase runs on two very different
 machines**:
 
@@ -167,7 +167,7 @@ make 3ds           # -> t2k_3ds/t2k.3dsx  (make -C t2k_3ds under the hood)
 
 ## License
 
-The **OpenTS engine** (all C++ sources, build files, shaders, and tooling) is
+The **TSEngine engine** (all C++ sources, build files, shaders, and tooling) is
 released under the **MIT License** — see [`LICENSE`](LICENSE). The engine is a
 clean-room implementation of Tempest-genre gameplay behaviour; it is not derived
 from any original Tempest 2000 source code.

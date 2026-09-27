@@ -1,7 +1,7 @@
-NOTICE — OpenTS / T2K
+NOTICE — TSEngine / T2K
 =====================
 
-The OpenTS engine source is licensed under the MIT License (see LICENSE).
+The TSEngine engine source is licensed under the MIT License (see LICENSE).
 This file lists material that is NOT covered by that MIT grant because it is
 owned by third parties. The engine code is a clean-room implementation: it
 re-implements Tempest-genre gameplay behaviour and is not derived from any
