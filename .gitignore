@@ -126,7 +126,7 @@ t3k_extract/*.bin
 # builds on demand -- neither ships with devkitPro.
 t2k_3ds/tools/.ciatools/
 
-# Swarm runner runtime state (recreated per run; never commit)
+# Runner runtime state (recreated per run; never commit)
 tools/runner/state.json
 tools/runner/runner.lock
 tools/runner/logs/
@@ -138,3 +138,11 @@ tools/runner/__pycache__/
 # would otherwise block tools/build_production.sh, which correctly refuses to
 # build from a dirty tree.
 .nfs*
+
+# Local-only working material. These stay on disk for whoever is working in this
+# checkout and never enter the repo: the notes tree, the editor's tooling
+# directory, and the local automation scripts.
+/docs/
+/.kilo/
+/AGENTS.md
+/tools/runner/
