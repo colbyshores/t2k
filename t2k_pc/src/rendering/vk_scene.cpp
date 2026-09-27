@@ -559,7 +559,11 @@ void drawGameplay(Renderer& r, GameEngine& engine) {
             const WebHueBatch& hb = currentWebColorBatch(engine.current_level);
             constexpr float WAVE_PERIOD_S = 512.0f / 60.0f;
             const float wavePhase = (float)engine.time * 0.001f / WAVE_PERIOD_S * 6.2831853f;
-            const float waveLaneStep = PIf / (float)engine.lane_count;
+            // Closed (go_round) webs need a full 2pi span so the wave is
+            // loop-periodic across the join; open webs keep the pi half-cycle
+            // end-to-end travel. See renderer_c3d wave path for the derivation.
+            const float waveLaneStep = (engine.grid_level_go_round ? 2.0f * PIf : PIf)
+                                   / (float)engine.lane_count;
             constexpr float VAL_NEAR = 1.00f, VAL_FAR = 0.45f;
             constexpr float LIGHT_FLOOR = 0.55f, LIGHT_PERIOD_S = 23.0f;
             const float lightAngle = (float)engine.time * 0.001f * (6.2831853f / LIGHT_PERIOD_S);
@@ -582,7 +586,13 @@ void drawGameplay(Renderer& r, GameEngine& engine) {
                     depthVal[vz] = VAL_NEAR + (VAL_FAR - VAL_NEAR) * ((float)vz / (float)GRID_LOD_Z);
             }
             for (int vg = 0; vg <= cols; ++vg) {
-                const int lane = std::min(vg / GRID_LOD_X, engine.lane_count - 1);
+                // Terminal column: open web = true free end (last lane); closed
+                // (go_round) web = duplicate of column 0, so lane 0's colour,
+                // else two coincident columns get different hues and seam the join.
+                const int rawLane = vg / GRID_LOD_X;
+                const int lane = rawLane < engine.lane_count
+                              ? rawLane
+                              : (engine.grid_level_go_round ? 0 : engine.lane_count - 1);
                 const float lr = cyc ? laneR[lane] : 0.0f, lg = cyc ? laneG[lane] : 0.0f;
                 const float lb = cyc ? laneB[lane] : 0.0f, ll = cyc ? laneLight[lane] : 0.0f;
                 for (int vz = 0; vz < GRID_STRIDE; ++vz) {

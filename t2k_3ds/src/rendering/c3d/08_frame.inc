@@ -93,7 +93,18 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
         // lanes) -- a travelling hue wave crosses the web per cycle, so
         // adjacent lanes sit at different points along the batch's range at
         // any instant AND any given lane sweeps the full range over time.
-        const float waveLaneStep = 3.14159265f / (float)engine.lane_count;
+        //
+        // CLOSED (go_round) WEBS MUST USE A FULL 2pi SPAN, not pi. On a loop
+        // the last lane is adjacent to lane 0, so the wave has to be
+        // loop-periodic: hueT(lane + N) == hueT(lane). A pi/N step makes the
+        // wave anti-periodic -- sin(phase - (lane+N)*pi/N) = -sin(phase -
+        // lane*pi/N) -- so lane N-1 and lane 0 sit (N-1)*pi/N apart instead of
+        // the continuing pi/N, and a hue discontinuity crosses the join once
+        // per cycle: the seam. 2pi/N (one full wave around the loop) makes the
+        // wrap continuous. Open webs keep the pi half-cycle: that end-to-end
+        // travel is the designed look when the ends are NOT joined.
+        const float waveLaneStep = (engine.grid_level_go_round ? 6.2831853f : 3.14159265f)
+                               / (float)engine.lane_count;
 
         constexpr float VAL_NEAR = 1.00f;   // depth shade at the near rim
         constexpr float VAL_FAR  = 0.45f;   // depth shade at the far end
@@ -163,9 +174,18 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
 
         /* @vfp-exempt R3, R5 — CPU-WAVE grid flatten: per-column cyc ternaries and depthVal/laneR subscripts, vg loop bounded by GRID_COLS. measured n/a. Verified 2026-09-06. */
         for (int vg = 0; vg <= liveCols; ++vg) {
-            // Terminal column (vg==liveCols) has no lane of its own -- reuse the
-            // last real lane's, exactly as before. Invariant over vz, so hoisted.
-            const int lane = std::min(vg / ts::GRID_LOD_X, engine.lane_count - 1);
+            // Terminal column (vg==liveCols) has no lane of its own. On an OPEN
+            // web it is the true free end, so it reuses the last real lane's
+            // colour. On a CLOSED (go_round) web it is a geometric duplicate of
+            // column 0 (same base position, normal and tremor phase -- see
+            // grid_geometry.cpp), so it MUST take lane 0's cycle colour: giving
+            // it lane N-1's colour paints two coincident columns with different
+            // hues and draws a seam exactly at the join. Invariant over vz, so
+            // hoisted.
+            const int rawLane = vg / ts::GRID_LOD_X;
+            const int lane = rawLane < engine.lane_count
+                          ? rawLane
+                          : (engine.grid_level_go_round ? 0 : engine.lane_count - 1);
             const float lr = cyc ? laneR[lane] : 0.0f, lg = cyc ? laneG[lane] : 0.0f;
             const float lb = cyc ? laneB[lane] : 0.0f, ll = cyc ? laneLight[lane] : 0.0f;
             // THE ALIASING BARRIER IS THE COST HERE, not the arithmetic.
