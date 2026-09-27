@@ -632,11 +632,14 @@ TsRenderer ts_render_create(int width, int height) {
     // VBOs. If those turn out to be over-provisioned (lineVbo alone is 6.75 MB
     // for 16384 segments), all 20 sets could stay GPU-resident and eviction
     // could go entirely.
-    // THE BUILD IDENTITY GOES IN THE LOG, not only on the title screen.
-    // The on-screen tag is deliberately dim and 240p makes it unreadable, so
-    // "which build is the console running" -- the question that has already
-    // produced one false hardware report (DOCTRINE.md, the stale .3dsx at the
-    // SD root) -- could only be answered by squinting. Now it is one FTP pull.
+    // THE BUILD IDENTITY LIVES IN THIS LOG. The title-screen tag was removed
+    // (user, 2026-09-27): unreadable at 240p, and anyone who can report a
+    // problem can already reach the SD card -- or reinstall from the QR code,
+    // which pins the artifact regardless. So this line, not the screen, is the
+    // answer to "which build is the console running" -- the question that has
+    // already produced one false hardware report (DOCTRINE.md, the stale
+    // .3dsx at the SD root). Do not delete it: with the tag gone this is the
+    // only identity on the device, and an unidentifiable build cannot be triaged.
     texLog("build %s  %s\n", T2K_BUILD_REV, T2K_BUILD_DATE);
     texLog("heap: linear=%u KB ordinary=%u KB linearFree=%u KB "
            "(masters need %u KB)\n",

@@ -27,7 +27,7 @@ fail() { printf '[build-production] FAIL: %s\n' "$1" >&2; exit 1; }
 # ---- 1. Git state must be clean and identified -----------------------------
 # A production artifact that cannot be traced to one commit is not
 # deterministic, whatever the bytes look like. This is the same discipline
-# the title-screen build tag exists for (DOCTRINE.md "Which build is the
+# the boot-log build stamp exists for (DOCTRINE.md "Which build is the
 # console running?") -- pushed one step earlier, before the build even starts.
 if [[ -n "$(git status --porcelain)" ]]; then
     fail "working tree is dirty -- commit or stash before a production build.

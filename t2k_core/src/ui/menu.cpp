@@ -4,7 +4,6 @@
 // code so the 3DS menu is unchanged, with the platform-specific pieces (music
 // backend, button rebinding) behind Hooks.
 // ============================================================================
-#include "build_rev.h"   // generated: T2K_BUILD_REV / T2K_BUILD_DATE (both build systems)
 #include "menu.h"
 
 #include <cstdio>
@@ -52,7 +51,7 @@ static_assert(ENEMY_SET_COUNT == PICKUP_BURST_COUNT,
 // that reason and cannot drift apart.
 constexpr float MENU_TITLE_TH = 0.14f;   // screen titles (was 0.12)
 constexpr float MENU_ROW_TH   = 0.12f;   // item rows (was 0.1)
-constexpr float MENU_TAG_TH   = 0.10f;   // build tag (was 0.08)
+
 
 // Direction bits for the auto-repeat tracker (platform-neutral).
 enum : unsigned { REP_UP = 1u, REP_DOWN = 2u, REP_LEFT = 4u, REP_RIGHT = 8u };
@@ -434,18 +433,6 @@ void Menu::render(TsRenderer r, int frame) {
     if (!titleScreen)
         writeAfont(TITLES[scr], 0.6666f, 0.9f, 0.05f, 0.06f, 0.0f, MENU_TITLE_TH,
                    0.5f, 0.7f, 1.0f, 0.9f, true, false, 0, 0, 1.0f);
-    else {
-        // The build tag, bottom-left, dim: which build is this console running?
-        // (2026-08-25: a hardware report of "missing fades" could not be told
-        // apart from a stale .3dsx on the SD without it.) Same on both targets.
-        static char tag[48] = {0};
-        if (!tag[0]) {
-            std::snprintf(tag, sizeof(tag), "build %s  %s", T2K_BUILD_REV, T2K_BUILD_DATE);
-            for (char* c = tag; *c; ++c) if (*c >= 'A' && *c <= 'Z') *c = (char)(*c - 'A' + 'a');
-        }
-        writeAfont(tag, 0.03f, 0.035f, 0.016f, 0.02f, 0.0f, MENU_TAG_TH,
-                   0.45f, 0.45f, 0.6f, 0.55f, false, false, 0, 0, 1.0f);
-    }
 
     // The boot list starts BELOW the logo. The wordmark spans y 0.535..0.885
     // at its widest breathe -- LOGO_CY 0.71 +- 0.5 * LOGO_SPAN_Y * (1 +

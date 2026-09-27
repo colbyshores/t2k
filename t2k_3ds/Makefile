@@ -256,17 +256,16 @@ $(ALBUMS_HDR): $(ALBUMS_JSON) $(CORE)/tools/gen_albums.py | $(BUILD)
 $(BUILD)/webs_runtime.o: $(LEVELS_HDR)
 $(BUILD)/music_core.o: $(ALBUMS_HDR)
 
-# menu.cpp shows the build tag (git rev + date) on the title screen and
-# renderer_c3d.cpp stamps it into tex.log / perf.log, so a console can always
-# say which build it is running -- TWO consumers, and both need the generated
-# header before they compile. Regenerated EVERY build; the header is rewritten
-# only when its content changes, so those objects recompile only when the
-# revision moves.
+# renderer_c3d.cpp stamps the build identity (git rev + date) into tex.log /
+# perf.log, so a console can always say which build it is running. The
+# title-screen tag is gone (2026-09-27), so this is the only consumer, and it
+# still needs the generated header before it compiles. Regenerated EVERY
+# build; the header is rewritten only when its content changes, so that object
+# recompiles only when the revision moves.
 BUILD_REV_HDR := $(BUILD)/build_rev.h
 .PHONY: FORCE
 $(BUILD_REV_HDR): FORCE | $(BUILD)
 	@python3 $(CORE)/tools/gen_build_rev.py $@
-$(BUILD)/menu.o: $(BUILD_REV_HDR)
 $(BUILD)/renderer_c3d.o: $(BUILD_REV_HDR)
 
 $(TARGET).elf: $(OFILES) $(SHADER_OBJ) $(GRID_SHADER_OBJ) $(PART_SHADER_OBJ) $(RIVER_SHADER_OBJ) $(SEG_SHADER_OBJ)
