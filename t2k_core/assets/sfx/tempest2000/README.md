@@ -97,7 +97,7 @@ death, reflect, warp-between-levels) are close semantic matches by sample
 name, not yet cross-checked against specific `yak.s` routines.
 
 Used (not the earlier the reference build PCM-sample-per-.dat scheme, which was replaced by
-chiptune-only audio in the shipped the shipped PC port.exe -- no original SFX data
+chiptune-only audio in the shipped PC-port binary -- no original SFX data
 survives). Tempest 2000 is the closest same-genre, well-documented source.
 Tempest-2000-1994-(c)-Atari/Interplay; used here as reference SFX for a
 non-commercial fan port, same spirit as the shipped MOD chiptune already in

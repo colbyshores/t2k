@@ -10,7 +10,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// grid_num_tex = 20 in the reference source (the exe derives per-level-group seeds as
+// grid_num_tex = 20 in the original (the exe derives per-level-group seeds as
 // (level / 0x14) * 10101). This was 50 (grid_num_levels) — a shadow bug that
 // only stayed hidden because callers pass nr=0.
 static constexpr int GRID_NUM_TEX = 20;
@@ -671,7 +671,7 @@ void TextureGenerator::addLayers(int src1, int src2, int dest, double w1, double
 
     for (int i = 0; i < total; i++) {
         // RGB only: the exe's DSL layers are 24-bit (FUN_00428a20 @ 0x428a20
-        // writes 3 bytes/pixel; the reference source:1399 uploads GL_RGB), so there is no
+        // writes 3 bytes/pixel; uploads GL_RGB), so there is no
         // alpha to combine and this port's RGBA8 alpha byte must stay opaque.
         // Combining it drove planes to alpha 0, which gameplay never noticed
         // (the grid TEV/blend paths ignore texture alpha) but which made them
@@ -697,7 +697,7 @@ void TextureGenerator::xorLayers(int src1, int src2, int dest, double w1, double
 
     for (int i = 0; i < total; i++) {
         // RGB only: the exe's DSL layers are 24-bit (FUN_00428a20 @ 0x428a20
-        // writes 3 bytes/pixel; the reference source:1399 uploads GL_RGB), so there is no
+        // writes 3 bytes/pixel; uploads GL_RGB), so there is no
         // alpha to combine and this port's RGBA8 alpha byte must stay opaque.
         // Combining it drove planes to alpha 0, which gameplay never noticed
         // (the grid TEV/blend paths ignore texture alpha) but which made them
@@ -724,7 +724,7 @@ void TextureGenerator::minCombineLayers(int src1, int src2, int dest, double w1,
 
     for (int i = 0; i < total; i++) {
         // RGB only: the exe's DSL layers are 24-bit (FUN_00428a20 @ 0x428a20
-        // writes 3 bytes/pixel; the reference source:1399 uploads GL_RGB), so there is no
+        // writes 3 bytes/pixel; uploads GL_RGB), so there is no
         // alpha to combine and this port's RGBA8 alpha byte must stay opaque.
         // Combining it drove planes to alpha 0, which gameplay never noticed
         // (the grid TEV/blend paths ignore texture alpha) but which made them
@@ -751,7 +751,7 @@ void TextureGenerator::maxCombineLayers(int src1, int src2, int dest, double w1,
 
     for (int i = 0; i < total; i++) {
         // RGB only: the exe's DSL layers are 24-bit (FUN_00428a20 @ 0x428a20
-        // writes 3 bytes/pixel; the reference source:1399 uploads GL_RGB), so there is no
+        // writes 3 bytes/pixel; uploads GL_RGB), so there is no
         // alpha to combine and this port's RGBA8 alpha byte must stay opaque.
         // Combining it drove planes to alpha 0, which gameplay never noticed
         // (the grid TEV/blend paths ignore texture alpha) but which made them

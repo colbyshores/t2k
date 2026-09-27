@@ -148,7 +148,7 @@ void GameEngine::reinit_gameplay(int time) {
 
 void GameEngine::apply_background_color() {
     // Pure black. The background is the starfield; the exe's grey-purple
-    // (the reference source:1414-1417) existed as a canvas for the mandelbrot's DST_COLOR
+    // existed as a canvas for the mandelbrot's DST_COLOR
     // blend to tint, and with the mandelbrot gone it only washes out the stars.
     bg_color[0] = 0.0f;
     bg_color[1] = 0.0f;
@@ -582,7 +582,7 @@ void GameEngine::init_shot(int lane, float z, int shot_id) {
     if (elem.num_shots >= MAX_SHOTS || shots_nums[shot_id] >= SHOT_MAX[shot_id])
         return;
 
-    // the reference source:951-955 -- InitShot plays the fire sound by shot id.
+    // InitShot plays the fire sound by shot id.
     if (shot_id == PLAYER_SHOT1)      sfx.push(SfxId::SHOOT1);
     else if (shot_id == PLAYER_SHOT2) sfx.push(SfxId::SHOOT2);
     else if (shot_id == REFLECT_SHOT1) sfx.push(SfxId::REFLECT);
@@ -623,7 +623,7 @@ void GameEngine::init_embrio() {
     }
 
     int level_mod = current_level % GRID_NUM_TEX;
-    // the reference source:3844 — 3 + sqrt(mod div 6); the "/6" is INTEGER division.
+    // 3 + sqrt(mod div 6); the "/6" is INTEGER division.
     float max_per_type = 3.0f + sqrtf((float)(level_mod / 6));
 
     // ---- DEPLOY-ON-JUMP: force the next spawn to be the saucer ----------
@@ -679,7 +679,7 @@ void GameEngine::init_embrio() {
     }
 
     if (!field_empty) {
-        // the reference source:3844 — random(round(sqrt(100-mod)*5+50)). The *5+50 is
+        // random(round(sqrt(100-mod)*5+50)). The *5+50 is
         // OUTSIDE the sqrt (spawn is throttled to ~1/(5·sqrt+50), not 4× faster).
         int threshold = (int)round(sqrt((double)std::max(1, 100 - level_mod)) * 5.0 + 50.0);
         if (rand() % std::max(1, threshold) > level_mod / 20)
@@ -718,7 +718,7 @@ void GameEngine::init_embrio() {
     //
     // It was Arcade-only originally because the classic embryo's own 189-533
     // tick descent was assumed to outlast the arrival and mask it, and because
-    // the reference source calls init_embrio unconditionally -- so gating the classic set
+    // The original calls init_embrio unconditionally -- so gating the classic set
     // is a DELIBERATE departure from this engine's own ground truth. That
     // mask does NOT hold on device: the classic embryo is visible descending
     // during the entry, so the gate now covers BOTH rosters and they share one
@@ -776,7 +776,7 @@ void GameEngine::init_embrio() {
 void GameEngine::init_explosion(int time, int energy, int lane, float z,
                                  int ex_id, int ex_id2, bool shed_bonus, bool draw_visual,
                                  float spike_height) {
-    // the reference source:2810-2833 -- explosion sound by type (spike gets its own "tink";
+    // explosion sound by type (spike gets its own "tink";
     // everything else gets the boom, pitched roughly by energy). The spike's
     // pitch reproduces the reference decspike period override (see engine.h):
     // the bank stores the tink at its table period (254 -> 14092.7 Hz), so the
@@ -845,7 +845,7 @@ void GameEngine::init_explosion(int time, int energy, int lane, float z,
         award_score(time, (int)round(score_energy * player.multiplier));
 
         // Anchor the floating score at the projected 3D kill point, offset out
-        // along the lane normal by 0.3 (the reference source:2826-2832). init_score consumes
+        // along the lane normal by 0.3. init_score consumes
         // window coords normalized to the ortho(0..1.3333, 0..1) space.
         //
         // NB world_model/proj/view are still their identity defaults --
@@ -1021,7 +1021,7 @@ void GameEngine::init_gameover(int time, int text_id) {
     // death sound starts.
     stop_looping_sfx();
 
-    sfx.push(SfxId::OUCH);   // the reference source:805-810 (descending ouch x5; single hit for now)
+    sfx.push(SfxId::OUCH);   // (descending ouch x5; single hit for now)
     flash_raise(flash, FLASH_DEATH, time);
     player.lives -= 1;
     player.gameover_animation = 10;
@@ -1191,7 +1191,7 @@ void GameEngine::init_powerup(int time) {
 void GameEngine::_award_powerup_score(int time, int base_points, int num_popups) {
     PlayerInfo& p = player;
     award_score(time, (int)round(base_points * p.multiplier));
-    // Faithful popup layout (the reference source:857-889): each is a "2010" glyph, spread and
+    // Faithful popup layout: each is a "2010" glyph, spread and
     // tinted by the powerup tier. num_popups selects the arrangement.
     if (num_popups <= 1) {
         init_score(2010, 0.5f * 1.3333f, 0.5f, 1.0f, 1.0f, 1.0f);
@@ -1263,7 +1263,7 @@ void GameEngine::show_powerup_text(int time, int text_id) {
     }
     int slot = (powerup_text_starttime[0] < powerup_text_starttime[1]) ? 0 : 1;
     powerup_text[slot] = (it != texts.end()) ? it->second : "";
-    // the reference source:792 `powerup_text_starttime[v]:=time` — the PARAMETER, not the
+    // `powerup_text_starttime[v]:=time` — the PARAMETER, not the
     // engine's own clock. This read `this->time`, silently discarding the
     // backdating two callers rely on: init_level and the level-clear path both
     // pass `time - 1500` to start the popup 1.5 s into its 4 s life, so it is

@@ -543,7 +543,7 @@ static void buildGridStatic(ts::GameEngine& engine, GridStaticVert* out) {
 void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view) {
     auto& p = engine.player;
 
-    // EXE-VERIFIED (FUN_0040dbb0 = TranslateWorld, the reference source:1674-1706). All three
+    // EXE-VERIFIED (FUN_0040dbb0 = TranslateWorld). All three
     // animation blocks below previously diverged from the shipped binary; they now
     // mirror the GL backend's translateWorld, which matches the exe's decompile:
     // squared amplitude terms, compound (0.1,0.1,1) tilt axes, and a level-entry

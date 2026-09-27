@@ -6,7 +6,7 @@
 // game: it owns one rule and nothing else, so the file shows the SHAPE without
 // any of its own complexity getting in the way.
 //
-// Behaviour (the reference source, ported unchanged): the reflector never reaches the rim.
+// Behaviour (ported unchanged): the reflector never reaches the rim.
 // It parks at a floor of GRID_ELEMENT_LENGTH * 0.075 and sits there bouncing
 // player shots back down the lane (the bounce itself lives in the SHARED shot
 // exchange -- collision.cpp move_shots and the enemy-side sweep in

@@ -37,7 +37,7 @@ static void _remove_enemy(GameEngine& engine, int lane, int idx, Enemy& enemy);
 // =============================================================================
 
 void move_enemies(GameEngine& engine, int time) {
-    /* @vfp-exempt R3 — move_enemies swept windows (the reference source:3263-3287, pins the shot/enemy/player branches below): per-iteration float z/edz/dz over live rosters. measured n/a. Verified 2026-09-06. */
+    /* @vfp-exempt R3 — move_enemies swept windows (pins the shot/enemy/player branches below): per-iteration float z/edz/dz over live rosters. measured n/a. Verified 2026-09-06. */
     PlayerInfo& p = engine.player;
     // Accepted gap: during the gameover transition we skip enemy motion entirely,
     // so a classic enemy killed on the exact frame gameover starts is stranded
@@ -159,7 +159,7 @@ void move_enemies(GameEngine& engine, int time) {
             if (deleted) continue;
 
             // =================================================================
-            // Enemy vs Shot Collision (the reference source:3263-3285). The complementary
+            // Enemy vs Shot Collision. The complementary
             // sweep to MoveShots: here the ENEMY's forward window catches a shot
             // it would otherwise overtake between frames. Evaluated at
             // pre-increment z. Mutual damage on ORIGINAL values (ol = enemy life
@@ -171,7 +171,7 @@ void move_enemies(GameEngine& engine, int time) {
                 for (int sh = 0; sh < elem.num_shots; sh++) {
                     Shot& shot = elem.shots[sh];
                     // Window: z >= shot.z >= z+enemy_dz (edz<0; enemy flies in).
-                    /* @vfp-exempt R3 — enemy-vs-shot swept window (the reference source:3263-3287): per-iteration float z/edz; integerizing changes hit-vs-miss at window edges. measured n/a. Verified 2026-09-06. */
+                    /* @vfp-exempt R3 — enemy-vs-shot swept window: per-iteration float z/edz; integerizing changes hit-vs-miss at window edges. measured n/a. Verified 2026-09-06. */
                     const bool inWindow = (enemy.z >= shot.z) && (enemy.z + edz <= shot.z);
                     if (!inWindow)
                         continue;
@@ -280,7 +280,7 @@ void move_enemies(GameEngine& engine, int time) {
                 /* @vfp-exempt R3 — enemy-vs-player swept window (ref build:3287): decides death triggers; preserve current (C-10/C-11). measured n/a. Verified 2026-09-06. */
                 const bool hitsPlayer = (enemy.z >= p.z) && (enemy.z + dz <= p.z);
                 if (hitsPlayer) {
-                    // Shooter dodge (the reference source:3287). the reference build collides when:
+                    // Shooter dodge. the reference build collides when:
                     //   ((not shooter) OR shooter-clause OR leftdx+rightdx>4)
                     // shooter-clause = phase<max*5/6 AND (!shooting OR primary OR coin).
                     // De Morgan of the shooter no-collide: the shooter DODGES when
@@ -339,7 +339,7 @@ static bool _ai_shooter(GameEngine& engine, int time, int lane, int idx, Enemy& 
         // At the near edge: fast sidestep toward player
         if (enemy.z <= 0.0f && rand() % 50 < enemy.sidestep_freq) {
             // Three-way: lane>pos -> -, lane<pos -> +, EQUAL -> hold (no sidestep).
-            // the reference source:2983-2984 — a lane-aligned enemy does not step. The old
+            // a lane-aligned enemy does not step. The old
             // two-way ternary yielded -1 on equality, forcing a spurious step.
             int dir = (lane > p.grid_element_pos) ? -1 : (lane < p.grid_element_pos) ? 1 : 0;
             if (engine.grid_level_go_round && abs(lane - p.grid_element_pos) > engine.lane_count / 2)
@@ -363,7 +363,7 @@ static bool _ai_shooter(GameEngine& engine, int time, int lane, int idx, Enemy& 
                     enemy.animation_phase = 1;
                 }
             } else if (roll <= 11) {
-                // Three-way hold on equality (the reference source:2993-2994).
+                // Three-way hold on equality.
                 int dir = (lane > p.grid_element_pos) ? -1 : (lane < p.grid_element_pos) ? 1 : 0;
                 if (engine.grid_level_go_round && abs(lane - p.grid_element_pos) > engine.lane_count / 2)
                     dir = -dir;
@@ -522,7 +522,7 @@ static bool _ai_mushroom(GameEngine& engine, int time, int lane, int idx, Enemy&
         if (enemy.z <= 2.0f
             && rand() % 50 < enemy.sidestep_freq
             && (enemy.mush_flag & 2)) {
-            // Three-way hold on equality (the reference source:3107-3108).
+            // Three-way hold on equality.
             int dir = (lane > p.grid_element_pos) ? -1 : (lane < p.grid_element_pos) ? 1 : 0;
             if (engine.grid_level_go_round && abs(lane - p.grid_element_pos) > engine.lane_count / 2)
                 dir = -dir;
@@ -723,7 +723,7 @@ static bool _ai_sp_zapper(GameEngine& engine, int time, int lane, int idx, Enemy
                 enemy.animation_phase = 1;
             }
         } else if (roll <= 13) {
-            // Three-way hold on equality (the reference source:3217-3218).
+            // Three-way hold on equality.
             int dir = (lane > p.grid_element_pos) ? -1 : (lane < p.grid_element_pos) ? 1 : 0;
             if (engine.grid_level_go_round && abs(lane - p.grid_element_pos) > engine.lane_count / 2)
                 dir = -dir;
@@ -767,7 +767,7 @@ static void _apply_movement(GameEngine& engine, int lane, int idx, Enemy& enemy)
 
     float dz = ENEMY_DZ[enemy.id];
 
-    // Mushrooms with body part 2 intact move slower. the reference source:3295-3297 does
+    // Mushrooms with body part 2 intact move slower. The original does
     // `z += dz; z -= dz*0.6666` => NET dz*0.3334. The port had dz*0.6666 (~2x
     // too fast).
     if (enemy.id == MUSHROOM && (enemy.mush_flag & 2)) {
@@ -805,7 +805,7 @@ static void _apply_movement(GameEngine& engine, int lane, int idx, Enemy& enemy)
 static bool _handle_death(GameEngine& engine, int time, int lane, int idx, Enemy& enemy) {
     PlayerInfo& p = engine.player;
 
-    // A multi-part mushroom splits and survives (the reference source:3345-3367) — skip the
+    // A multi-part mushroom splits and survives — skip the
     // explosion / score / powerup / removal entirely.
     if (enemy.id == MUSHROOM && _handle_mushroom_split(engine, lane, idx, enemy))
         return true;
@@ -817,7 +817,7 @@ static bool _handle_death(GameEngine& engine, int time, int lane, int idx, Enemy
     const float ez    = enemy.z;
     const int   elife = enemy.life;
 
-    // Container hatch (the reference source:3301-3343): two children via init_enemy (FRESH
+    // Container hatch: two children via init_enemy (FRESH
     // randoms), then z overridden, max_animation halved, sidestep doubled, and
     // animation_phase = +-(max-1) so the pair spreads apart immediately. C1-C3
     // hatch shooters into the same lane; C4 hatches el-zappers into lane+-1.
@@ -903,7 +903,7 @@ static bool _handle_death(GameEngine& engine, int time, int lane, int idx, Enemy
 }
 
 // Post-hatch tweak of a container child that init_enemy just appended to
-// child_lane (the reference source:3311-3342). init_enemy already rolled FRESH randoms for
+// child_lane. init_enemy already rolled FRESH randoms for
 // this child; here we override z, halve its max_animation (or force it for the
 // second el-zapper so both zappers share the same cadence), double its
 // sidestep, and preset animation_phase = +-(max-1) so the pair spreads apart on
@@ -933,7 +933,7 @@ static int _hatch_child_tweak(GameEngine& engine, int child_lane, float z,
     return m;
 }
 
-// the reference source:3345-3367. A multi-part mushroom sheds ONE part into a new fragment
+// A multi-part mushroom sheds ONE part into a new fragment
 // and the PARENT lives on (life restored, pushed back). Returns true when it
 // split (parent survives); false for a single-part mushroom (dies normally).
 static bool _handle_mushroom_split(GameEngine& engine, int lane, int idx, Enemy& enemy) {
@@ -946,7 +946,7 @@ static bool _handle_mushroom_split(GameEngine& engine, int lane, int idx, Enemy&
     GridElement& elem = engine.grid[lane];
     if (elem.num_enemies >= MAX_ENEMIES) return false;   // no room -> die normally
 
-    // Which part splits off: check order 4, then 1, then 8 (the reference source:3351-3360).
+    // Which part splits off: check order 4, then 1, then 8.
     int split_bit = 0;
     int check_bits[] = {4, 1, 8};
     for (int i = 0; i < 3; i++) {
@@ -957,7 +957,7 @@ static bool _handle_mushroom_split(GameEngine& engine, int lane, int idx, Enemy&
     }
     if (split_bit == 0) return false;
 
-    // The new fragment is a full COPY of the parent (the reference source:3346) — it KEEPS the
+    // The new fragment is a full COPY of the parent — it KEEPS the
     // parent's current z — carrying only the split-off part with high life. The
     // old port wrongly pushed the FRAGMENT back and left the parent in place.
     Enemy fragment = enemy;

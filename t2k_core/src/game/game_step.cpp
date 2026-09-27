@@ -1,6 +1,6 @@
 // ============================================================================
 // game_step.cpp — fixed-timestep accumulator + per-tick update order.
-// Ground truth: the reference source/the reference source:224-335 (the gameplay REPEAT loop).
+// Ground truth: the reference source (the gameplay REPEAT loop).
 // ============================================================================
 
 #include "game_step.h"
@@ -25,7 +25,7 @@ static constexpr int MAX_ACCUM_MS = 250;
 void game_tick(GameEngine& e, const InputFrame& in, int tick_ms) {
     const int t = tick_ms;
 
-    // --- Player input (the reference source:273-284). Movement/shoot/jump/tremor/zapper are
+    // --- Player input. Movement/shoot/jump/tremor/zapper are
     //     LEVEL reads (held) sampled every tick; N-key skip is an edge gated by
     //     the CHW easter-egg flag. ---
     player_move_left(e,  (in.held & ACT_MOVE_LEFT)  != 0);   // 273
@@ -55,7 +55,7 @@ void game_tick(GameEngine& e, const InputFrame& in, int tick_ms) {
     if (e.enemy_set == ENEMY_SET_ARCADE)
         enemyfam::ArcadePulsar::pulseTick(e, t);
 
-    // --- The Move* systems, exact the reference build order (the reference source:318-330). ---
+    // --- The Move* systems, exact the reference build order. ---
     // Slot 321 is the companion. This engine's own move_ai_cube was REMOVED and
     // replaced by the arcade reference's single droid (DOCTRINE.md "Intentional
     // deviations"); it keeps the original's slot, so the update ordering the
@@ -120,7 +120,7 @@ int game_advance(GameEngine& e, InputFrame in, int now_ms) {
         // Per-tick absolute-ms timestamp, +16 each iteration; last tick == now_ms
         // (the reference build `new_time-dif_time+16`).
         int tick_ms = now_ms - e.dif_time + TICK_MS;
-        if (e.nolives_animation < 400)        // the reference source:265 — freeze sim on game over
+        if (e.nolives_animation < 400)        // freeze sim on game over
             game_tick(e, in, tick_ms);
         in.pressed = 0;                        // edge actions fire once (the reference build keyb:=false)
         e.dif_time -= TICK_MS;

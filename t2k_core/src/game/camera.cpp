@@ -1,6 +1,6 @@
 // =============================================================================
 // camera.cpp -- the arcade reference camera law. See camera.h for the
-// derivation, the unit conversion and why this replaces the the reference source camera.
+// derivation, the unit conversion and why this replaces the legacy the reference build camera.
 //
 // Shared by both backends: no SDL, no libctru, no GL, no renderer types. The
 // renderers read the result through camera_eye() and build their own matrices.
@@ -45,7 +45,7 @@ inline void spring_axis(float& pos, float& vel, float targ, float omega) {
 bool run_z_sequence(GameEngine& engine, bool arrival_held) {
     const PlayerInfo& p = engine.player;
 
-    // --- LEVEL EXIT: this engine's own dive (the reference source out_animation) ---------
+    // --- LEVEL EXIT: this engine's own dive (the original out_animation) ---------
     // The camera trails the claw's dive: p.z accelerates down the tube
     // (player.cpp, out_val^2 growth) and the eye eases toward 0.6x of it at the
     // original 0.025 exponential. The transition reference's slide-out lived
@@ -127,7 +127,7 @@ bool run_z_sequence(GameEngine& engine, bool arrival_held) {
     //
     // Gated identically to move_jump's own parabola branch (player.cpp) so this
     // can never fire while the exit dive owns p.z instead. p.z is ALREADY the
-    // reference-faithful, mechanically-gated parabola (the reference source MoveJump, unchanged
+    // reference-faithful, mechanically-gated parabola (the original MoveJump, unchanged
     // -- this is a presentation-only camera reaction to it, not a rule change),
     // and that curve is continuous and returns to exactly 0 on landing, so
     // world_trans.z ends this branch at precisely cam_target.z (the resting

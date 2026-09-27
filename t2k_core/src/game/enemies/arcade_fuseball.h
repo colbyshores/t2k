@@ -17,8 +17,7 @@
 // the powerup ladder, and the same explicit exception to "MECHANICS ARE
 // GATED": the "original" being matched here is the arcade reference, not this
 // engine's own shipped exe, so neither `fidelity-verifier` nor
-// `exe-comparator` may correct any of it back toward the reference source /
-// the shipped PC port.exe.
+// `exe-comparator` may correct any of it back toward the earlier PC-port binary.
 //
 // ============================================================================
 // THE FIVE THINGS AN IMPLEMENTER MUST NOT GET WRONG

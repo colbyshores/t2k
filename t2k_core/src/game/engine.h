@@ -42,8 +42,8 @@ struct GameEngine {
     // time is the wall-clock ms render/HUD clock; dif_time carries un-stepped ms.
     int dif_time = 0;
     int last_ms = 0;
-    // CHW easter-egg gate for the N-key level skip (the reference build next_level_key,
-    // the reference source:25). Default false -> N does nothing, matching a normal build.
+    // CHW easter-egg gate for the N-key level skip (the reference build next_level_key).
+    // Default false -> N does nothing, matching a normal build.
     bool next_level_key = false;
 
     // Grid / Level Geometry
@@ -215,7 +215,7 @@ struct GameEngine {
     float cam_plane_bias_y = 0.0f;
 
     // Storage for the world modelview/projection/viewport, mirroring the reference build's
-    // world_model / world_proj / world_view globals (the reference source:1707-1709).
+    // world_model / world_proj / world_view globals.
     // Column-major 4x4 (GL/glm layout). Read by project_point, which
     // init_explosion uses to place the floating score at the kill point.
     //
@@ -672,7 +672,7 @@ struct GameEngine {
     // note on world_model above first.
     void set_world_matrices(const double* model, const double* proj, const int* view);
 
-    // gluProject-equivalent (the reference source InitExplosion). Projects an object-space
+    // gluProject-equivalent (the original InitExplosion). Projects an object-space
     // point through the captured world_model/proj/view into window coords.
     // Returns false if the point is behind the eye (w==0). Mirrors GLU's math.
     bool project_point(double ox, double oy, double oz,

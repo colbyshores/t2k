@@ -64,7 +64,7 @@ struct IconSegPool {
 void buildPowerupIcons(IconSegPool& out, const GameEngine& engine);
 
 // ---------------------------------------------------------------------------
-// THE WARP TRIANGLES (the reference source:5102-5122), on the powerup row's own columns.
+// THE WARP TRIANGLES, on the powerup row's own columns.
 //
 // They were the last verbatim-duplicated HUD block: identical loops in
 // vk_scene.cpp and renderer_c3d.cpp, laid out on a private x origin (0.945)

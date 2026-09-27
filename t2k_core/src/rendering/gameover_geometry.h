@@ -13,7 +13,7 @@
 // (user, 2026-09-03: "we will be ripping those colored lines -> fade out and
 // replacing that with the T2K style game over screen"). The 400-tick
 // ramp itself survives — it is the clock the sim freeze already keys off
-// (game_step.cpp, the reference source:265) and it is exactly the envelope this screen
+// (game_step.cpp) and it is exactly the envelope this screen
 // wants.
 //
 // WHY THIS LEANS SO HARD ON logo_geometry.h. The title screen already solved

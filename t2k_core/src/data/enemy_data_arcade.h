@@ -30,7 +30,7 @@
 //   +Y = the lane's surface normal, pointing TOWARD the web centre (into the
 //        tube on screen) -- identical to enemy_data.h's convention for the claw.
 // Arcade bodies are sized to the LANE, never to a fixed model scale: the final
-// uniform 0.09 shrink that this engine's own roster ends with (the reference source:3681)
+// uniform 0.09 shrink that this engine's own roster ends with
 // does NOT apply. See constants.h ARCADE_*_MODEL_FULL_WIDTH / ARCADE_*_LANE_FILL and
 // audit finding G4 -- DOCTRINE.md already records this exact mistake being paid
 // for once with the claw ("the old fixed 0.09 model scale made the claw 1.44

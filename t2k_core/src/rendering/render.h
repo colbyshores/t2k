@@ -34,7 +34,7 @@ void ts_render_destroy(TsRenderer r);
 // Render one gameplay frame from the current engine state.
 void ts_render_frame(TsRenderer r, ts::GameEngine& engine);
 
-// Render one WARP bonus-stage frame (the reference source RenderWarp) from engine.warp.
+// Render one WARP bonus-stage frame (the original RenderWarp) from engine.warp.
 void ts_render_warp(TsRenderer r, ts::GameEngine& engine);
 
 // Toggle the world/overhead camera view.

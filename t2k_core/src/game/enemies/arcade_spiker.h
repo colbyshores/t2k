@@ -12,7 +12,7 @@
 // explicit exception to "MECHANICS ARE GATED": the "original" being matched
 // here is the arcade reference, not this engine's own shipped exe, so neither
 // `fidelity-verifier` nor `exe-comparator` may correct any of it back toward
-// the reference source / the shipped PC port.exe.
+// the earlier PC-port binary.
 //
 // The written contract is docs/design/arcade_enemies.md §2.3. That document's
 // spiker recovery was flagged "recovery truncated at the tail" and its §8.8

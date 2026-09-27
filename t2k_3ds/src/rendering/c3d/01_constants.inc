@@ -43,7 +43,7 @@ constexpr float GRID_FOV_DEG = ts::tscam::FOV_Y_DEG;
 // CAM_Y_BIAS, CAM_CENTER_W, CAM_FIT_FOV_DEG, CAM_FIT_MARGIN, CAM_OFFSET_K,
 // CAM_ALPHA_DEG, CAM_OFF_ANG_LERP and CAM_OFF_LEN_LERP. They belonged to the
 // C3D-only `cam_experimental` bounding-box camera, which DOCTRINE.md already
-// records as REMOVED along with the the reference source camera it competed with -- the
+// records as REMOVED along with the legacy the reference build camera it competed with -- the
 // constants simply outlived the code. Their prose went on instructing the
 // reader to "set CAM_Y_BIAS=1.25f / CAM_CENTER_W=0.4f to restore exe-exact
 // framing", an edit that would have changed NOTHING, and to weigh a
@@ -326,7 +326,7 @@ constexpr int DEATH_MAX_VERTS = 6144;
 // background behind the wordmark (see the withdrawal note in build_Stars).
 constexpr float GO_STAR_KEEP = 0.55f;
 // HUD dashboard icons (ship-life "claw" icons, warp icons, zapp/tremor/jump powerup
-// glyphs — GL renderInfosGeometry, the reference source:5087-5201). Worst case: 5 ship icons *
+// glyphs — GL renderInfosGeometry). Worst case: 5 ship icons *
 // 2 mirrored halves * 9 verts = 90; 3 warp icons * 5 sub-triangles * 3 verts = 45;
 // 3 line-glyph types * 4 layers * ~11 segments * 6 verts/billboard =~ 792. ~930
 // total; 2048 gives headroom.

@@ -164,8 +164,8 @@ void draw_GameOver(RendererC3D* r, int p, float shUi) {
 }
 
 // HUD dashboard icons: ship-life "claw" icons + warp icons + the four powerup
-// glyphs (jump / tremor / zapp / AI droid) (GL renderInfosGeometry,
-// the reference source:5087-5201). Ortho-space (0..1.3333, 0..1) geometry, the same box
+// glyphs (jump / tremor / zapp / AI droid) (GL renderInfosGeometry).
+// Ortho-space (0..1.3333, 0..1) geometry, the same box
 // draw_GameOver and drawScreenFx use; all three icon groups share GL's single
 // blend mode (glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)) so they build
 // into ONE contiguous range / one draw call. All three groups come from the
@@ -240,7 +240,7 @@ void build_InfosIcons(RendererC3D* r, ts::GameEngine& engine, int p) {
     };
     const float HALFPX_DEFAULT = 0.5f;   // GL default glLineWidth(1) -> half-width 0.5px
 
-    // --- The claw row (the reference source:5087-5100): the SHARED builder
+    // --- The claw row: the SHARED builder
     // (rendering/hud_icons.h). One claw per remaining attempt -- the base-5
     // `lives / 5` numeral that used to stand beside it is gone; this backend
     // only submits the finished triangles.
@@ -255,7 +255,7 @@ void build_InfosIcons(RendererC3D* r, ts::GameEngine& engine, int p) {
         }
     }
 
-    // --- Warp triangles (the reference source:5102-5122): the SHARED builder
+    // --- Warp triangles: the SHARED builder
     // (rendering/hud_icons.h). They now sit on the powerup glyphs' own
     // columns; this backend only submits the finished triangles.
     {
@@ -304,7 +304,7 @@ void draw_InfosIcons(RendererC3D* r, int p) {
     C3D_DrawArrays(GPU_TRIANGLES, 0, count);
 }
 
-// Bonus / powerup pickups (GL renderBonus, the reference source). Each bonus is 3 nested
+// Bonus / powerup pickups (GL renderBonus). Each bonus is 3 nested
 // rotating+scaling textured quads floating in a tube lane at depth -z. World-
 // positioned, so drawing through gridMvp makes it stereoscopic for free. Blend =
 // GL_ONE_MINUS_DST_COLOR/ONE (inverse-multiply glow). Uses its OWN bonusVbo, not
@@ -400,7 +400,7 @@ void draw_Bonus(RendererC3D* r, const C3D_Mtx& gridMvp, int p) {
     C3D_DrawArrays(GPU_TRIANGLES, 0, vtop);
 }
 
-// Powerup popup text -- the reference build ground truth the reference source:5526-5552 (GL
+// Powerup popup text -- the reference build ground truth (GL
 // renderPowerupText). The particle-("stipple")-compute path this block used to
 // describe is GONE from this backend: there is no build_ParticleText /
 // draw_ParticleText / renderParticleText anywhere in t2k_3ds/src, and

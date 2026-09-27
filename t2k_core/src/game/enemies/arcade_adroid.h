@@ -14,7 +14,7 @@
 // the same explicit exception to "MECHANICS ARE GATED" the claw, the camera and
 // the powerup ladder carry: the "original" being matched is the ARCADE
 // reference, so neither `fidelity-verifier` nor `exe-comparator` may correct any
-// of it back toward the reference source.
+// of it back toward the earlier PC-port binary.
 //
 // ---- THE ONE SENTENCE ------------------------------------------------------
 //

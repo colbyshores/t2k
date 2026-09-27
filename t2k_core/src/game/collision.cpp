@@ -65,12 +65,12 @@ void move_shots(GameEngine& engine, int time) {
             // enemy shots dz<0 (fly toward player). The single the reference build window
             // uses signed dz directly (no *2, no separate branch); for enemy
             // shots (dz<0) it is naturally empty vs enemies, so enemy shots
-            // never damage enemies. the reference source:2879.
+            // never damage enemies.
             float dz = SHOT_DZ[shot.id];
             bool is_player_shot = shot.id < ENEMY_SHOT1;
 
             // =================================================================
-            // Shot vs Enemy Collision (the reference source:2879-2903).
+            // Shot vs Enemy Collision.
             // Ascending iteration. Mutual damage on ORIGINAL values: the shot
             // loses the enemy's original life; the enemy loses the shot's
             // original life (ol). No enemy removal and no early break here —
@@ -78,8 +78,8 @@ void move_shots(GameEngine& engine, int time) {
             // and is removed by the bounds/life check below.
             // =================================================================
             for (int e_idx = 0; e_idx < elem.num_enemies; e_idx++) {
+                /* @vfp-exempt R3 — swept-window hit test on per-iteration mutable float state (shot.z/enemy.z/dz); integerizing changes the hit set. measured n/a. Verified 2026-09-06. */
                 Enemy& enemy = elem.enemies[e_idx];
-                /* @vfp-exempt R3 — swept-window hit test on per-iteration mutable float state (shot.z/enemy.z/dz); integerizing changes the hit set vs the reference source:2879-2903. measured n/a. Verified 2026-09-06. */
                 if (!(shot.z <= enemy.z && shot.z + dz >= enemy.z))
                     continue;
 
@@ -142,7 +142,7 @@ void move_shots(GameEngine& engine, int time) {
                         enemy.z += dz * (1.0f + rnd);
                         engine.init_shot(v, enemy.z, REFLECT_SHOT1);
                     }
-                    /* @vfp-exempt R3 — rect pushback window on per-enemy float z; integerizing changes pushback vs the reference source damage ordering. measured n/a. Verified 2026-09-06. */
+                    /* @vfp-exempt R3 — rect pushback window on per-enemy float z; integerizing changes pushback vs the original damage ordering. measured n/a. Verified 2026-09-06. */
                     /* @vfp-exempt R3 — rect window island (pins the if below; split_loops emits a bare-if segment here). measured n/a. Verified 2026-09-06. */
                     if (enemy.id == RECT1
                         || (enemy.id == RECT2 && (enemy.z > -2.0f || enemy.z < -2.5f))) {
@@ -167,7 +167,7 @@ void move_shots(GameEngine& engine, int time) {
             }
 
             // =================================================================
-            // Shot vs Shot Collision (the reference source:2905-2915). Scan only shots after
+            // Shot vs Shot Collision. Scan only shots after
             // this one (avoid double resolution); reflect shots are inert. A
             // player shot (dz>0) sweeps forward onto an enemy shot; an enemy
             // shot (dz<0) sweeps back onto a player shot. Mutual on original life.
@@ -199,7 +199,7 @@ void move_shots(GameEngine& engine, int time) {
             }
 
             // =================================================================
-            // Enemy/Powerup Shot vs Player Collision (the reference source:2919-2929).
+            // Enemy/Powerup Shot vs Player Collision.
             // Enemy shot: swept interval z+dz <= player.z <= z. Powerup: widened
             // ±dz*10 window, gated on animation_phase < 42 -- the phase starts
             // at 110 (init_shot) and only counts DOWN, so the window is CLOSED
@@ -331,7 +331,7 @@ void move_bonus(GameEngine& engine, int time) {
     int i = 0;
     while (i < (int)engine.bonuses.size()) {
         Bonus& bonus = engine.bonuses[i];
-        // the reference build floors the phase at -max_animation (the reference source:1123), it does not
+        // the reference build floors the phase at -max_animation, it does not
         // decrement past it — the phase feeds the drift/z-speed formulas below.
         if (bonus.animation_phase > -bonus.max_animation) {
             bonus.animation_phase -= 1;
@@ -343,7 +343,7 @@ void move_bonus(GameEngine& engine, int time) {
             float d2 = (float)(p.grid_element_pos - bonus.grid_element_pos) - bonus.d;
 
             // Wrap around for closed grids
-            /* @vfp-exempt R3 — bonus lane-wrap on evolving float drift d2; wrap + force integrator define lane-slip behavior vs the reference source:1115-1136. measured n/a. Verified 2026-09-06. */
+            /* @vfp-exempt R3 — bonus lane-wrap on evolving float drift d2; wrap + force integrator define lane-slip behavior vs the original. measured n/a. Verified 2026-09-06. */
             if (engine.grid_level_go_round) {
                 if (d2 > engine.lane_count / 2.0f) {
                     d2 -= engine.lane_count;
@@ -386,11 +386,11 @@ void move_bonus(GameEngine& engine, int time) {
                          && fabsf(bonus.z - p.z) < 1.0f);
 
         // the reference build removes a bonus only when it falls off the back or is collected
-        // (the reference source:1153) — there is no separate lifetime expiry.
+        // there is no separate lifetime expiry.
         if (fell_off || in_range) {
             if (in_range && !fell_off) {
                 // Collected! Award score
-                engine.sfx.push(SfxId::BONUS_PICKUP);   // the reference source:1161
+                engine.sfx.push(SfxId::BONUS_PICKUP);
                 // NOTE: multiplier*40 is exactly representable; roundf keeps
                 // single-precision throughout (was double round via cast).
                 /* @vfp-exempt R2 — score domain crossing: roundf-to-int is the required float-to-score conversion; feeds award_score and 1UP thresholds. measured n/a. Verified 2026-09-06. */
@@ -402,9 +402,9 @@ void move_bonus(GameEngine& engine, int time) {
                 // Pickup sparkle: a small "+N" popup near the lower-left HUD --
                 // N is score_val above (multiplier * BONUS_PICKUP_POINTS), not
                 // the base -- gated so a fast pickup streak doesn't flood the
-                // screen (the reference source:1160).
+                // screen.
                 // The BONUS_PICKUP sfx above plays unconditionally on every pickup, but
-                // the the reference build only fires it inside this same gate (the reference source:1160-1162)
+                // the the reference build only fires it inside this same gate
                 // -- worth checking whether the SFX should be gated identically to
                 // the popup rather than firing every time.
                 if (p.glow < 25 || rand() % 10 == 0) {
@@ -420,7 +420,7 @@ void move_bonus(GameEngine& engine, int time) {
                         0.7f + (rnd() - 0.5f) * 0.6f
                     );
                 }
-                p.glow = 30 - rand() % 3; // the reference source:1163
+                p.glow = 30 - rand() % 3;
             }
 
             // Remove bonus (swap with last)
@@ -483,7 +483,7 @@ void move_scores(GameEngine& engine) {
 // move_cam
 // =============================================================================
 
-// The the reference source camera that used to live here (an exponential 0.975/0.025 lerp
+// The legacy the reference build camera that used to live here (an exponential 0.975/0.025 lerp
 // toward the player's lane, with the shake folded into the accumulated state and
 // z chasing -player.z) has been REPLACED by the arcade reference's camera law --
 // see game/camera.{h,cpp}. move_cam is now just the reference's `moveclaw` ordering:

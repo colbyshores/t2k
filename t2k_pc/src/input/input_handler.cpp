@@ -121,7 +121,7 @@ void InputHandler::readJoystick(InputState& state) {
         int button;
         GameAction action;
     };
-    // the reference build joy b1..b4 (the reference source:275-278): b1=Shoot, b2=Tremor, b3=Jump, b4=Zapper.
+    // the reference build joy b1..b4: b1=Shoot, b2=Tremor, b3=Jump, b4=Zapper.
     static const ButtonMapping button_map[] = {
         {0, GameAction::SHOOT},
         {1, GameAction::TREMOR},

@@ -440,10 +440,10 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
                     glm::vec4 w = d.model * glm::vec4((float)vp.x, (float)vp.y, 0.0f, 1.0f);
                     v.pos[0] = w.x; v.pos[1] = w.y; v.pos[2] = w.z;
                     float er, eg_, eb, ea;
-                    /* @vfp-exempt R3 — entity pass build: player-glow clamp gate (the reference source:2313 blue-add law). measured n/a. Verified 2026-09-06. */
+                    /* @vfp-exempt R3 — entity pass build: player-glow clamp gate (blue-add law). measured n/a. Verified 2026-09-06. */
                     if (vi < d.colorCount) {
                         const ts::Color4& c = d.colors[vi];
-                        float bb = c.b / 255.0f + d.blueAdd; // player glow (the reference source:2313)
+                        float bb = c.b / 255.0f + d.blueAdd; // player glow
                         if (bb > 1.0f) bb = 1.0f;
                         er = c.r / 255.0f; eg_ = c.g / 255.0f; eb = bb; ea = c.a / 255.0f;
                     } else {
@@ -2025,7 +2025,7 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
     // score/mult/lives text + 1-up swirl). Range built above.
     draw_InfosIcons(r, p);
 
-    // ---- HUD text (GL renderInfos text portion, the reference source 4957-5058). The
+    // ---- HUD text (GL renderInfos text portion). The
     // renderInfos half of it is now the SCORE ALONE -- ONE crisp vector layer,
     // no wobbling/rotating stack (the five faded layers, and the melt bed that
     // briefly replaced them, are both retired). The multiplier readout and the

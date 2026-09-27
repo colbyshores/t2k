@@ -429,8 +429,8 @@ bool openTrackFile(const std::string& path) {
 // always opens on track 0 and level 99 always lands on track n-1.
 //
 // IT USED TO BE TEN FIXED GROUPS of ten levels, mapped endpoint-inclusive
-// (g*(n-1)/9). That was the the reference build ancestor's CD model (the reference source:4070,
-// `curr_level div (100 div 10)`), and it had a real cost the moment an album
+// (g*(n-1)/9). That was the the reference build ancestor's CD model
+// (`curr_level div (100 div 10)`), and it had a real cost the moment an album
 // held more than ten tracks: only ten of them could ever play in sync mode.
 // T3K's nineteen dropped NINE, T4K's twenty-seven dropped
 // SEVENTEEN -- so "select the album" played roughly a third of it. Selecting

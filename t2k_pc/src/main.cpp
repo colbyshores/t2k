@@ -5,7 +5,7 @@
  * Free the reference build by Carsten Waechter (Toxic Avenger / AINC).
  *
  * This module implements the top-level game loop and state machine.
- * Original source: the reference source (the main program, 672 lines)
+ * Original source: the legacy the reference build main program (672 lines)
  *
  * Usage:
  *     ./t2k
@@ -978,8 +978,8 @@ void Game::updateGameplay(const InputState& input) {
     // --- Simulation: fixed-16ms accumulator, exact the reference build per-tick order.
     // game_advance drains 0..N ticks so the sim runs at a locked 60Hz with
     // catch-up, independent of render frame rate (shared with the 3DS build).
-    // the reference build halts the sim once the game is over (nolives_animation reaches 400,
-    // the reference source:265) and only keeps rendering the death frame.
+    // the reference build halts the sim once the game is over (nolives_animation reaches 400)
+    // and only keeps rendering the death frame.
     if (engine_.nolives_animation < 400) {
         engine_.time = wallClockTime;
         // ATTRACT: the synthetic pilot REPLACES the frame wholesale -- same
@@ -1024,7 +1024,7 @@ void Game::updateGameplay(const InputState& input) {
         // score or reach the initials screen.
         if (engine_.demo_mode) return;
         // Game over: keep rendering the death frame and leave to the highscore
-        // table only once a button is pressed (the reference source:442).
+        // table only once a button is pressed.
         if (input_.anyButtonPressed(input) && !screenFade().fadingOut()) {
             saveConfig(config_);   // persist the frontier
             screenFade().fadeOut(FADE_GAMEOVER_DONE);
@@ -1188,7 +1188,7 @@ void Game::updateWarp(const InputState& input) {
         return;
     }
 
-    // InitWarp once on entry (the reference source:6771; the reference source:526).
+    // InitWarp once on entry (;).
     if (!warpInited_) {
         init_warp(engine_, engine_.warp, wallClockTime);
         warpInited_ = true;
@@ -1244,7 +1244,7 @@ void Game::updateWarp(const InputState& input) {
         }
     }
 
-    // MoveWarp steps the tube sim in 16ms increments (the reference source:545-553).
+    // MoveWarp steps the tube sim in 16ms increments.
     // Vertical (GATES altitude) rides the arrows/stick Y via the
     // MOVE_UP/MOVE_DOWN aliases — pure inertial flight, no autopilot: the
     // ship stays where the player leaves it (rules fidelity, see warp.h).
@@ -1266,7 +1266,7 @@ void Game::updateWarp(const InputState& input) {
     move_warp(engine_, engine_.warp, left, right, up, down, wallClockTime);
 
     // On warp end, fall back into gameplay at the (advanced) level
-    // (the reference source:588-593 -> ReInitGamePlay).
+    // (-> ReInitGamePlay).
     if (engine_.warp.warp_level_end) {
         warpInited_ = false;
 

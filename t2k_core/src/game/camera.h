@@ -3,7 +3,7 @@
 // =============================================================================
 // camera.h -- the arcade reference camera law.
 //
-// This REPLACES the engine's own the reference source camera (an exponential 0.975/0.025
+// This REPLACES the engine's own legacy the reference build camera (an exponential 0.975/0.025
 // lerp on world_trans, blended 0.6 player / 0.4 web-centre, with a fixed
 // -1.25 vertical bias and a -7.5 standoff). It is a deliberate design
 // decision -- see DOCTRINE.md "Intentional deviations". Do NOT let a fidelity
@@ -207,7 +207,7 @@ namespace tstrans {
 // THE EXIT IS THIS ENGINE'S OWN, NOT THE TRANSITION REFERENCE'S. The
 // transition reference's gamemode-4 slide-out (vel -= 0.03 to a -6.0/frame
 // handover, 753 units) was implemented first and CUT after hardware play:
-// "way way way too fast when leaving the web". The original the reference source exit --
+// "way way way too fast when leaving the web". The original the reference build exit --
 // the camera trailing the claw's dive at an 0.025 exponential, 0.6 of the
 // player's z -- is the pacing the game is tuned around, so leaving feels like
 // DIVING with the claw rather than being fired out of a cannon. The star rush

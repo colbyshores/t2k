@@ -1150,7 +1150,7 @@ int buildSpZapperSegs(GameEngine& engine, Seg* out, int cap) {
 
             const glm::mat4 base = ts::entitygeom::enemyModelMatrix(engine, v, enemy);
 
-            // Same 8x mirrored/ghosted repeat as buildEnemies (the reference source:3683-3690).
+            // Same 8x mirrored/ghosted repeat as buildEnemies.
             for (int it = 0; it < 8; ++it) {
                 glm::mat4 mm = base;
                 float aScale = 1.0f;

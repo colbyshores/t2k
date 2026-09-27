@@ -20,7 +20,7 @@
 // "MECHANICS ARE GATED" that the claw, the camera and the powerup ladder
 // already carry: the "original" being matched is the ARCADE reference, not
 // this engine's own shipped exe, so neither `fidelity-verifier` nor
-// `exe-comparator` may correct any of it back toward the reference source.
+// `exe-comparator` may correct any of it back toward the earlier PC-port binary.
 //
 // ---- THE ONE SENTENCE ------------------------------------------------------
 //
@@ -43,7 +43,7 @@
 //
 // `src/game/enemies/reflector.{h,cpp}` and `REFLECT_SHOT1` (constants.h:420)
 // are THIS ENGINE'S OWN classic-roster mechanism with a colliding name: a
-// the reference source REFLECTOR1 parks short of the rim and its bounce SPAWNS a fresh
+// the original REFLECTOR1 parks short of the rim and its bounce SPAWNS a fresh
 // REFLECT_SHOT1 through init_shot. That is a different thing -- an allocation,
 // not a take-over -- and none of it may be reused or extended to carry this
 // mechanism (recovery sec 7.1). The two must stay separate types.

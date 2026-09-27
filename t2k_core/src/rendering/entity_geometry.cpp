@@ -3,7 +3,7 @@
 //
 // Transform math is copied verbatim from RendererGL46::renderPlayer /
 // renderEnemies (src/rendering/renderer.cpp) and getEnemyGeometry so both
-// backends stay in lock-step. No GL here. Ground truth: the reference source/the reference source
+// backends stay in lock-step. No GL here. Ground truth: the reference source
 // (fidelity gaps vs the reference build are tracked separately and will be corrected here
 // once verified, so both backends inherit the fix).
 // ============================================================================
@@ -851,7 +851,7 @@ int buildPlayer(GameEngine& engine, EntityDraw* out, int cap) {
         model = MathUtils::scaleMat(model, 1.0f, -1.0f, 1.0f);
     }
 
-    // Glow: NON-uniform stretch (the reference source:2296) — x by sqr(glow)*0.0004, y by
+    // Glow: NON-uniform stretch — x by sqr(glow)*0.0004, y by
     // glow*0.007, z unchanged. (Old port used a uniform 1+glow*0.02.)
     if (p.glow > 0) {
         float g = (float)p.glow;
@@ -859,12 +859,12 @@ int buildPlayer(GameEngine& engine, EntityDraw* out, int cap) {
                                     1.0f + g * 0.007f, 1.0f);
     }
 
-    // Player glow adds to the BLUE channel (the reference source:2313: +sqr(glow) div 4).
+    // Player glow adds to the BLUE channel (+sqr(glow) div 4).
     float blueAdd = (p.glow > 0) ? std::floor((float)p.glow * (float)p.glow / 4.0f) / 255.0f : 0.0f;
 
     // The GL path mirrors X at the vertex level within one batch; an X-scale of
     // -1 on the model is mathematically identical for the z=0 player verts.
-    // (the reference build's init/out ghost-trail loop, the reference source:2298-2319, is deferred — it
+    // (the reference build's init/out ghost-trail loop,, is deferred — it
     // is a wireframe line effect handled with the other line entities.)
     // LEVEL TRANSITION: the claw draws ON TOP of the web.
     // Entering, translateWorld rotates the whole view up to 45 degrees about Z
@@ -906,7 +906,7 @@ int buildPlayer(GameEngine& engine, EntityDraw* out, int cap) {
     return n;
 }
 
-// The per-enemy MODEL MATRIX (the reference build transform steps 1-7, the reference source:3564-3681),
+// The per-enemy MODEL MATRIX (the reference build transform steps 1-7),
 // extracted so that enemies drawn as LINE LOOPS (the Space Zapper, which has no
 // triangle faces) place, rotate, breathe and scale identically to the
 // triangle-drawn ones. Previously this lived inline in buildEnemies and the
@@ -954,7 +954,7 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
         }
     }
 
-    // ---- Faithful the reference build transform order (the reference source:3564-3681) ----
+    // ---- Faithful the reference build transform order ----
     // 1. translate to lane position (3564-3566).
     glm::mat4 model = MathUtils::identity();
     model = MathUtils::translateMat(model, px, py, -enemy.z);
@@ -972,7 +972,7 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
         model = MathUtils::translateMat(model, lf.nx * 0.125f, lf.ny * 0.125f, 0.0f);
     }
 
-    // 3. breathing wobble + Z-stretch (the reference source:3593-3599) — applied to
+    // 3. breathing wobble + Z-stretch — applied to
     //    every enemy whose mush_flag bit 1 is clear. This whole block
     //    was ABSENT from the earlier port (the biggest visual gap).
     if ((enemy.mush_flag & 2) == 0) {
@@ -985,10 +985,10 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
         model = MathUtils::scaleMat(model, r2, r2 * 0.925f, 2.25f);
     }
 
-    // 4. orient to the surface (the reference source:3601).
+    // 4. orient to the surface.
     model = MathUtils::rotateMat(model, 270.0f + r, 0.0f, 0.0f, 1.0f);
 
-    // 5. per-type spawn/lane-transition (the reference source:3603-3671).
+    // 5. per-type spawn/lane-transition.
     if (enemy.id >= RECT1 && enemy.id <= RECT2) {
         float r2 = 0.0f;
         bool mid = enemy.animation_phase > 0 &&
@@ -1044,14 +1044,14 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
                                     2.0f + fastCos(r2 * 0.0008f) * 0.5f);
     }
 
-    // 6. mushroom "capped" extra scale (the reference source:3673).
+    // 6. mushroom "capped" extra scale.
     if (enemy.id == MUSHROOM && (enemy.mush_flag & 2) != 0) {
         model = MathUtils::scaleMat(
             model, 1.2f + fastCos((time + enemy.z * 100.0f) * PI * 0.00175f) * 0.2f,
             1.2f + fastSin((time + enemy.z * 100.0f) * PI * 0.00175f) * 0.2f, 1.75f);
     }
 
-    // 7. final uniform shrink (the reference source:3681).
+    // 7. final uniform shrink.
     model = MathUtils::scaleMat(model, 0.09f, 0.09f, 0.09f);
     return model;
 }
@@ -1124,7 +1124,7 @@ int buildEnemies(GameEngine& engine, EntityDraw* out, int cap) {
 
             glm::mat4 model = enemyModelMatrix(engine, v, enemy);
 
-            // 8x mirrored bow-tie loop (the reference build the reference source:3683-3690).
+            // 8x mirrored bow-tie loop (the reference build).
             for (int it = 0; it < 8; it++) {
                 if (n >= cap) return n;
                 glm::mat4 mm = model;

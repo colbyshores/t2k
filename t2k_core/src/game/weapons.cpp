@@ -27,7 +27,7 @@ void move_tremor(GameEngine& engine, int time) {
         return;
     }
 
-    // the reference source:3883-3887: at frame 30, three descending snd_boom hits fire.
+    //: at frame 30, three descending snd_boom hits fire.
     // Audio not yet ported (see collision.cpp reflect-sound TODOs).
 
     int t = p.animation_tremor;
@@ -85,7 +85,7 @@ void move_tremor(GameEngine& engine, int time) {
                 const bool inRange = (enemy.z >= z_min) && (enemy.z <= z_max);
                 if (enemy_zappable(enemy)
                     && rand() % 8 == 0 && inRange) {
-                    // Randomized energy bonus (the reference source:3903): life + (rnd(life)+life)/20.
+                    // Randomized energy bonus: life + (rnd(life)+life)/20.
                     int ebonus = enemy.life > 0
                         ? (rand() % enemy.life + enemy.life) / 20 : 0;
                     // ARCADE: pay the enemy's OWN score, not its life. Arcade
@@ -118,14 +118,14 @@ void move_tremor(GameEngine& engine, int time) {
 
             // Destroy enemy shots in the kill zone
             i = 0;
-            /* @vfp-exempt R3 — tremor shot kill loop (pins the z-window branch below): per-shot float range the reference source:3910. measured n/a. Verified 2026-09-06. */
+            /* @vfp-exempt R3 — tremor shot kill loop (pins the z-window branch below): per-shot float range. measured n/a. Verified 2026-09-06. */
             while (i < elem.num_shots) {
                 Shot& shot = elem.shots[i];
-                /* @vfp-exempt R3 — tremor shot kill-zone window: per-shot float z-range; reference-ported the reference source:3910 window. measured n/a. Verified 2026-09-06. */
+                /* @vfp-exempt R3 — tremor shot kill-zone window: per-shot float z-range; reference-ported window. measured n/a. Verified 2026-09-06. */
                 if (shot.id >= ENEMY_SHOT1
                     && rand() % 8 == 0
                     && shot.z >= z_min && shot.z <= z_max) {
-                    // Randomized energy bonus (the reference source:3910): life + (rnd(life)+life)/12.
+                    // Randomized energy bonus: life + (rnd(life)+life)/12.
                     int sbonus = shot.life > 0
                         ? (rand() % shot.life + shot.life) / 12 : 0;
                     engine.init_explosion(

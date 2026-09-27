@@ -69,7 +69,7 @@ void player_move_left(GameEngine& engine, bool pressed) {
         p.animation_phase -= 9.0f;
         p.grid_element_pos += 1;
         // No SFX on lane movement (user request) -- the the reference build ch13 crawl blip
-        // (the reference source:4177) is intentionally not ported.
+        // is intentionally not ported.
 
         // EXE-FAITHFUL (FUN_00408088): round wraps at N (-> 0); OPEN clamps at
         // the last real face, N-1. grid_element_pos indexes a FACE (the
@@ -121,7 +121,7 @@ void player_move_right(GameEngine& engine, bool pressed) {
         p.animation_phase += 9.0f;
         p.grid_element_pos -= 1;
         // No SFX on lane movement (user request) -- the the reference build ch13 crawl blip
-        // (the reference source:4193) is intentionally not ported.
+        // is intentionally not ported.
 
         if (p.grid_element_pos < 0) {
             if (engine.grid_level_go_round) {
@@ -177,7 +177,7 @@ void player_zapper(GameEngine& engine, int time) {
     }
 }
 
-// Faithful port of the reference source:4017-4162 (MoveJump). Control flow mirrors the reference build:
+// Faithful port of the original MoveJump. Control flow mirrors the reference build:
 // the out-animation path does NOT early-return (damage + jump collisions still
 // run during the level-exit slide), and the el-zapper/rect/spike damage checks
 // fall through — for a non-jumping player the jump gate at the bottom is what

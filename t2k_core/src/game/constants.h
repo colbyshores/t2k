@@ -819,7 +819,7 @@ constexpr int SEG_EXPAND_COUNT = 4;
 constexpr float ARCADE_ENEMY_ALPHA = 0.75f;
 
 // SIZE IS THE LANE, NOT A CONSTANT. Arcade bodies never take this engine's own
-// final uniform 0.09 model shrink (the reference source:3681): each is stretched so its full
+// final uniform 0.09 model shrink: each is stretched so its full
 // model width becomes LANE_FILL of the lane it occupies, per frame, from the
 // live lane vector -- the CLAW_MODEL_FULL_WIDTH / CLAW_LANE_FILL technique.
 // §2.1 "RE-AUTHOR (the 18-unit trap)" requires it: the arcade body is a FIXED

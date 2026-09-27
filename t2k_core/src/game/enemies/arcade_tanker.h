@@ -7,7 +7,7 @@
 // Per DOCTRINE.md this whole roster is an EXPLICIT EXCEPTION to "MECHANICS ARE
 // GATED": the "original" being matched is the arcade reference, not this engine's own
 // shipped exe. `fidelity-verifier` / `exe-comparator` must not correct any of
-// it back toward the reference source / the shipped PC port.exe.
+// it back toward the earlier PC-port binary.
 //
 // ---- WHAT IT IS -----------------------------------------------------------
 // A CARRIER, NOT A THREAT. It falls down ONE lane in a dead-straight line, can

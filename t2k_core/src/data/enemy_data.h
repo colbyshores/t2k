@@ -356,7 +356,7 @@ inline const std::array<Color4, 23> MUSHROOM_COLORS = {{
 // NOTHING READS THIS TABLE. Both backends draw the mushroom's full 15 faces
 // unconditionally (rendering/entity_geometry.cpp `case MUSHROOM:` sets
 // faceCount from MUSHROOM_FACES.size()), so a fragment shed by
-// _handle_mushroom_split (game/enemies.cpp, the reference source:3345-3367) owns a single
+// _handle_mushroom_split (game/enemies.cpp) owns a single
 // bit and still draws a whole mushroom.
 //
 // Kept because it is the recovered part->face mapping, not scaffolding.

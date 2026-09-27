@@ -629,13 +629,13 @@ void draw_Stars(RendererC3D* r, int p, int eye, float dim = 1.0f) {
     if (dim < 0.999f) resetFogStage();   // TEV stages persist across draws
 }
 
-// HISTORY -- the game-over DEATH SPIRAL (GL renderer.cpp:2723-2766,
-// the reference source:5238-5261) is GONE from both targets. Its fullscreen fade quad and
+// HISTORY -- the game-over DEATH SPIRAL (GL renderer.cpp:2723-2766) is GONE
+// from both targets. Its fullscreen fade quad and
 // three time-offset line-strip spirals, and the build_NoLives / draw_NoLives
 // pair that billboarded them into ortho-space quads, were deleted 2026-09-03
 // and replaced by the wordmark + melt screen (gameover_geometry.h's header and
 // docs/design/game_over.md record the swap and the user call). What follows in
 // 06_builders.inc is build_GameOver, which inherited only deathVbo and
 // DEATH_MAX_VERTS. engine.nolives_animation itself STAYS -- it is the 400-tick
-// clock the sim freeze keys off (game_step.cpp, the reference source:265). NB build_GameOver
+// clock the sim freeze keys off (game_step.cpp). NB build_GameOver
 // gates on gameoverRamp, NOT on nolives_animation; see its own comment for why.

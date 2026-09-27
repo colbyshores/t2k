@@ -12,7 +12,7 @@
 // Endpoint math is ported from RendererGL46::render* (the retired GL backend,
 // replaced by renderer_vk.cpp 2026-08-25).
 //
-// GL-free (glm + game state only). Ground truth: the reference source/the reference source.
+// GL-free (glm + game state only). Ground truth: the reference source.
 // ============================================================================
 
 namespace ts {

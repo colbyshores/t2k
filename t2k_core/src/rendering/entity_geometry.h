@@ -15,7 +15,7 @@
 // Colored (untextured) triangle meshes only. Line/point entities (shots,
 // explosions, zapper) need CPU line->quad expansion on
 // PICA200 and are handled separately in a later step. Bonus is textured
-// (Phase 3). Ground truth remains the reference source/the reference source.
+// (Phase 3). Ground truth remains the reference source.
 // ============================================================================
 
 #include <glm/glm.hpp>
@@ -42,7 +42,7 @@ struct EntityDraw {
     // false -> draw unconditionally, on top of whatever is already there.
     // Used for the claw during level transitions (see buildPlayer).
     bool depthTest = true;
-    // Added to the BLUE channel after /255 (the reference build player glow, the reference source:2313).
+    // Added to the BLUE channel after /255 (the reference build player glow).
     float blueAdd = 0.0f;
     // Uniform scale on the vertex ALPHA, i.e. on how much light this draw adds
     // under the shared SRC_ALPHA/ONE blend both backends use. 1.0 for

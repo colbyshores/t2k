@@ -6,7 +6,7 @@
 // The game logic must never see SDL or libctru. Each platform's entry point
 // fills an InputFrame (held level-state + pressed edges) and hands it to the
 // shared game_step; the bit layout mirrors the reference build's keyb[]/joyp1 reads
-// (the reference source:273-291). No platform headers here.
+//. No platform headers here.
 // ============================================================================
 
 #include <cstdint>
