@@ -1,0 +1,8 @@
+# Documented-behaviour baseline for warp outcome windows.
+# Measured by t2k_core/tools/warp_window_check.sh against the REAL
+# warp sim. Comments in warp.h / rail_geometry.h quote these numbers;
+# when a fade changes, this stops matching and the prose must be
+# updated WITH the change, not after it.
+# Regenerate with: t2k_core/tools/warp_window_check.sh --bless
+warp_fail_fade  completes_at_steps=205  seconds=3.28
+warp_win_env    completes_at_steps=90  seconds=1.44

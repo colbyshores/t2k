@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "contract": "VFP Hot-Path",
+  "target": "Nintendo 3DS ARM11 MPCore VFP11/VFPv2",
+  "rules": {
+    "R1": {"severity": "MUST", "title": "FPSCR FZ+DN on every float thread"},
+    "R2": {"severity": "MUST", "title": "No float to int conversion in a hot loop body"},
+    "R3": {"severity": "MUST", "title": "No float comparison driving control flow in a hot loop"},
+    "R4": {"severity": "MUST", "title": "No double precision in hot paths"},
+    "R5": {"severity": "MUST", "title": "Loop counters and indices MUST be integer"},
+    "R6": {"severity": "MUST", "title": "No libm transcendentals in hot paths"},
+    "R7": {"severity": "SHOULD", "title": "Avoid division and sqrt in hot paths"},
+    "R8": {"severity": "MUST", "title": "Fixed-point domains MUST NOT implicitly promote"},
+    "R9": {"severity": "SHOULD", "title": "VFP register pressure SHOULD stay under budget"},
+    "R10": {"severity": "MUST", "title": "Build flags MUST be verified"}
+  },
+  "standing_exemptions": [
+    {
+      "id": "E-LUT-1",
+      "file": "t2k_core/src/game/math_lut.h",
+      "symbols": ["fastSin"],
+      "rules": ["R2", "R3", "R5"],
+      "standing": true
+    },
+    {
+      "id": "E-LUT-2",
+      "file": "t2k_core/src/game/math_lut.h",
+      "symbols": ["fastAtan2"],
+      "rules": ["R3", "R7"],
+      "standing": true
+    },
+    {
+      "id": "E-LUT-3",
+      "file": "t2k_core/src/game/math_lut.cpp",
+      "symbols": ["mathLutInit"],
+      "rules": ["R4", "R6"],
+      "standing": true
+    },
+    {
+      "id": "E-MECH-1",
+      "file": "t2k_core/src/game/engine.cpp",
+      "symbols": ["*"],
+      "rules": ["R4", "R6"],
+      "standing": true
+    },
+    {
+      "id": "E-TEX-1",
+      "file": "t2k_core/src/rendering/textures.cpp",
+      "symbols": ["*"],
+      "rules": ["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8", "R9", "R10"],
+      "standing": true
+    },
+    {
+      "id": "E-FFT-1",
+      "file": "t2k_core/src/audio/fft.cpp",
+      "symbols": ["*"],
+      "rules": ["R6", "R7"],
+      "standing": true
+    }
+  ],
+  "thread_sites": [
+    "t2k_3ds/src/platform_3ds/main_3ds.cpp",
+    "t2k_3ds/src/audio/music_3ds.cpp",
+    "t2k_3ds/src/audio/sfx_3ds.cpp",
+    "t2k_3ds/src/rendering/renderer_c3d.cpp",
+    "t2k_core/src/audio/audio_thread.h"
+  ],
+  "arch_required": ["-march=armv6k", "-mfloat-abi=hard", "-mfpu=vfp"],
+  "math_errno": "-fno-math-errno"
+}

@@ -164,5 +164,12 @@ tools/runner/__pycache__/
 # directory, and the local automation scripts.
 /docs/
 /.kilo/
-/AGENTS.md
-/tools/runner/
+
+# The agent contract ships: it is the enforceable ARM11/VFP ruleset that every
+# PR is cut against, together with the gate scripts and contract corpus it names.
+# The rest of tools/runner/ (scheduler, worker, live state, logs) stays local.
+/tools/runner/*
+!/tools/runner/gates_vfp.py
+!/tools/runner/audit_arm11_math.py
+!/tools/runner/audit_r11_idiv.py
+!/tools/runner/contracts/

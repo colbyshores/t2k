@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "captured": "2026-09-06",
+  "capture_note": "OG-profile hardware capture that closed perf/vfp-hotpath-remediation (AGENTS.md 6). gates_vfp fails this corpus past VFP_CORPUS_MAX_AGE_DAYS (default 45d) and rejects a captured date newer than the newest docs/validation/perf-*.log, so the field cannot be bumped without a real capture.",
+  "seed": [
+    {
+      "file": "t2k_core/src/game/math_lut.h",
+      "symbols": ["fastSin", "fastCos", "fastAtan2"],
+      "why": "inlined into per-vertex loops; ~22k lookups/frame before hoist"
+    },
+    {
+      "file": "t2k_core/src/rendering/grid_geometry.cpp",
+      "symbols": ["*"],
+      "why": "perf stage grid; per-vertex UV/tremor"
+    },
+    {
+      "file": "t2k_core/src/rendering/line_geometry.cpp",
+      "symbols": ["*"],
+      "why": "perf stage line; worst-window spikes"
+    },
+    {
+      "file": "t2k_core/src/rendering/entity_geometry.cpp",
+      "symbols": ["*"],
+      "why": "per-entity/per-segment >=256 when roster loaded"
+    },
+    {
+      "file": "t2k_core/src/rendering/shatter.cpp",
+      "symbols": ["*"],
+      "why": "fx stage"
+    },
+    {
+      "file": "t2k_core/src/rendering/starfield.cpp",
+      "symbols": ["*"],
+      "why": "per-frame particle field"
+    },
+    {
+      "file": "t2k_core/src/rendering/rail_geometry.cpp",
+      "symbols": ["*"],
+      "why": "bonus rail; hot when WARP"
+    },
+    {
+      "file": "t2k_core/src/rendering/warp_geometry.cpp",
+      "symbols": ["*"],
+      "why": "bonus gates; hot when WARP"
+    },
+    {
+      "file": "t2k_core/src/game/game_step.cpp",
+      "symbols": ["game_tick"],
+      "why": "1x/sim tick, drives move_*"
+    },
+    {
+      "file": "t2k_core/src/game/enemies.cpp",
+      "symbols": ["move_enemies"],
+      "why": "per-tick all live enemies"
+    },
+    {
+      "file": "t2k_core/src/game/player.cpp",
+      "symbols": ["*"],
+      "why": "per-tick"
+    },
+    {
+      "file": "t2k_core/src/game/weapons.cpp",
+      "symbols": ["*"],
+      "why": "per-tick shots; exclude tremor-init doubles via E-MECH-1 if not in loop"
+    },
+    {
+      "file": "t2k_core/src/game/collision.cpp",
+      "symbols": ["*"],
+      "why": "per-tick"
+    },
+    {
+      "file": "t2k_3ds/src/rendering/renderer_c3d.cpp",
+      "symbols": ["*"],
+      "why": "cpu build/issue; inner submit loops"
+    },
+    {
+      "file": "t2k_3ds/src/rendering/text_c3d.cpp",
+      "symbols": ["*"],
+      "why": "HUD path per-frame"
+    }
+  ],
+  "cold_always": [
+    "t2k_core/src/rendering/textures.cpp",
+    "t2k_core/src/data/",
+    "t2k_core/src/ui/menu.cpp",
+    "t2k_3ds/src/platform_3ds/main_3ds.cpp",
+    "t2k_3ds/src/platform_3ds/og_profile.cpp",
+    "t2k_core/src/game/math_lut.cpp"
+  ]
+}

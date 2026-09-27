@@ -1,0 +1,37 @@
+# R11 candidate baseline -- docs/PRISTINE-SPEC.md 3.5.
+# One LINE-INDEPENDENT signature per candidate integer div/mod site
+# reported by tools/runner/audit_r11_idiv.py --sig:
+#     <file>  divisor=EXPR  xN  <normalized statement>
+# tools/check.sh fails if a NEW signature appears; a removed signature
+# (fixed site) passes with a note. Line numbers are deliberately absent:
+# a file:line baseline reports the SAME site as new after any edit above
+# it, which forces re-blessing and trains the reader to skip the gate.
+# Regenerate with: tools/check.sh --bless-r11
+t2k_3ds/src/rendering/c3d/06_builders.inc  divisor=sxp  x1  glm::vec2 off(perp.x * halfPx / sxp, perp.y * halfPx / syp);
+t2k_3ds/src/rendering/c3d/06_builders.inc  divisor=syp  x1  glm::vec2 off(perp.x * halfPx / sxp, perp.y * halfPx / syp);
+t2k_core/src/audio/audio_analysis.cpp  divisor=binHz  x1  int i0 = (int)(f0 / binHz);
+t2k_core/src/audio/audio_analysis.cpp  divisor=binHz  x1  int i1 = (int)(f1 / binHz);
+t2k_core/src/audio/audio_analysis.cpp  divisor=s_fluxHistLen  x1  s_fluxHist[s_fluxIdx % s_fluxHistLen] = flux;
+t2k_core/src/game/collision.cpp  divisor=engine.lane_count  x1  bonus.grid_element_pos = (bonus.grid_element_pos + 1) % engine.lane_count;
+t2k_core/src/game/collision.cpp  divisor=engine.lane_count  x2  bonus.grid_element_pos = ((bonus.grid_element_pos - 1) % engine.lane_count + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/enemies/arcade_spiker.cpp  divisor=clearCount  x1  target = clearLanes[rand() % clearCount];
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x1  ? engine.lane_count - 2 : (lane + 1) % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x1  int target = rand() % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x2  target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x2  target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x2  target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x2  target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/enemies.cpp  divisor=engine.lane_count  x2  target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
+t2k_core/src/game/engine.cpp  divisor=lane_count  x1  int el_pos = rand() % lane_count;
+t2k_core/src/game/engine.cpp  divisor=lane_count  x1  int next_i = (i + 1) % lane_count;
+t2k_core/src/game/engine.cpp  divisor=spawnable_count  x1  int en_id = spawnable[rand() % spawnable_count];
+t2k_core/src/game/weapons.cpp  divisor=enemy.life  x1  ? (rand() % enemy.life + enemy.life) / 20 : 0;
+t2k_core/src/game/weapons.cpp  divisor=shot.life  x1  ? (rand() % shot.life + shot.life) / 12 : 0;
+t2k_core/src/rendering/grid_geometry.cpp  divisor=cols  x2  if (wrapCols) elCol = ((elCol % cols) + cols) % cols;
+t2k_core/src/rendering/grid_geometry.cpp  divisor=length  x1  engine.grid_level_normal[v].x = -dy / length;
+t2k_core/src/rendering/grid_geometry.cpp  divisor=length  x1  engine.grid_level_normal[v].y = dx / length;
+t2k_core/src/rendering/line_geometry.cpp  divisor=viewDepth  x1  ? 2 : burst::lodSwirlPasses(f.radius * c.lodPxPerUnit / viewDepth);
+t2k_core/src/rendering/line_geometry.cpp  divisor=viewDepth  x1  const int ballN = lodBallN(sc * c.lodPxPerUnit / viewDepth);
+t2k_core/src/rendering/rail_geometry.cpp  divisor=ph  x1  o.v = fixV + sy / ph + dv;
+t2k_core/src/rendering/rail_geometry.cpp  divisor=pw  x1  o.u = fixU + sx / pw + du;
+t2k_core/src/rendering/rail_geometry.cpp  divisor=sectorW  x1  const int sec = ((int)std::floor(rp / sectorW)
