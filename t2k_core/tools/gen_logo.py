@@ -98,6 +98,23 @@ def contours(segs, iso, x0, y0, x1, y1, n):
         t = max(0.0, min(1.0, t))
         return (ax + (bx - ax) * t, ay + (by - ay) * t)
 
+    # chain edges into closed loops
+    def key(p):
+        return (round(p[0], 7), round(p[1], 7))
+
+    # DEGENERATE SELF-LOOP EDGES ARE DROPPED, NOT CHAINED.
+    # Where the iso level crosses EXACTLY on a grid corner -- which happens
+    # whenever a stroke endpoint lands on a grid line, as it does for the '!'
+    # bar at y=1.0 at every whole-ADVANCE offset -- the two crossings of that
+    # cell interpolate to t=0 and t=1 and collapse onto the SAME corner. The
+    # edge is zero-length. Chaining one is not harmless: it makes the walk
+    # leave the node it just entered and close a 1-point "loop" there, so the
+    # rest of that contour is never emitted. Measured on "YES!": the dot
+    # traced, the BAR VANISHED (1 loop instead of 2), and the loss was purely
+    # a function of the glyph's x offset -- the identical field at x=0 traced
+    # both. Dropping the zero-length edges leaves the surviving chain
+    # continuous and is invisible everywhere else: T2K, GAME, OVER, DEMO and
+    # A-Z all trace byte-identical with and without the filter.
     edges = []
     for i in range(n):
         for j in range(n):
@@ -115,11 +132,9 @@ def contours(segs, iso, x0, y0, x1, y1, n):
                     pts.append(interp(c[k][0], c[k][1], v[k],
                                       c[k2][0], c[k2][1], v[k2]))
             for k in range(0, len(pts) - 1, 2):
+                if key(pts[k]) == key(pts[k + 1]):
+                    continue
                 edges.append((pts[k], pts[k + 1]))
-
-    # chain edges into closed loops
-    def key(p):
-        return (round(p[0], 7), round(p[1], 7))
 
     adj = {}
     for a, b in edges:

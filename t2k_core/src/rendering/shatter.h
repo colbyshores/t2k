@@ -28,7 +28,7 @@
 //                                spring overshoot, heaviest expansion
 //   STYLE_STREAK   "outta here!" ejection: stays centered, then blasts past
 //                                the camera hardest, with depth motion-trails
-//   STYLE_YES      "yes!" x N    the climb-out chant, driven by the VOICE: one
+//   STYLE_YES      "yes" x N      the climb-out chant, driven by the VOICE: one
 //                                sign per spoken "yes" (GameEngine::yes_beat_ms
 //                                stamps each utterance of the looping Yes
 //                                sample; the glissando keeps shortening the
@@ -40,6 +40,53 @@
 //                                different shade of the LIVE WEB's colour band,
 //                                lifted toward white so it separates from the
 //                                same-hue tube behind it.
+//
+//                                ITS LETTERFORMS ARE THE WORDMARK'S, OUTLINE
+//                                ONLY. Every other style bakes a FILLED glyph
+//                                out of the arcade scanline lattice. The chant
+//                                instead samples the OUTLINE contours of
+//                                src/data/yes_data.h -- tools/gen_wordmark.py
+//                                over the same font_data.cpp that draws GAME
+//                                OVER and DEMO -- so it reads as fat glowing
+//                                OUTLINE strokes with the play area visible
+//                                straight through them, in the game's own
+//                                display face, and never as a filled slab.
+//                                Same particles, same flight, same burst; only
+//                                where the dots are put differs. The word is
+//                                "YES!" WITH the mark. It was dropped once, on
+//                                the mark's dot reading as a period -- but the
+//                                real cause was a tracer bug that deleted the
+//                                mark's STEM and left only its dot, i.e. a
+//                                bare period by construction. Fixed at the
+//                                source in gen_logo.py; see the FOUR GLYPHS
+//                                note in shatter.cpp. The block is WIDTH-
+//                                normalised to 2.0, so the narrow '!' shrinks
+//                                it by 0.823; YES_SIZE_FIX cancels that so
+//                                the three letters keep their size and only
+//                                the word gets wider. Per-glyph aspect is
+//                                invariant under the normalisation (0.999-1.000
+//                                in both bakes, and DEMO is 1.0000 too: the
+//                                same letterform). Thickness is half the first
+//                                outline pass and brightness is now FULL
+//                                (2x the last pass), so the chant reads as a
+//                                glow rather than a wire. The letters are
+//                                STRETCHED to the lattice's proportions: the
+//                                wordmark's own Y/E/S are 1:1, but the
+//                                particle text every other style bakes runs
+//                                0.6022 W/H, and square read as squashed
+//                                beside it. YES_LETTER_ASPECT carries that
+//                                ratio and the bake stretches y by its
+//                                reciprocal -- with the dot counts solved
+//                                from the STRETCHED geometry, so the stroke
+//                                still closes. Once a sign has
+//                                FULLY coalesced a translucent CENTRE fades
+//                                in behind the ring -- the same colour, about
+//                                40% of the stroke's alpha, baked from the
+//                                INTERIOR of the same contours. It is keyed
+//                                off the coalesce's own completion, so the
+//                                word arrives as an outline and only then
+//                                fills; it never scatters, and it is gone
+//                                again by the time the sign detonates.
 //
 // Layering follows starfield.h: pure simulation — no GL, no citro3d, no
 // libctru, no engine include. Each renderer owns a State, mirrors the engine's
@@ -88,9 +135,17 @@ constexpr int ONEUP_MAX_COPIES = 12;
 //     "1up"          bake 371  peak 3532   <-- the binding case (86% of cap)
 //     "massive!"     bake 890  peak 2734
 //     "outta here!"  bake 779  peak 2329
+//     "yes!"         bake 978  peak 1956   <-- outline bake + centre sheet, see STYLE_YES
 //     "marvelous!"   bake 899  peak 1829
 //     "niccce!"      bake 794  peak 1616
-//     "yes!"         bake 563  peak 1689
+//
+// The "yes!" row was re-measured 2026-09-26 on the four-glyph "YES!" wordmark
+// (the mark restored). It is not directly comparable with the rows around it
+// -- a different bake on the same budget -- and its peak is with four voice
+// stamps live, the most a climb-out actually produces. The theoretical worst
+// is YES_COUNT x MAX_DOTS, so the cap is doing real work here, not just
+// headroom: the per-sign culls in evalWorld are what keep the real number
+// under it.
 //
 // NOTE 371 x ONEUP_MAX_COPIES = 4452 EXCEEDS this cap: the bound survives only
 // because the copies at zn > 0.85 drop ~half their dots to the `d.h & 1u` LOD.
@@ -105,9 +160,13 @@ inline int durationMs(int style) {
     return BURST_MS;
 }
 
-// One baked lattice dot. u/v are text space (glyph advance units, centered on
-// the string; v in ~[-1.35, 1.35] over the glyph band). h seeds every per-dot
-// choice (depth stagger, twist, trails, sparkle).
+// One baked dot. u/v are text space, centered on the string. For the lattice
+// styles they are glyph advance units with v in ~[-1.35, 1.35] over the glyph
+// band; for the STYLE_YES outline bake they are the wordmark's own normalised
+// units (u in [-1, 1], v pre-divided by ASPECT so kY lands it undistorted).
+// Both are consumed the same way -- evalWorld normalises by uHalf -- but the
+// dot SIZE law differs, which is what Slot::dotStep records. h seeds every
+// per-dot choice (depth stagger, twist, trails, sparkle).
 struct Dot {
     float    u, v;
     float    r, g, b;   // baked colour identity (ONEUP recolours at eval)
@@ -125,6 +184,19 @@ struct Slot {
     int      lodCount  = 0;
     uint32_t textHash  = 0;
     float    uHalf     = 1.0f;   // baked half-width in text units (normalizer)
+    // 0 = the scanline-lattice bake, whose dot size comes from size0 (the
+    // module's "dot SIZE stays fixed while SPACING grows" law). >0 = the
+    // OUTLINE bake STYLE_YES uses, whose dots are spaced this far apart along
+    // the letterform's edge and must therefore be sized from the step, not
+    // from size0, or the line would not close up into a stroke.
+    float    dotStep   = 0.0f;
+    // STYLE_YES only: the last `fillCount` entries of `dots` are the INTERIOR
+    // sheet (the translucent centre of the letterforms), not stroke-edge dots.
+    // The stroke set is dots[0 .. count-fillCount) and is evaluated by the
+    // coalesce law; the sheet is dots[count-fillCount .. count) and is faded
+    // in only once that coalesce has closed. 0 for every other style, whose
+    // bake is a single undifferentiated lattice.
+    int      fillCount = 0;
     Dot      dots[MAX_DOTS];
 };
 

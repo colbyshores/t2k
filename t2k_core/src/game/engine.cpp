@@ -260,6 +260,16 @@ void GameEngine::stop_looping_sfx() {
     if (zapper_chain.active) zapper_chain = ZapperChain{};
 }
 
+// See engine.h. kind = 0 fails every renderer's liveness gate (e.kind in
+// beginShatterFrame / warpBuildTextBurst, s.style in evalWorld), so the
+// signs stop on the same frame the seam runs. yes_beat_count goes with them:
+// it is the chant's sign-spawn clock, and a stale batch would let a fresh
+// STYLE_YES event re-render old stamps inside its first frames.
+void GameEngine::clear_shatter_events() {
+    for (ShatterEvent& e : shatter_events) e = ShatterEvent{};
+    yes_beat_count = 0;
+}
+
 void GameEngine::clear_gameplay_entities() {
     // The same entity set init_level clears, minus the level/spawn/player setup.
     // Counts first, then the per-lane vectors, then the loose lists. clear()
@@ -1053,9 +1063,9 @@ void GameEngine::init_powerup(int time) {
     }
 
     // Special case: player is above grid, leaving the level ("yes yes yes",
-    // rendered as the "yes!" chant).
+    // rendered as the "yes" chant).
     if (p.z > 0.0f) {
-        show_powerup_text(time, 12); // "yes yes yes" -- rendered as the "yes!" chant
+        show_powerup_text(time, 12); // "yes yes yes" -- rendered as the "yes" chant
         // Start the looping "Yes!" and let game_advance bend its pitch upward
         // for the rest of the climb-out (see engine.h yes_loop_active).
         sfx.push(SfxId::YES, SfxAction::LOOP_START, 1.0f, 0.9f);
@@ -1243,7 +1253,7 @@ void GameEngine::show_powerup_text(int time, int text_id) {
     auto it = texts.find(text_id);
     // Celebration words pixel-shatter instead of wobbling, each with its own
     // 3D flythrough style (constants.h shatterStyleFor; rendering/shatter.h).
-    // The climb-out (id 12) renders as the "yes!" chant — the module stacks
+    // The climb-out (id 12) renders as the "YES!" chant — the module stacks
     // YES_COUNT copies on the Yes-loop's cadence — not the table's string.
     const int style = shatterStyleFor(text_id);
     if (it != texts.end() && style != 0) {

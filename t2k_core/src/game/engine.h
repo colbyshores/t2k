@@ -420,6 +420,18 @@ struct GameEngine {
     // finish-the-current-pass behaviour instead of chopping mid-word.
     void stop_looping_sfx();
 
+    // ---- Kill live shatter signs at a seam that leaves GAMEPLAY ----------
+    // The YES chant's signs (rendering/shatter.h STYLE_YES) live up to
+    // YES_MS = 4200 ms and are keyed off shatter_events[] + yes_beat_ms[].
+    // During GameState::WARP the world-space path suppresses every non-empty
+    // event (warpOwnsEvent is all-non-empty by the seventh verdict), and the
+    // warp's own burst mirrors the SAME engine events -- so a chant still
+    // live at warp entry keeps detonating inside the bonus round. The audio
+    // seam (stop_looping_sfx) tears the VOICE down; this tears the SIGNS
+    // down on the same tick, so the YESes die at the flash that takes the
+    // player to the round. Idempotent.
+    void clear_shatter_events();
+
     // ---- Drop the gameplay entities once the web has pulled away ----------
     // The game-over sequence fades the web and everything standing on it out
     // through the render gate (goWebFadeNow), but the engine's entity DATA --

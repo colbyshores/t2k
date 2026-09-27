@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "font.h"
+#include "../data/yes_data.h"  // STYLE_YES letterforms: the wordmark pipeline's, outline only
 #include "web_palette.h"        // STYLE_YES shades its chant from the live web
 #include "../game/math_lut.h"
 
@@ -35,6 +36,117 @@ constexpr float COVER_R = 0.36f;    // stroke coverage radius, glyph units
 // letters are ASPECT taller than their advance-derived width.
 constexpr float SPAN_R = 0.95f;
 constexpr float ASPECT = 1.55f;
+
+// ---- STYLE_YES: the chant wears the WORDMARK's letterforms -----------------
+// The same outline pipeline that draws GAME OVER
+// (rendering/gameover_geometry.cpp) and DEMO (ui/demo_overlay.h):
+// src/data/yes_data.h, tools/gen_wordmark.py --outline-only over the same
+// font_data.cpp. The bake samples the OUTLINE contours, so the word is fat
+// glowing vector lines with the play area visible straight through it, not
+// the filled slab the scanline lattice makes (user, 2026-09-26: "I want that
+// to be an outline like we had before. It should be similar to the GAME OVER
+// screen and the DEMO text.").
+//
+// FOUR GLYPHS, WITH THE MARK. "YES!" is back (user, 2026-09-26: "add the '!'
+// behind YES"). It was dropped on 2026-09-26 because the mark's dot read as a
+// period -- and because the four-glyph bake LOOKED wrong. Both causes are now
+// closed, and the second one was not the mark's fault:
+//
+//   The glyph is MISSING ITS BAR. The '!' is two segments, the (1,2)-(1,1)
+//   stem and the (1,0)-(1,0) dot, and the stem's endpoint lands exactly on a
+//   grid line at every whole-ADVANCE offset. The tracer collapsed that cell's
+//   two iso crossings onto the same corner, emitted a zero-length edge, and
+//   the chain walk closed a 1-point loop there -- so the DOT traced and the
+//   STEM VANISHED. The chant was showing a bare period, which is exactly the
+//   artefact that got the mark removed. Fixed in gen_logo.py's contours():
+//   zero-length edges are dropped, not chained. Verified offset-dependent --
+//   the identical field at x=0 traced both loops -- and non-destructive:
+//   T2K, GAME, OVER, DEMO and A-Z all regenerate byte-identical.
+//
+//   THE "STRETCH" WAS SCALE, NOT SHAPE. The generator normalises total WIDTH
+//   to 2.0, so adding the narrow '!' shrinks the whole block by
+//   0.254468/0.308857 = 0.823. Per-GLYPH aspect is invariant under that
+//   (measured: Y 0.9987 / E 1.0000 / S 1.0000 in BOTH the 3- and 4-glyph
+//   bakes, and DEMO is 1.0000 too -- the same letterform, which is the whole
+//   point of generating from the shipped font). YES_SIZE_FIX below cancels the
+//   block-scale loss so the letters keep the size the 3-glyph bake had and
+//   only the word gets wider.
+//
+// DENSITY. The step is sized so the bake lands near the dot count the lattice
+// spent on the same word: same MAX_DOTS spend and the same MAX_WORLD_OUT
+// headroom as before, but every dot now sits ON a stroke edge instead of
+// inside one, so the same budget buys an outline instead of a fill.
+//
+// FATNESS. Dot half-extent = YES_OUTLINE_FAT * YES_THICK * dotStep * k. FAT
+// is the geometric closure factor, DERIVED not eyeballed: at the shipped step
+// the dot diameter has to exceed the step or the run reads as a beaded
+// necklace instead of one continuous stroke. THICK is the user's knob -- half
+// the first pass's thickness, and at 1.35 x step the dots still overlap, so
+// it stays a line rather than a sprinkle.
+//
+constexpr float YES_OUTLINE_STEP = 0.0167f;        // wordmark units between dots
+constexpr float YES_OUTLINE_FAT  = 1.35f;          // dot half-extent / step, for stroke closure
+constexpr float YES_THICK        = 1.0f;           // half-thickness (user, 2026-09-27: comparison)
+constexpr float YES_BRITE        = 1.0f;           // full brightness (user, 2026-09-26: 2x)
+// V ADJUSTMENT. The module stretches v by ASPECT for every style (kY = k *
+// ASPECT). The wordmark's own proportions are already correct, so the bake
+// pre-divides y by ASPECT to land it undistorted -- that alone would make the
+// chant's letters SQUARE, because the wordmark's Y/E/S really are 1:1.
+//
+// SQUARE IS NOT WHAT THE CHANT SHOULD BE. Measured against the lattice bake
+// the rest of the particle text uses, a lattice glyph is 2.450 x 4.0687 world
+// units -- W/H 0.6022, distinctly taller than wide. The chant's square
+// letters read as squashed next to them (user, 2026-09-26: "It currently
+// appears squished ... make them more proportional like the particle text at
+// the bottom"). So the bake stretches y by 1/YES_LETTER_ASPECT on top of
+// undoing ASPECT, and the chant's letters take the lattice's proportions.
+//
+// THE STRETCH IS BAKED, NOT APPLIED AT EVAL, AND THE DOT COUNT FOLLOWS IT.
+// Spacing along a stroke is solved from the edge length; if the stretch were
+// applied after that solve, every near-vertical run would be pulled 1.66x
+// further apart than its dots were sized for and the stroke would break into
+// a beaded necklace. So the edge length used for the count is the STRETCHED
+// length, and the fill grid's y pitch is pre-shrunk by the same factor --
+// both bakes lay their dots down in the space the sign is actually rendered
+// in. Measured: stroke 624 -> 749 dots, sheet 271 -> 229 (coarser step),
+// total 978 inside MAX_DOTS.
+constexpr float YES_LETTER_ASPECT = 0.6022f;        // target W/H, measured off the lattice bake
+constexpr float YES_V_STRETCH     = 1.0f / YES_LETTER_ASPECT;
+constexpr float YES_V_ADJ         = YES_V_STRETCH / ASPECT;
+// Cancels the width-normalisation loss from adding the '!' to the block:
+// 0.308857 ("YES" Y_MAX) / 0.254468 ("YES!" Y_MAX) = 1.2137, so the three
+// letters render at the size the 3-glyph bake had.
+constexpr float YES_SIZE_FIX     = 0.308857f / 0.254468f;
+
+// THE CENTRE. The outline bake leaves the letterforms hollow -- you see the
+// web straight through them, which is the point while the word is ARRIVING.
+// Once a sign has fully coalesced it is a bright ring with nothing in it, and
+// the chant reads as wireframe (user, 2026-09-26: "once the YES! outline
+// fully materializes lets immediately fade in a translucent center of the
+// same color but less bright as the outline"). So the bake emits a second dot
+// set: the INTERIOR of the same contours, on a coarser grid, which eval fades
+// in the instant the coalesce closes and out again as the sign detonates.
+//
+// STEP is set from the measured ink area, not eyeballed: the four-glyph
+// contours enclose 0.354 wordmark units^2, and the grid is laid down in the
+// STRETCHED space (y pitch pre-shrunk by YES_V_STRETCH, so the effective
+// pitch is STEP on both axes). 0.045 lands 229 dots inside the ink -- about
+// 2.3x the overlap needed for a continuous sheet -- which keeps stroke +
+// sheet at 978, inside MAX_DOTS.
+//
+// FAT is the sheet-closure factor (dot diameter / step). It is larger than
+// the stroke's 1.35 because these are DIM additive dots: at the stroke's
+// closure the falloff tails would not overlap enough to read as a surface,
+// only as a dim mesh.
+constexpr float YES_FILL_STEP  = 0.045f;
+constexpr float YES_FILL_FAT   = 1.5f;
+// "less bright as the outline": the stroke's alpha peaks at 0.85 x YES_BRITE,
+// so the centre peaks at 0.35 -- about 40% of the stroke, clearly present but
+// never competing with it.
+constexpr float YES_FILL_BRITE = 0.35f;
+// Fade-in window, measured from the end of the coalesce, not from the word.
+// Short enough to read as "immediately", long enough that it does not pop.
+constexpr int   YES_FILL_IN_MS = 200;
 
 // Distance from the camera to the RIM plane (zn = 0), in tube lengths. The
 // anchor this module is handed is SEAT-relative (camera_advance_norm is
@@ -118,16 +230,167 @@ bool coveredAt(const char* text, int nchars, float gx, float gy) {
     return false;
 }
 
+// Bake STYLE_YES from the generated wordmark OUTLINE instead of the scanline
+// lattice. Each contour is a closed ring; every edge gets an INTEGER count of
+// dots at even arc length, so no float comparison drives how many dots exist
+// (AGENTS.md T1/T2 -- the count is solved per edge, not searched for).
+//
+// Cold: reached only from sync() when a slot's text/style/starttime changed.
+// NOTE: COLD per-event outline bake; integer edge walk, float arc fractions.
+void bakeYesOutline(Slot& slot, int starttime) {
+    namespace wm = ts::yeswm;
+
+    float uMax = 1e-3f;
+    /* @vfp-exempt R2 — cold wordmark outline bake: the per-edge dot count is SOLVED from the edge length (round(len/step)), which is the T1-correct form; an integer-only count would have to search for it. measured n/a. Verified 2026-09-26. */
+    for (int gi = 0; gi < wm::GLYPH_COUNT && slot.count < MAX_DOTS; ++gi) {
+        const wm::Glyph& G = wm::GLYPHS[gi];
+        for (int ci = 0; ci < G.nContours && slot.count < MAX_DOTS; ++ci) {
+            const wm::Contour& ct = G.contours[ci];
+            for (int i = 0; i < ct.n && slot.count < MAX_DOTS; ++i) {
+                const wm::Pt& a = ct.pts[i];
+                const wm::Pt& b = ct.pts[(i + 1) % ct.n];
+                const float ex = b.x - a.x, ey = b.y - a.y;
+                // The count is solved from the STRETCHED length: the dots are
+                // laid down in the space the sign renders in, so a vertical
+                // run gets the extra dots the stretch demands instead of
+                // being pulled apart by it.
+                const float eys = ey * YES_V_STRETCH;
+                const float len = std::sqrt(ex * ex + eys * eys);
+                const int n = (int)(len * (1.0f / YES_OUTLINE_STEP) + 0.5f);
+                if (n <= 0) continue;               // a sub-step edge: no dot
+                const float ooN = 1.0f / (float)n;
+                /* @vfp-exempt R2,R3 — cold wordmark outline bake: n is SOLVED from the edge length, not searched, and the |u| track below bounds uHalf; integerizing the arc fraction shifts every dot off its contour point. measured n/a. Verified 2026-09-26. */
+                for (int s = 0; s < n && slot.count < MAX_DOTS; ++s) {
+                    const float f = (float)s * ooN;
+                    Dot& d = slot.dots[slot.count];
+                    d.u = a.x + ex * f;
+                    d.v = (a.y + ey * f) * YES_V_ADJ;
+                    d.h = splitmix32((uint32_t)slot.count * 0x9E3779B9u
+                                    ^ (uint32_t)starttime);
+                    // Baked white: STYLE_YES recolours at eval from the live
+                    // web band, exactly as the lattice bake did.
+                    d.r = d.g = d.b = 1.0f;
+                    if ((d.h & 1u) == 0u) ++slot.lodCount;
+                    const float au = d.u < 0.0f ? -d.u : d.u;
+                    if (au > uMax) uMax = au;
+                    ++slot.count;
+                }
+            }
+        }
+    }
+    slot.uHalf   = uMax;
+    slot.dotStep = YES_OUTLINE_STEP;
+}
+
+// Is (px, py) inside the glyph's INK? Even-odd over every contour the glyph
+// owns, so a counter ('A', 'O', the '!' dot's own ring) arrives as another
+// contour and cancels rather than filling. COLD: bake-time only.
+/* @vfp-exempt R3 — cold wordmark interior test: the float edge crossings define which sheet dots exist; integerizing the ray test changes the baked set. measured n/a. Verified 2026-09-26. */
+bool insideGlyph(const ts::yeswm::Glyph& G, float px, float py) {
+    int crossings = 0;
+    for (int ci = 0; ci < G.nContours; ++ci) {
+        const ts::yeswm::Contour& c = G.contours[ci];
+        for (int i = 0; i < c.n; ++i) {
+            const ts::yeswm::Pt& a = c.pts[i];
+            const ts::yeswm::Pt& b = c.pts[(i + 1) % c.n];
+            if ((a.y > py) != (b.y > py)) {
+                const float xint = a.x + (py - a.y) * (b.x - a.x) / (b.y - a.y);
+                if (px < xint) ++crossings;
+            }
+        }
+    }
+    return (crossings & 1) != 0;
+}
+
+// Cold: reached only from bakeSlot for STYLE_YES, after bakeYesOutline.
+void bakeYesFill(Slot& slot, int starttime) {
+    // The translucent CENTRE that fades in behind a coalesced STYLE_YES sign.
+    // Appended to the same `dots` array after the stroke set and recorded in
+    // slot.fillCount, so one array and one bake cap cover both.
+    //
+    // The grid is per-glyph (each glyph's own bbox), which keeps the point
+    // count down and means a dot never has to be tested against a neighbour's
+    // contours. The position jitter is BAKED, not applied at eval: an
+    // additive sheet of perfectly regular dots reads as a mesh, and doing it
+    // here costs the hot loop nothing.
+    //
+    // uHalf is deliberately NOT extended by the jitter: evalWorld derives the
+    // whole sign's scale k from it, and letting the sheet nudge k would put
+    // the centre out of register with the stroke it sits inside.
+    namespace wm = ts::yeswm;
+    const int first = slot.count;
+
+    for (int gi = 0; gi < wm::GLYPH_COUNT && slot.count < MAX_DOTS; ++gi) {
+        const wm::Glyph& G = wm::GLYPHS[gi];
+        if (G.nContours <= 0) continue;
+
+        /* @vfp-exempt R3 — cold wordmark interior bake: bbox min/max over contour floats; integerizing the bounds moves every sheet dot off the ink. measured n/a. Verified 2026-09-26. */
+        float x0 = 1e9f, x1 = -1e9f, y0 = 1e9f, y1 = -1e9f;
+        for (int ci = 0; ci < G.nContours; ++ci) {
+            const wm::Contour& c = G.contours[ci];
+            for (int i = 0; i < c.n; ++i) {
+                const float px = c.pts[i].x, py = c.pts[i].y;
+                if (px < x0) x0 = px;
+                if (px > x1) x1 = px;
+                if (py < y0) y0 = py;
+                if (py > y1) y1 = py;
+            }
+        }
+        // Integer iteration counts: the grid extent is SOLVED from the bbox,
+        // not searched (AGENTS.md T1/T2). The y pitch is PRE-SHRUNK by the
+        // letter stretch so that, once y is scaled, the effective pitch is
+        // YES_FILL_STEP on both axes -- a square grid in the rendered space.
+        // The inside test stays in the wordmark's own (unstretched) space,
+        // because that is where the contours live.
+        const float ystep = YES_FILL_STEP * YES_LETTER_ASPECT;
+        /* @vfp-exempt R2 — cold wordmark interior bake: the grid extent is SOLVED from the bbox in one cast, not searched; a float-free count would have to iterate for it. measured n/a. Verified 2026-09-26. */
+        const int nx = (int)((x1 - x0) * (1.0f / YES_FILL_STEP) + 0.5f);
+        const int ny = (int)((y1 - y0) * (1.0f / ystep) + 0.5f);
+
+        /* @vfp-exempt R2,R3 — cold wordmark interior bake: grid points are SOLVED from integer i/j against a solved extent, and the insideGlyph cull is the baked dot set; integerizing the lattice shifts the sheet. measured n/a. Verified 2026-09-26. */
+        for (int j = 0; j <= ny && slot.count < MAX_DOTS; ++j) {
+            const float py = y0 + (float)j * ystep;
+            for (int i = 0; i <= nx && slot.count < MAX_DOTS; ++i) {
+                const float px = x0 + (float)i * YES_FILL_STEP;
+                if (!insideGlyph(G, px, py)) continue;
+                Dot& d = slot.dots[slot.count];
+                const uint32_t h = splitmix32((uint32_t)slot.count * 0x9E3779B9u
+                                            ^ (uint32_t)starttime ^ 0x5BF03635u);
+                d.u = px + (h01(h, 0) - 0.5f) * YES_FILL_STEP * 0.5f;
+                d.v = (py + (h01(h, 8) - 0.5f) * ystep * 0.5f) * YES_V_ADJ;
+                d.h = h;
+                // Baked white, like the stroke: recoloured at eval from the
+                // live web band so the centre is the SAME colour as the ring.
+                d.r = d.g = d.b = 1.0f;
+                ++slot.count;
+            }
+        }
+    }
+    slot.fillCount = slot.count - first;
+}
+
 void bakeSlot(Slot& slot, const char* text, int starttime, int style) {
     slot.starttime = starttime;
     slot.style     = style;
     slot.count     = 0;
     slot.lodCount  = 0;
+    slot.fillCount = 0;
     slot.textHash  = fnv1a(text);
     slot.uHalf     = 1.0f;
+    slot.dotStep   = 0.0f;
 
     const int nchars = (int)std::strlen(text);
     if (nchars == 0) return;
+
+    // The chant is the one style that is NOT a lattice: it takes the wordmark
+    // outline and stops here. Everything below stays the filled scanline bake
+    // the other five styles are built from.
+    if (style == STYLE_YES) {
+        bakeYesOutline(slot, starttime);
+        bakeYesFill(slot, starttime);
+        return;
+    }
+
     const float width     = (float)nchars * CHAR_ADVANCE;
     const float centerOff = -SKON * 0.5f * (FSTR + 1.3f) * ((float)nchars - 0.25f);
     // Column pitch widens for long strings (bake budget); rows stay PITCH_Y so
@@ -326,9 +589,34 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
         constexpr int   FLIGHT  = 1150;    // ms from spoken to detonating
         constexpr float RING    = 1.05f;   // spiral radius off the tube axis
         constexpr float BASE    = 0.60f;   // sign size vs a normal message
+        // Uniform size knob. Applied to the layout (kx/ky) AND the dot sizes
+        // (sz/fsz) together so the whole sign scales as one: the stroke-closure
+        // ratio dot/spacing = FAT*THICK/BASE is scale-invariant, so halving
+        // both leaves the stroke looking identical, just half as big. Halving
+        // BASE alone would shrink the footprint but keep the dots full-size --
+        // a thicker stroke, not a smaller sign. (user, 2026-09-27: -50%)
+        constexpr float YES_SCALE = 0.5f;
+        // The coalesce window: the sign is fully materialised at this age,
+        // which is also the instant the centre sheet starts fading in.
+        constexpr int   YES_COALESCE_MS = 300;
 
-        const float kx = k * BASE, ky = kY * BASE;
-        const float sz = size0 * BASE;
+        const float kx = k * BASE * YES_SIZE_FIX * YES_SCALE,
+                  ky = kY * BASE * YES_SIZE_FIX * YES_SCALE;
+        // The outline bake sizes its dots from their own spacing so the run
+        // closes into a stroke; size0 is the LATTICE's fixed-dot law and would
+        // leave the outline a sparse sprinkle. YES_THICK is the half-thickness
+        // the request was for. YES_SIZE_FIX multiplies the SPACING via kx/ky,
+        // so it has to multiply the dot SIZE too -- scaling the layout without
+        // the dots is exactly the beaded-necklace failure this line exists to
+        // prevent, only 21% worse than not applying the fix at all.
+        const float sz = s.dotStep * YES_OUTLINE_FAT * YES_THICK * k * YES_SIZE_FIX * YES_SCALE;
+        // The centre sheet's dot half-extent: sized from its OWN step (same law
+        // as the stroke, different closure factor) so the grid overlaps into a
+        // surface instead of a mesh. Loop-invariant -- hoisted next to sz.
+        const float fsz = YES_FILL_STEP * (YES_FILL_FAT * 0.5f) * k * YES_SIZE_FIX * YES_SCALE;
+        // The stroke set and the sheet set share one array; the sheet is the
+        // tail. Hoisted out of the instance loop -- the bake does not move.
+        const int strokeEnd = s.count - s.fillCount;
 
         // No stamps yet (music off, or the analyzer never ran) -> fall back to
         // an even cadence so the effect still plays. AudioFeatures' contract:
@@ -379,14 +667,25 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
             const float oy   = fastSin(ang) * lat * 0.72f;
 
             // Coalesce: dots converge from a scattered, deeper cloud.
-            const float pc   = clamp01((float)ak * (1.0f / 300.0f));
+            const float pc   = clamp01((float)ak * (1.0f / (float)YES_COALESCE_MS));
             const float ec   = pc * (2.0f - pc);
             const float scat = 1.0f - ec;
-            float aI = 0.85f * (0.35f + 0.65f * ec) * (1.0f - tdI * 0.85f);
             const int tailMs = dur - age;
-            if (tailMs < 150) aI *= (float)tailMs * (1.0f / 150.0f);
+            float tailFade = 1.0f;
+            if (tailMs < 150) tailFade = (float)tailMs * (1.0f / 150.0f);
+            float aI = 0.85f * YES_BRITE * (0.35f + 0.65f * ec)
+                     * (1.0f - tdI * 0.85f) * tailFade;
 
-            for (int i = 0; i < s.count && n < cap; ++i) {
+            // The centre: keyed off the coalesce's OWN completion, so it fades
+            // in the instant the ring closes and is exactly zero through the
+            // whole scatter window -- which is why the sheet never needs the
+            // scatter morph the stroke gets. (1 - tdI) takes it back out as
+            // the sign detonates, so the burst is the ring's, not a slab's.
+            const float fillIn = clamp01(((float)ak - (float)YES_COALESCE_MS)
+                                       * (1.0f / (float)YES_FILL_IN_MS));
+            const float aF = YES_FILL_BRITE * fillIn * (1.0f - tdI) * tailFade;
+
+            for (int i = 0; i < strokeEnd && n < cap; ++i) {
                 const Dot& d = s.dots[i];
                 const float hB = h01(d.h, 8), hC = h01(d.h, 16);
                 float x = ox + d.u * kx * spreadI;
@@ -408,6 +707,28 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
                 o.tx = x; o.ty = y; o.zn = zn; o.size = sz;
                 o.r = cr * pm; o.g = cg * pm; o.b = cb * pm;
                 o.a = aI;
+            }
+
+            // The translucent centre, same colour as the ring, dimmer, faded
+            // in behind it. Skipped outright while fillIn is still 0 so the
+            // arrival window pays nothing for a sheet it cannot see.
+            if (aF > 0.0f) {
+                /* @vfp-exempt R3 — YES centre-sheet gate + zn/x culls: fillIn/tdI decide whether the sheet exists this frame, and the culls are the same discard set as the stroke's. measured n/a. Verified 2026-09-26. */
+                for (int i = strokeEnd; i < s.count && n < cap; ++i) {
+                    const Dot& d = s.dots[i];
+                    const float x = ox + d.u * kx * spreadI;
+                    const float y = oy + d.v * ky * spreadI;
+                    float zn = anchorZn + dCur - CAM_AHEAD;
+                    // Same debris law as the ring, so the sheet tears with it
+                    // instead of holding a flat plane through the detonation.
+                    if (tdI > 0.0f) zn += tdI * (h01(d.h, 8) - 0.5f) * 0.45f;
+                    if (zn < znMin || zn > anchorZn + 1.45f) continue;
+                    if (x < -4.5f || x > 4.5f) continue;
+                    WorldDot& o = out[n++];
+                    o.tx = x; o.ty = y; o.zn = zn; o.size = fsz;
+                    o.r = cr * pm; o.g = cg * pm; o.b = cb * pm;
+                    o.a = aF;
+                }
             }
         }
         return n;

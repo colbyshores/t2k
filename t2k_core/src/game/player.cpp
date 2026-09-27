@@ -329,6 +329,15 @@ void move_jump(GameEngine& engine, int time) {
                 // (9.66 s) unattended YES drone under the whole bonus round, at
                 // frozen pitch. Tear the loops down at the seam that causes it.
                 engine.stop_looping_sfx();
+                // The SIGNS ride the same seam as the VOICE. A STYLE_YES chant
+                // still inside its 4.2 s life at warp entry would keep
+                // detonating in the bonus round: the world-space path
+                // suppresses all non-empty events under GameState::WARP and
+                // the warp burst mirrors the same engine events, so the
+                // chant's dots arrive on the round's own popup path. The
+                // user's contract: the YESes die at the flash, not in the
+                // round. See engine.h clear_shatter_events.
+                engine.clear_shatter_events();
             }
             return;
         }

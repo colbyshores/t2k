@@ -1181,7 +1181,7 @@ inline const std::map<int, std::string>& getPowerupText() {
                                     // cross-reference note above
         {12, "yes yes yes"},        // T2K 12 -> 12,12 (was "yea yea yea!");
                                     // show_powerup_text overrides this to the
-                                    // single "yes!" the chant repeats
+                                    // single "yes" the chant repeats
         // --- ability used ----------------------------------------------------
         { 7, "tremor"},             // NO T2K EQUIVALENT (was "shakin!")
         { 8, "zappo"},              // T2K word 22   (was "electrifyin!")
@@ -1230,7 +1230,7 @@ constexpr int SHATTER_STYLE_CASCADE = 2;   // letter-by-letter slink
 constexpr int SHATTER_STYLE_WAVE    = 3;   // ripple ribbon
 constexpr int SHATTER_STYLE_SLAM    = 4;   // heavy slab
 constexpr int SHATTER_STYLE_STREAK  = 5;   // camera-blast + depth trails
-constexpr int SHATTER_STYLE_YES     = 6;   // the spoken "yes!" chant
+constexpr int SHATTER_STYLE_YES     = 6;   // the spoken "yes" chant
 
 constexpr int shatterStyleFor(int text_id) {
     switch (text_id) {
