@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <defs>
+    <radialGradient id="background" cx="50%" cy="36%" r="75%">
+      <stop stop-color="#120621"/>
+      <stop offset="0.55" stop-color="#080514"/>
+      <stop offset="1" stop-color="#010108"/>
+    </radialGradient>
+    <linearGradient id="face" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop stop-color="#a658b7"/>
+      <stop offset="50%" stop-color="#73298c"/>
+      <stop offset="100%" stop-color="#341446"/>
+    </linearGradient>
+    <filter id="aura" x="-100%" y="-200%" width="300%" height="500%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <filter id="halo" x="-100%" y="-200%" width="300%" height="500%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <path id="letters" d="M 159,160 H 401 M 280,160 V 356 M 479,160 H 721 V 258 H 479 V 356 H 721 M 799,160 V 356 M 799,356 L 1041,160 M 920,258 L 1041,356"/>
+  </defs>
+  <rect width="1200" height="700" fill="url(#background)"/>
+  <g fill="none" stroke="#a824e8" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <use href="#letters" transform="translate(-28,-20) scale(1.046)" opacity="0.06"/>
+    <use href="#letters" transform="translate(-18,-13) scale(1.030)" opacity="0.08"/>
+    <use href="#letters" transform="translate(-10,-7) scale(1.018)" opacity="0.10"/>
+    <use href="#letters" transform="translate(-4,-3) scale(1.008)" opacity="0.12"/>
+  </g>
+  <use href="#letters" fill="none" stroke="#a824e8" stroke-width="70" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" filter="url(#aura)"/>
+  <use href="#letters" fill="none" stroke="#a824e8" stroke-width="49" stroke-linecap="round" stroke-linejoin="round" opacity="0.86" filter="url(#halo)"/>
+  <use href="#letters" fill="none" stroke="#a824e8" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#letters" fill="none" stroke="#73298c" stroke-width="39" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#letters" fill="none" stroke="url(#face)" stroke-width="39" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#letters" fill="none" stroke="#f2baff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>
+</svg>
