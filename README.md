@@ -284,9 +284,7 @@ on a console.
 ## License
 
 The **TSEngine** codebase (all C++ sources, build files, shaders, and tooling) is
-released under the **MIT License** — see [`LICENSE`](LICENSE). TSEngine is a
-clean-room implementation of Tempest-genre gameplay behaviour; it is not derived
-from any original Tempest 2000 source code.
+released under the **MIT License** — see [`LICENSE`](LICENSE).
 
 **Game assets are separate.** Bundled audio and sound effects that reproduce or
 were derived from commercially released games remain under their original
