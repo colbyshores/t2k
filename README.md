@@ -61,8 +61,8 @@ The 3DS GPU has no programmable pixel shader, only six fixed-function combiner s
 - **Free anti-aliasing.** The frame renders oversized and the display transfer downsamples it for a clean 2x supersample.
 - **Procedural textures.** A texture DSL executes on the CPU to RGBA8, then Morton/Z-order tile-swizzles into PICA ABGR8 textures. Level textures are generated on the fly, and a background worker on the second core prepares them ahead of time so levels load quickly.
 
-### GPU vertex animation (CPU → GPU offload)
-- The undulating **web "tremor" wave** used to be recomputed on the CPU every frame (a `sin` over 4,480 vertices, plus re-uploading all their positions). It's now a **static base mesh uploaded once per level** plus a **grid-only picasso vertex shader** that applies the wave displacement (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the **GPU vertex unit**.
+### GPU vertex animation
+- The undulating **web "tremor" wave** is a **static base mesh uploaded once per level** plus a **grid-only picasso vertex shader** that applies the wave displacement (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the **GPU vertex unit**.
 - PICA has no `sin` instruction, so the shader uses a **polynomial approximation** over `[-π, π]` after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel).
 - The wave is bound **only** for the grid draw and restored afterward, so entities/HUD never wave.
 
