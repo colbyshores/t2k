@@ -249,6 +249,10 @@ on a console.
 - **CPU gate** `ARM` / `PLATFORM_ARM` — unaligned-access shims, ARMv6K vs ARMv7 ops.
 - Kept independent, and gameplay logic is never `#ifdef`'d out to make a platform build pass.
 
+## Contributing
+
+PR requests are welcome — so long as they adhere to the [`AGENTS.md`](AGENTS.md) contract. That file is the enforceable ARM11/VFP math contract (hot-path rules, FPSCR requirements, exemption grammar), and it exists so the code stays oriented around the capabilities of the ARM11 at all times. A change that violates the contract isn't merged, however good it looks on desktop.
+
 ## License
 
 The **TSEngine** codebase (all C++ sources, build files, shaders, and tooling) is
