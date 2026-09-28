@@ -11,7 +11,7 @@ The bottom screen is a full jukebox with music from across the Tempest family.
 T2K takes its visual direction from sacred geometry psychedelia: symmetry, repetition, and glowing geometry that seems to unfold as you travel through it. The web is built from exact rings, the background can run as a live fractal, and an audio-reactive star tunnel ties the picture to the music.
 
 ## Stereoscopic native
-T2K wasn't built in 2D and converted. Every element on screen was made with the 3DS's glasses-free 3D display in mind. The web, the plasma, the wireframe glow, your shots, the blaster, every explosion, and the HUD text are each projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it, and every explosion is built the same way, to make full use of the 3DS screen.
+T2K wasn't built in 2D and converted. The web, the plasma, the wireframe glow, every explosion, every particle and feedback loop was meticulously tuned for stereoscopic 3D from the start, to make full use of 3D displays. Each element — your shots, the blaster, the HUD text included — is projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it.
 
 CPU-projected geometry is built into per-eye buffer regions; sharing one buffer silently gives both eyes the same projection, which looks like shots firing into the neighbouring lane.
 
