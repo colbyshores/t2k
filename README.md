@@ -1,5 +1,7 @@
 # T2K — a procedural tube shooter on TSEngine
 
+![T2K banner](banner/t2k_composed.png)
+
 **T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **TSEngine**, a
 cross-platform C++ game engine engineered so that **one codebase runs on two very different
 machines**:
