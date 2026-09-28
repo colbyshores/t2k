@@ -1,110 +1,70 @@
-# T2K — a procedural tube shooter on TSEngine
+# T2K: Psychedelic Tube Shooter
+*A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS. Inspired by sacred geometry psychedelia. Open source.*
 
 ![T2K banner](banner/t2k_composed.png)
 
-**T2K** is a fast, vector-style *Tempest*-genre tube shooter. It is built on **TSEngine**, a
-cross-platform C++ game engine engineered so that **one codebase runs on two very different
-machines**:
+Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's glasses-free 3D screen. It was designed stereoscopic from the first line of code, so the projection, the glow, the UI, and the level geometry all assume two eyes instead of adding a second one later.
 
-- **PC / x86-64** — SDL2 + **Vulkan 1.3** (SDF vector lines, a bloom pyramid, live-seething
-  procedural textures in fragment shaders, multiview stereo for OpenXR; the arcade/VR target).
-- **Nintendo 3DS / ARM11** — libctru + **Citro3D / PICA200** (the performance target).
+The bottom screen is a full jukebox with music from across the Tempest family.
 
-The engine is written as **"C with classes"** — data-oriented aggregate structs + free functions,
-no virtual dispatch / RTTI / exceptions in the hot paths — so the same simulation compiles to a
-desktop Vulkan build *and* a 268 MHz handheld without `#ifdef`-ing away gameplay. The 3DS build is
-the reference for what the game contains; the PC is free in how it draws it (see the Aesthetic
-Contract in `DOCTRINE.md`).
+## The look
+T2K takes its visual direction from sacred geometry psychedelia: symmetry, repetition, and glowing geometry that seems to unfold as you travel through it. The web is built from exact rings, the background can run as a live fractal, and an audio-reactive star tunnel ties the picture to the music.
 
----
+## Stereoscopic native
+T2K wasn't built in 2D and converted. Every element on screen was made with the 3DS's glasses-free 3D display in mind. The web, the plasma, the wireframe glow, your shots, the blaster, every explosion, and the HUD text are each projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it, and every explosion is built the same way, to make full use of the 3DS screen.
 
-## Highlights (the stuff worth bragging about)
+CPU-projected geometry is built into per-eye buffer regions; sharing one buffer silently gives both eyes the same projection, which looks like shots firing into the neighbouring lane.
 
-### One renderer seam, two GPUs
-- A single flat **C-API render seam** (`t2k_core/src/rendering/render.h`): free functions every
-  backend implements identically, GPU objects crossing as opaque `void*` handles. Shared game code
-  never sees a `GLuint` or a `C3D_Tex`.
-- **One backend per target tree, exactly one compiled in** (`t2k_pc/src/rendering/renderer_vk.cpp`
-  / `t2k_3ds/src/rendering/renderer_c3d.cpp`), selected at **build time** — no virtual `IRenderer`,
-  no runtime cost. Geometry comes from shared builders in `t2k_core/src/rendering/`; a backend file
-  only submits.
+## A full jukebox on the second screen
+The bottom screen isn't a static menu. It's a full jukebox, and it's one of the biggest features in T2K. It plays music from across the Tempest line and its tube-shooter kin: Tempest 2000, Tempest 3000, Tempest 4000, TxK, and Space Giraffe. Play an entire album or pick individual tracks, and let the music advance with the levels so the soundtrack moves with you through the game.
 
-### Procedural geometry that closes
-- The web is generated, not authored. **Round levels close into clean polygons** because each lane is
-  built as a **unit vector** — `dy = grid_y/127` as the *sine* of the lane angle and
-  `dx = ±√(1−dy²)` the cosine — so the ring meets itself exactly instead of leaving a stretched
-  top segment or a gap you can circle around.
-- Enemy, shot, spike and explosion geometry is emitted from the same shared builders on both targets,
-  so a kill bloom or a blaster bolt is the same shape everywhere the game runs.
-
-### PICA200 / Citro3D graphics engineering
-- **Rotated top-screen target** (the panel is physically 240×400, rendered 90° rotated) with the
-  NDC depth remap `[-1,1] → [-1,0]` folded into the projection.
-- **Procedural texture DSL** executed on the CPU to RGBA8, then **Morton/Z-order tile-swizzled**
-  and uploaded as PICA ABGR8 textures.
-- **Stereoscopic 3D** — genuine per-eye projection (the web, plasma, and glow all carry honest
-  parallax depth), not a fake 2D offset.
-- **Fixed-function TEV** shading (6 stages; PICA has *no* programmable fragment shader) driving
-  multi-texture web passes, distance fog via the TEV combiner, and additive glow.
-- **Wireframe glow without a line primitive** — PICA can't draw lines, so the web's border glow is
-  emitted as CPU-built billboard quads traced along the tube edges, per-eye, with depth falloff.
-- **Hardware anti-aliasing for free** — render into an oversized target and let the display-transfer
-  PPF **box-downscale** it (2× horizontal supersample) on the way to the screen.
-
-### GPU vertex-animation (CPU → GPU offload)
-- The undulating **web "tremor" wave** used to be recomputed on the CPU every frame (a `sin` over
-  4,480 vertices, plus re-uploading all their positions). It's now a **static base mesh uploaded
-  once per level** + a **grid-only picasso vertex shader** that applies the wave displacement
-  (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the **GPU vertex unit**.
-- PICA has no `sin` instruction, so the shader uses a **polynomial approximation** over `[-π, π]`
-  after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel).
-- The wave is bound *only* for the grid draw and restored afterward, so entities/HUD never wave.
-  Gated so the PC/GL oracle stays byte-identical.
-
-### Measured, honest performance work
-- On-device profiling (`svcGetSystemTick`, one line / 60 frames to an FTP-pullable SD log) split
-  into **CPU build vs. GPU wait**, with the build hoisted **before `C3D_FrameBegin(SYNCDRAW)`** so
-  it overlaps the previous frame's GPU work (software pipelining).
-- Key finding, proven by A/B: on a many-pass stereo frame the PICA200 is **draw-call / state-bound,
-  not fill-bound** — halving the supersample barely moved GPU time, so supersample AA is ~free.
-- **Per-model bottleneck asymmetry:** New 3DS (804 MHz, +L2 enabled) is GPU-bound; the OG 3DS
-  (~268 MHz) is CPU-bound — so the GPU wave offload is *headroom* on New and *decisive* on OG.
-- Plasma trails composited at low res (32×32) to collapse two full-screen additive passes into one.
-
-### Configurable views & camera framing
-- **Live Field-of-View control** — a graphics-menu slider (40–75°) *and* the **New 3DS C-stick**
-  as a zoom, both applying in real time and persisted to the SD config.
-- **Two camera modes**, toggled live with **SELECT**:
-  - *Classic* — a fixed, tuned framing.
-  - *Auto-framing* — camera distance and offset **derived from the web's measured bounding box**,
-    so every playfield shape frames itself instead of inheriting constants tuned for one level.
-    A single-radius heuristic over-pulls on elongated webs by ~2.4×; a per-axis fit (accounting for
-    which world axis maps to which screen axis after the 90° screen rotation) does not.
-  - Both modes run through **one eased smoother**, so switching crossfades rather than snapping, and
-    all camera terms ease at matched rates — easing a derived term faster than the follow makes them
-    fight and reads as jitter.
-- **Honest stereoscopic 3D** — the web, plasma, wireframe glow, and the line entities
-  (shots/blaster/explosions) are each projected **per eye**. CPU-projected geometry is built into
-  per-eye buffer regions; sharing one buffer silently gives both eyes the same projection, which looks
-  like shots firing into the neighbouring lane.
-
-### Audio engine
-- A **clean-room ProTracker MOD replayer** streamed as mono S16 @ 44.1 kHz through **ndsp on a
-  worker thread pinned to a spare CPU core**.
-- An **audio-reactive FFT analyzer** drives the starfield background and a bass-triggered web colour
-  duck at effectively no extra cost: the analyzer piggybacks on samples the DSP-ADPCM decoder already
-  computes per-frame.
+## Sound that drives the picture
+- Tracker (MOD) music and effects — a clean-room ProTracker replayer streamed as mono S16 @ 44.1 kHz through ndsp on a worker thread pinned to a spare CPU core.
+- A real-time audio analyzer feeds the visuals: an audio-reactive star tunnel, a subtle bass-triggered dip in the web color, and a level select that moves with the beat. The FFT analyzer piggybacks on samples the DSP-ADPCM decoder already computes per-frame, so it costs effectively nothing. A photosensitivity safeguard limits how strongly and how quickly the visuals can pulse.
 - The full soundtrack is bundled into the shipped build's romfs (multiple albums, DSP-compressed).
 
-### Exception-free, allocation-disciplined
-- `-fno-exceptions -fno-rtti` clean throughout. JSON config/highscores use the **exception-free
-  nlohmann API** (`parse(..., allow_exceptions=false)` + type-guarded accessors) — no `try/catch`.
-- No STL heap growth in per-frame / per-entity / per-particle loops; fixed static arrays sized from
-  `constants.h`. Packed/asset reads routed through an unaligned-access shim for ARM11.
+## The game
+- **100 unique levels,** each a hand-tuned web that the engine extrudes into true 3D.
+- **The full arcade roster:** Flipper, Tanker and its variants, Spiker, Fuseball, Pulsar, Mirror, Adroid, and Reflector.
+- **Powerups and bonuses.** An eight-slot ladder covers laser, jump, tremor, droid, and superzapper with a warp token, plus surprises. Warp bonus rounds are in too.
+- **Camera.** Two modes (Classic and Auto-framing, toggled with SELECT), an adjustable field of view, and C-Stick zoom on New 3DS.
 
-### Player-facing polish
-- On-SD JSON config with **remappable controls**, audio-source and rendering toggles (see-through
-  web, glow, plasma, detail), and persisted high scores — all under `sdmc:/3ds/t2k/`.
+## Controls
+
+| Action | Button |
+|---|---|
+| Move claw | D-Pad ← / → or Circle Pad |
+| Shoot | **A** |
+| Jump | **B** |
+| Tremor (web pulse) | **X** |
+| Superzapper | **Y** |
+| Pause / menu | **START** |
+| Cycle camera viewpoint | **SELECT** |
+| FOV zoom | **C-Stick** (New 3DS) |
+| Music / jukebox deck | **Touch** (bottom screen) |
+
+SELECT is reserved for the camera, so it never triggers a game action. The bottom screen stays dark until you tap it, and that tap wakes the jukebox.
+
+## Under the hood
+The 3DS GPU has no programmable pixel shader, only six fixed-function combiner stages. T2K uses all six.
+- **Six combiner stages at once.** The deepest surface pass chains two textures, tint, distance fog, and additive glow through the GPU's TEV stages.
+- **Fog in the combiner.** Distance fade rides on vertex alpha, so there's no extra post pass.
+- **Glow without a line primitive.** The PICA200 can't draw lines, so the tube's edge glow is built from billboard quads traced along every edge, per eye, with depth falloff.
+- **Free anti-aliasing.** The frame renders oversized and the display transfer downsamples it for a clean 2x supersample.
+- **GPU web tremor.** The seething web motion runs on the vertex unit instead of the CPU.
+- **Procedural textures.** Level textures are generated on the fly, and a background worker on the second core prepares them ahead of time so levels load quickly.
+- **Both cores working.** Audio runs on its own worker, and the renderer never blocks the game.
+
+### Deeper still
+- **The tremor offload.** The undulating web wave used to be recomputed on the CPU every frame (a `sin` over 4,480 vertices, plus re-uploading all their positions). It's now a static base mesh uploaded once per level plus a grid-only picasso vertex shader that applies the wave displacement (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the GPU vertex unit. PICA has no `sin` instruction, so the shader uses a polynomial approximation over `[-π, π]` after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel). The wave is bound only for the grid draw and restored afterward, so entities/HUD never wave.
+- **Auto-framing camera.** Camera distance and offset are derived from the web's measured bounding box, so every playfield shape frames itself instead of inheriting constants tuned for one level. Both modes run through one eased smoother, so switching crossfades rather than snapping.
+- **Live Field-of-View control** — a graphics-menu slider (40–75°) and the New 3DS C-stick as a zoom, both applying in real time and persisted to the SD config.
+- **Measured, honest performance work.** On-device profiling (`svcGetSystemTick`, one line / 60 frames to an FTP-pullable SD log) split into CPU build vs. GPU wait, with the build hoisted before `C3D_FrameBegin(SYNCDRAW)` so it overlaps the previous frame's GPU work. Key finding, proven by A/B: on a many-pass stereo frame the PICA200 is draw-call / state-bound, not fill-bound — halving the supersample barely moved GPU time, so supersample AA is ~free. New 3DS (804 MHz, +L2) is GPU-bound; the OG 3DS (~268 MHz) is CPU-bound — so the GPU wave offload is headroom on New and decisive on OG. Plasma trails are composited at low res (32×32) to collapse two full-screen additive passes into one.
+- **One renderer seam, two GPUs.** A single flat C-API render seam (`t2k_core/src/rendering/render.h`): free functions every backend implements identically, GPU objects crossing as opaque `void*` handles. One backend per target tree, selected at build time — no virtual `IRenderer`, no runtime cost. The same simulation runs on PC (SDL2 + Vulkan 1.3) and the 3DS (libctru + Citro3D) without `#ifdef`-ing away gameplay.
+- **Exception-free, allocation-disciplined.** `-fno-exceptions -fno-rtti` clean throughout. JSON config/highscores use the exception-free nlohmann API — no `try/catch`. No STL heap growth in per-frame / per-entity / per-particle loops; fixed static arrays sized from `constants.h`. Packed/asset reads routed through an unaligned-access shim for ARM11.
+
+## Options
+Web glow, texture brightness, background, and audio album are all adjustable, and your settings are saved — on-SD JSON config under `sdmc:/3ds/t2k/`, with persisted high scores.
 
 ---
 
@@ -112,21 +72,11 @@ Contract in `DOCTRINE.md`).
 
 Documented in full in the shared port-docs vault; the short list, because each one cost real time:
 
-- **NDC `z = 0` is the FAR clip plane.** PICA depth is `[-1, 0]`, so a CPU-projected billboard written
-  at `z = 0` sits exactly on the far plane: trivially-accepted triangles draw, but anything the clipper
-  must actually *clip* is discarded. Symptom is geometry vanishing only when it straddles the screen
-  edge. Always write a `z` strictly inside `(-1, 0)`.
-- **No guard band, and `float24` vertex coords** (16-bit mantissa). Clip the billboard *centreline* to a
-  small NDC guard rect, then expand to quads — expanding first loses thickness at the seam, and large
-  NDC magnitudes quantize thin quads to zero area.
-- **`hidCstickRead` is `irrstCstickRead`** — it needs `irrstInit()`, which libctru does not call for
-  you. It compiles, links, and reads nothing.
-- **The emulator hides some of these.** Citra/Mandarine computes above `float24` precision and does not
-  run PICA geometry shaders, so a class of bug is emulator-clean and hardware-only. A looked-at frame on
-  real hardware is the only pass.
-- **Measure at the CPU/GPU boundary before editing.** Plausible theories for a vanishing-geometry bug can
-  all be wrong; a host-side harness linking the real engine data plus the real citro3d matrix semantics
-  is what localises it in one pass.
+- **NDC `z = 0` is the FAR clip plane.** PICA depth is `[-1, 0]`, so a CPU-projected billboard written at `z = 0` sits exactly on the far plane: trivially-accepted triangles draw, but anything the clipper must actually *clip* is discarded. Symptom is geometry vanishing only when it straddles the screen edge. Always write a `z` strictly inside `(-1, 0)`.
+- **No guard band, and `float24` vertex coords** (16-bit mantissa). Clip the billboard *centreline* to a small NDC guard rect, then expand to quads — expanding first loses thickness at the seam, and large NDC magnitudes quantize thin quads to zero area.
+- **`hidCstickRead` is `irrstCstickRead`** — it needs `irrstInit()`, which libctru does not call for you. It compiles, links, and reads nothing.
+- **The emulator hides some of these.** Citra/Mandarine computes above `float24` precision and does not run PICA geometry shaders, so a class of bug is emulator-clean and hardware-only. A looked-at frame on real hardware is the only pass.
+- **Measure at the CPU/GPU boundary before editing.** Plausible theories for a vanishing-geometry bug can all be wrong; a host-side harness linking the real engine data plus the real citro3d matrix semantics is what localises it in one pass.
 
 ## Repository layout
 
