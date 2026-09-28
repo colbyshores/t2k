@@ -45,30 +45,41 @@ The bottom screen isn't a static menu. It's a full jukebox, and it's one of the 
 
 SELECT is reserved for the camera, so it never triggers a game action. The bottom screen stays dark until you tap it, and that tap wakes the jukebox.
 
-## Under the hood
+## Shared technology
+The same game runs on both targets because the shared core is built to constraints the 3DS forced.
+- **One renderer seam, two GPUs.** A single flat C-API render seam (`t2k_core/src/rendering/render.h`): free functions every backend implements identically, GPU objects crossing as opaque `void*` handles. Shared game code never sees a `GLuint` or a `C3D_Tex`. One backend per target tree, selected at build time — no virtual `IRenderer`, no runtime cost.
+- **"C with classes."** Data-oriented aggregate structs plus free functions — no virtual dispatch, no RTTI, no exceptions in the hot paths — so the same simulation compiles to a desktop Vulkan build and a 268 MHz handheld without `#ifdef`-ing away gameplay.
+- **Shared audio core.** A clean-room ProTracker MOD replayer, a DSP-ADPCM decoder, the FFT analyser, and the SFX bank live in `t2k_core/src/audio/`; each target only supplies the output sink.
+- **Exception-free, allocation-disciplined.** `-fno-exceptions -fno-rtti` clean throughout. JSON config/highscores use the exception-free nlohmann API — no `try/catch`. No STL heap growth in per-frame / per-entity / per-particle loops; fixed static arrays sized from `constants.h`. Packed/asset reads routed through an unaligned-access shim for ARM11.
+
+## 3DS
+The 3DS is the performance target and the reference for what the game contains. The hardware's limits are the reason the engine is shaped the way it is.
+
+### PICA200 graphics engineering
 The 3DS GPU has no programmable pixel shader, only six fixed-function combiner stages. T2K uses all six.
 - **Six combiner stages at once.** The deepest surface pass chains two textures, tint, distance fog, and additive glow through the GPU's TEV stages.
 - **Fog in the combiner.** Distance fade rides on vertex alpha, so there's no extra post pass.
 - **Glow without a line primitive.** The PICA200 can't draw lines, so the tube's edge glow is built from billboard quads traced along every edge, per eye, with depth falloff.
 - **Free anti-aliasing.** The frame renders oversized and the display transfer downsamples it for a clean 2x supersample.
-- **GPU web tremor.** The seething web motion runs on the vertex unit instead of the CPU.
-- **Procedural textures.** Level textures are generated on the fly, and a background worker on the second core prepares them ahead of time so levels load quickly.
-- **Both cores working.** Audio runs on its own worker, and the renderer never blocks the game.
+- **Procedural textures.** A texture DSL executes on the CPU to RGBA8, then Morton/Z-order tile-swizzles into PICA ABGR8 textures. Level textures are generated on the fly, and a background worker on the second core prepares them ahead of time so levels load quickly.
 
-### Deeper still
-- **The tremor offload.** The undulating web wave used to be recomputed on the CPU every frame (a `sin` over 4,480 vertices, plus re-uploading all their positions). It's now a static base mesh uploaded once per level plus a grid-only picasso vertex shader that applies the wave displacement (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the GPU vertex unit. PICA has no `sin` instruction, so the shader uses a polynomial approximation over `[-π, π]` after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel). The wave is bound only for the grid draw and restored afterward, so entities/HUD never wave.
+### GPU vertex animation (CPU → GPU offload)
+- The undulating **web "tremor" wave** used to be recomputed on the CPU every frame (a `sin` over 4,480 vertices, plus re-uploading all their positions). It's now a **static base mesh uploaded once per level** plus a **grid-only picasso vertex shader** that applies the wave displacement (`pos += normal · sin(phase) · tremor · √depth`) and distance fog on the **GPU vertex unit**.
+- PICA has no `sin` instruction, so the shader uses a **polynomial approximation** over `[-π, π]` after range reduction (max error 0.0011, exact at 0/±π/2/±π — sub-pixel).
+- The wave is bound **only** for the grid draw and restored afterward, so entities/HUD never wave.
+
+### Measured, honest performance work
+- On-device profiling (`svcGetSystemTick`, one line / 60 frames to an FTP-pullable SD log) split into **CPU build vs. GPU wait**, with the build hoisted **before `C3D_FrameBegin(SYNCDRAW)`** so it overlaps the previous frame's GPU work (software pipelining).
+- Key finding, proven by A/B: on a many-pass stereo frame the PICA200 is **draw-call / state-bound, not fill-bound** — halving the supersample barely moved GPU time, so supersample AA is ~free.
+- **Per-model bottleneck asymmetry:** New 3DS (804 MHz, +L2 enabled) is GPU-bound; the OG 3DS (~268 MHz) is CPU-bound — so the GPU wave offload is *headroom* on New and *decisive* on OG.
+- Plasma trails composited at low res (32×32) to collapse two full-screen additive passes into one.
+
+### Camera & options
 - **Auto-framing camera.** Camera distance and offset are derived from the web's measured bounding box, so every playfield shape frames itself instead of inheriting constants tuned for one level. Both modes run through one eased smoother, so switching crossfades rather than snapping.
 - **Live Field-of-View control** — a graphics-menu slider (40–75°) and the New 3DS C-stick as a zoom, both applying in real time and persisted to the SD config.
-- **Measured, honest performance work.** On-device profiling (`svcGetSystemTick`, one line / 60 frames to an FTP-pullable SD log) split into CPU build vs. GPU wait, with the build hoisted before `C3D_FrameBegin(SYNCDRAW)` so it overlaps the previous frame's GPU work. Key finding, proven by A/B: on a many-pass stereo frame the PICA200 is draw-call / state-bound, not fill-bound — halving the supersample barely moved GPU time, so supersample AA is ~free. New 3DS (804 MHz, +L2) is GPU-bound; the OG 3DS (~268 MHz) is CPU-bound — so the GPU wave offload is headroom on New and decisive on OG. Plasma trails are composited at low res (32×32) to collapse two full-screen additive passes into one.
-- **One renderer seam, two GPUs.** A single flat C-API render seam (`t2k_core/src/rendering/render.h`): free functions every backend implements identically, GPU objects crossing as opaque `void*` handles. One backend per target tree, selected at build time — no virtual `IRenderer`, no runtime cost. The same simulation runs on PC (SDL2 + Vulkan 1.3) and the 3DS (libctru + Citro3D) without `#ifdef`-ing away gameplay.
-- **Exception-free, allocation-disciplined.** `-fno-exceptions -fno-rtti` clean throughout. JSON config/highscores use the exception-free nlohmann API — no `try/catch`. No STL heap growth in per-frame / per-entity / per-particle loops; fixed static arrays sized from `constants.h`. Packed/asset reads routed through an unaligned-access shim for ARM11.
+- Web glow, texture brightness, background, and audio album are all adjustable, and your settings are saved — on-SD JSON config under `sdmc:/3ds/t2k/`, with persisted high scores.
 
-## Options
-Web glow, texture brightness, background, and audio album are all adjustable, and your settings are saved — on-SD JSON config under `sdmc:/3ds/t2k/`, with persisted high scores.
-
----
-
-## Hard-won PICA200 / 3DS gotchas
+### Hard-won PICA200 / 3DS gotchas
 
 Documented in full in the shared port-docs vault; the short list, because each one cost real time:
 
@@ -77,6 +88,13 @@ Documented in full in the shared port-docs vault; the short list, because each o
 - **`hidCstickRead` is `irrstCstickRead`** — it needs `irrstInit()`, which libctru does not call for you. It compiles, links, and reads nothing.
 - **The emulator hides some of these.** Citra/Mandarine computes above `float24` precision and does not run PICA geometry shaders, so a class of bug is emulator-clean and hardware-only. A looked-at frame on real hardware is the only pass.
 - **Measure at the CPU/GPU boundary before editing.** Plausible theories for a vanishing-geometry bug can all be wrong; a host-side harness linking the real engine data plus the real citro3d matrix semantics is what localises it in one pass.
+
+## PC / VR
+The desktop build is the correctness oracle and the arcade/VR target. It runs the exact same simulation as the 3DS — the 3DS is the reference for what the game contains; the PC is free in how it draws it (see the Aesthetic Contract in `DOCTRINE.md`).
+- **SDL2 + Vulkan 1.3 renderer** (`t2k_pc/src/rendering/renderer_vk.cpp` + `vk_*.cpp`, GLSL in `shaders/`): SDF vector lines and a bloom pyramid give the glow a softness the PICA200 can only fake with quads.
+- **Live procedural textures in fragment shaders.** The same texture-DSL semantics that run on the CPU for the 3DS seethe per-pixel on desktop instead.
+- **Multiview stereo for OpenXR.** The engine was built stereoscopic-native for the 3DS, so the VR path projects the same per-eye geometry through a headset instead of retrofitting a 2D game.
+- **Byte-level oracle.** Host harnesses link the real engine data and the real matrix semantics, which is what localised hardware-only bugs (see the gotchas above) in one pass.
 
 ## Repository layout
 
