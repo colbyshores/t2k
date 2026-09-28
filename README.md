@@ -22,7 +22,7 @@ The bottom screen isn't a static menu. It's a full jukebox, and it's one of the 
 - The full soundtrack is bundled into the shipped build's romfs (multiple albums, DSP-compressed).
 
 ## The game
-- **100 unique levels,** each a hand-tuned web that the engine extrudes into true 3D.
+- **100 Unique Levels**
 - **The full arcade roster:** Flipper, Tanker and its variants, Spiker, Fuseball, Pulsar, Mirror, Adroid, and Reflector.
 - **Powerups and bonuses.** An eight-slot ladder covers laser, jump, tremor, droid, and superzapper with a warp token, plus surprises. Warp bonus rounds are in too.
 - **Camera.** Two modes (Classic and Auto-framing, toggled with SELECT), an adjustable field of view, and C-Stick zoom on New 3DS.
