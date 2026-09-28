@@ -77,22 +77,12 @@ The 3DS GPU has no programmable pixel shader, only six fixed-function combiner s
 - **Live Field-of-View control** — a graphics-menu slider (40–75°) and the New 3DS C-stick as a zoom, both applying in real time and persisted to the SD config.
 - Web glow, texture brightness, background, and audio album are all adjustable, and your settings are saved — on-SD JSON config under `sdmc:/3ds/t2k/`, with persisted high scores.
 
-### Hard-won PICA200 / 3DS gotchas
-
-Documented in full in the shared port-docs vault; the short list, because each one cost real time:
-
-- **NDC `z = 0` is the FAR clip plane.** PICA depth is `[-1, 0]`, so a CPU-projected billboard written at `z = 0` sits exactly on the far plane: trivially-accepted triangles draw, but anything the clipper must actually *clip* is discarded. Symptom is geometry vanishing only when it straddles the screen edge. Always write a `z` strictly inside `(-1, 0)`.
-- **No guard band, and `float24` vertex coords** (16-bit mantissa). Clip the billboard *centreline* to a small NDC guard rect, then expand to quads — expanding first loses thickness at the seam, and large NDC magnitudes quantize thin quads to zero area.
-- **`hidCstickRead` is `irrstCstickRead`** — it needs `irrstInit()`, which libctru does not call for you. It compiles, links, and reads nothing.
-- **The emulator hides some of these.** Citra/Mandarine computes above `float24` precision and does not run PICA geometry shaders, so a class of bug is emulator-clean and hardware-only. A looked-at frame on real hardware is the only pass.
-- **Measure at the CPU/GPU boundary before editing.** Plausible theories for a vanishing-geometry bug can all be wrong; a host-side harness linking the real engine data plus the real citro3d matrix semantics is what localises it in one pass.
-
 ## PC / VR
 The desktop build is the correctness oracle and the arcade/VR target. It runs the exact same simulation as the 3DS — the 3DS is the reference for what the game contains; the PC is free in how it draws it (see the Aesthetic Contract in `DOCTRINE.md`).
 - **SDL2 + Vulkan 1.3 renderer** (`t2k_pc/src/rendering/renderer_vk.cpp` + `vk_*.cpp`, GLSL in `shaders/`): SDF vector lines and a bloom pyramid give the glow a softness the PICA200 can only fake with quads.
 - **Live procedural textures in fragment shaders.** The same texture-DSL semantics that run on the CPU for the 3DS seethe per-pixel on desktop instead.
 - **Multiview stereo for OpenXR.** The engine was built stereoscopic-native for the 3DS, so the VR path projects the same per-eye geometry through a headset instead of retrofitting a 2D game.
-- **Byte-level oracle.** Host harnesses link the real engine data and the real matrix semantics, which is what localised hardware-only bugs (see the gotchas above) in one pass.
+- **Byte-level oracle.** Host harnesses link the real engine data and the real matrix semantics, which is what localised hardware-only bugs in one pass.
 
 ## Repository layout
 
