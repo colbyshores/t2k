@@ -1,17 +1,17 @@
 # T2K: Psychedelic Tube Shooter
-*A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS and stereoscopic displays. Inspired by sacred geometry psychedelia.*
+*A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS and stereoscopic displays.*
 
 ![T2K banner](banner/t2k_composed.png)
 
-Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's glasses-free 3D screen. It was designed stereoscopic from the beginning, so the geometry, the particles and the effects all assume two eyes — and will add a third one later.
+Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's 3D screen. It was designed stereoscopic from the beginning, so the geometry, the particles and the effects all assume two eyes.
 
 The bottom screen is a full jukebox with music from across the Tempest family.
 
 ## The look
-T2K takes its visual direction from sacred geometry psychedelia: symmetry, repetition, and glowing geometry that seems to unfold as you travel through it. An audio-reactive star tunnel provides a feeling of synesthesia as it pulses to the music.
+T2K takes its visual direction from sacred geometry psychedelia: symmetry, and glowing geometry that is an audio-reactive experience, providing a feeling of synesthesia as it pulses to the music.
 
 ## Stereoscopic native
-T2K wasn't built in 2D and converted. The web, the plasma, the wireframe glow, every explosion, every particle and feedback loop was meticulously tuned for stereoscopic 3D from the start, to make full use of 3D displays. Each element — your shots, the blaster, the HUD text included — is projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it.
+T2K wasn't built in 2D and converted. The web, the plasma, the wireframe glow, every explosion, every particle and feedback loop was meticulously tuned for stereoscopic 3D from the start, to make full use of 3D displays.
 
 ## A full jukebox on the second screen
 The bottom screen isn't a static menu. It's a full jukebox, and it's one of the biggest features in T2K. It plays music from across the Tempest line and its tube-shooter kin: Tempest 2000, Tempest 3000, Tempest 4000, TxK, and Space Giraffe. Play an entire album or pick individual tracks, and let the music advance with the levels so the soundtrack moves with you through the game.
