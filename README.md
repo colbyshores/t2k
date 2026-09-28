@@ -3,7 +3,7 @@
 
 ![T2K banner](banner/t2k_composed.png)
 
-Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's glasses-free 3D screen. It was designed stereoscopic from the first line of code, so the projection, the glow, the UI, and the level geometry all assume two eyes instead of adding a second one later.
+Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's glasses-free 3D screen. It was designed stereoscopic from the beginning, so the geometry, the particles and the effects all assume two eyes — and will add a third one later.
 
 The bottom screen is a full jukebox with music from across the Tempest family.
 
