@@ -8,7 +8,7 @@ Tempest 2000 has always been about depth: a web opening away from you, lanes rus
 The bottom screen is a full jukebox with music from across the Tempest family.
 
 ## The look
-T2K takes its visual direction from sacred geometry psychedelia: symmetry, repetition, and glowing geometry that seems to unfold as you travel through it. An audio-reactive star tunnel provides a feeling of synesthesia as it pulses with the music.
+T2K takes its visual direction from sacred geometry psychedelia: symmetry, repetition, and glowing geometry that seems to unfold as you travel through it. An audio-reactive star tunnel provides a feeling of synesthesia as it pulses to the music.
 
 ## Stereoscopic native
 T2K wasn't built in 2D and converted. The web, the plasma, the wireframe glow, every explosion, every particle and feedback loop was meticulously tuned for stereoscopic 3D from the start, to make full use of 3D displays. Each element — your shots, the blaster, the HUD text included — is projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it.
