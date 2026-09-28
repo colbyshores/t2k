@@ -1,5 +1,5 @@
 # T2K: Psychedelic Tube Shooter
-*A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS. Inspired by sacred geometry psychedelia. Open source.*
+*A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS and stereoscopic displays. Inspired by sacred geometry psychedelia.*
 
 ![T2K banner](banner/t2k_composed.png)
 
@@ -12,8 +12,6 @@ T2K takes its visual direction from sacred geometry psychedelia: symmetry, repet
 
 ## Stereoscopic native
 T2K wasn't built in 2D and converted. The web, the plasma, the wireframe glow, every explosion, every particle and feedback loop was meticulously tuned for stereoscopic 3D from the start, to make full use of 3D displays. Each element — your shots, the blaster, the HUD text included — is projected separately for each eye, so each one carries its own parallax and sits at its own depth. There's no fake offset and no cardboard sprites. The tube opens out of the screen while the far lanes recede behind it.
-
-CPU-projected geometry is built into per-eye buffer regions; sharing one buffer silently gives both eyes the same projection, which looks like shots firing into the neighbouring lane.
 
 ## A full jukebox on the second screen
 The bottom screen isn't a static menu. It's a full jukebox, and it's one of the biggest features in T2K. It plays music from across the Tempest line and its tube-shooter kin: Tempest 2000, Tempest 3000, Tempest 4000, TxK, and Space Giraffe. Play an entire album or pick individual tracks, and let the music advance with the levels so the soundtrack moves with you through the game.
