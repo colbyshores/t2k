@@ -6,7 +6,7 @@ A Tempest 2000-inspired tube shooter built around the Nintendo 3DS's stereoscopi
 
 ## Download and play
 
-- **3DS:** Browse the [CIA download](https://archive.org/details/t2k-3ds), or open the Reddit post and swipe to its QR code for FBI.
+- **3DS:** Browse the [CIA download](https://archive.org/download/t2k-3ds), or open the [Reddit post](https://www.reddit.com/r/3dsqrcodes/comments/1ws451p/t2k_psychedelic_tube_shooter/) and swipe to its QR code for FBI.
 - **Performance in stereoscopic 3D:** approximately 25–30 fps on Old 3DS and 50–60 fps on New 3DS.
 - **Build from source:** see [Building from scratch](#building-from-scratch). The linked prebuilt download is for 3DS.
 
