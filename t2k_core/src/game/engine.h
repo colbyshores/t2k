@@ -319,8 +319,14 @@ struct GameEngine {
     bool  ai_droid = false;
     // The arcade reference's `dnt`, a THREE-state flag, not a bool:
     //    0 = idle, the droid's powerup slot is live
-    //    1 = ARMED -- a powerup was taken during the climb-out (:5334); the
-    //        next pickup grants the droid outright, skipping the slot ladder
+    //    1 = ARMED -- a powerup was taken during the climb-out (:5334). The
+    //        reference spends this on the NEXT pickup, which grants the droid
+    //        outright and skips the slot ladder. THIS ENGINE spends it on
+    //        ARRIVAL instead: summon_armed_droid() fires it the tick the
+    //        player can move on the next web, so the companion is there when
+    //        the run resumes rather than waiting for a capsule the player may
+    //        never reach. init_powerup's ARMED branch is kept as the fallback
+    //        for an arming that somehow outlives the arrival.
     //   -1 = already granted, so the ladder's droid slot is skipped and the
     //        pickup that WOULD have landed there lands on the warp slot instead
     //        (init_powerup). init_level clears -1 back to 0 every level, so the
@@ -656,6 +662,12 @@ struct GameEngine {
 
     // Powerup system
     void init_powerup(int time);
+
+    // Spend an ARMED companion (ai_droid_state == 1, set by a powerup taken
+    // during the climb-out -- the "yes yes yes") on ARRIVAL at the next web,
+    // at the exact tick the player regains control. Called per tick from
+    // move_jump. See its definition for why the gate is init_animation <= 50.
+    void summon_armed_droid(int time);
 
     // One qualifying kill against the capsule schedule (constants.h
     // POWERUP_KILL_BANDS). Returns true when this kill drops a capsule.

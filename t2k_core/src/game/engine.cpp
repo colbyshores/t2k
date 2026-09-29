@@ -1075,8 +1075,13 @@ void GameEngine::init_powerup(int time) {
         yes_play_phase  = 0.0f;   // restart the chant-sync phase with the voice
         yes_beat_count  = 0;
         // Arm the droid for the next level (the arcade reference :5334 `mov [BYTE dnt],1`).
-        // Only from idle: once granted (-1) the climb-out does not re-arm.
-        if (ai_droid_state == 0) ai_droid_state = 1;
+        // UNCONDITIONAL, and that is the fix: this used to be `if (ai_droid_state == 0)`,
+        // so a climb-out capsule only armed the promise when the ladder's droid slot
+        // was still live. If the droid had already been granted this level (state -1)
+        // the chant played and the arming was silently dropped -- the player heard
+        // "yes yes yes" and landed on a web with no droid on it. The chant IS the
+        // promise, so the chant always arms.
+        ai_droid_state = 1;
         return;
     }
 
@@ -1186,6 +1191,38 @@ void GameEngine::init_powerup(int time) {
         break;
     }
     }
+}
+
+// AUTO-SUMMON the ARMED companion on arrival at the next web.
+//
+// A powerup taken during the climb-out ("yes yes yes") sets ai_droid_state = 1.
+// The arcade reference spends that arming on the NEXT pickup, which is a poor
+// fit for how the transition actually reads: the chant promises the companion,
+// and then the player lands on a bare web and waits, possibly for a capsule that
+// never drops, for the promise to be kept. This spends it on ARRIVAL instead --
+// the droid is already working when the run resumes.
+//
+// THE GATE is `init_animation <= 50`, and it is not an arbitrary number. It is
+// the same threshold that gates player_move_left/right (player.cpp) and
+// move_ai_droid itself (weapons.cpp), and that the deferred first-level bonus
+// already fires on: the last 50 of the 250-frame entry counter. Because that
+// counter is FROZEN by the level-asset hold (camera_arrival_held), this cannot
+// fire before the web is actually in view -- so the companion appears on a web
+// the player can see and steer, on the same tick lateral control returns.
+// Summoning any earlier would put a droid on screen that cannot move while the
+// player cannot move either.
+//
+// The out_animation / gameover_animation guards keep it from firing in the two
+// states the arming arrives from: a climb-out still in progress, or a death
+// dive, where the "next web" the arming refers to does not exist yet.
+void GameEngine::summon_armed_droid(int time) {
+    if (ai_droid_state != 1) return;
+    if (player.init_animation > 50) return;
+    if (player.out_animation > 0 || player.gameover_animation > 0) return;
+
+    show_powerup_text(time, 5);   // "ai droid"
+    ai_droid = true;
+    ai_droid_state = -1;          // droid slot skipped for the rest of this level
 }
 
 void GameEngine::_award_powerup_score(int time, int base_points, int num_popups) {

@@ -279,6 +279,11 @@ void move_jump(GameEngine& engine, int time) {
         p.first_level_bonus_pending = false;
         engine.init_1up(time);
     }
+    // The ARMED companion (a capsule taken during the climb-out, the "yes yes
+    // yes") is spent HERE, on the same gate as the bonus above, so the droid is
+    // already hunting when lateral control returns. See its own comment for why
+    // this is the arrival tick and not just a number.
+    engine.summon_armed_droid(time);
 
     float dz = 0.0f;
     float nz = 0.0f;
