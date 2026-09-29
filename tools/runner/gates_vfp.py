@@ -767,54 +767,147 @@ def gate_r10(makefile: Path) -> list[Finding]:
     return findings
 
 
+SHADER_STUB_RE = re.compile(r"_shbin\.o$")
+
+
+def _shown(paths: list[Path], limit: int = 4) -> str:
+    names = [repo_rel(p) for p in paths[:limit]]
+    if len(paths) > limit:
+        names.append(f"(+{len(paths) - limit} more)")
+    return ", ".join(names)
+
+
 def probe_objects(build_dir: Path) -> list[Finding]:
+    """Verify the LINK IS HARD-FLOAT by reading every object's ARM attributes.
+
+    This used to read ONE object -- `objects[0]` of an unordered glob -- and call a
+    missing Tag_ABI_VFP_args a MUST violation. That made the gate order-dependent,
+    and it failed on the five `*_shbin.o` shader wrappers: they are `bin2s`
+    output assembled with `-x assembler-with-cpp`, i.e. a blob of precompiled
+    PICA bytes with a symbol on it. A blob has no float calls, so gas never stamps
+    a float ABI on it, and there is nothing for the rule to be about. Which object
+    the glob returned first decided whether the gate was green, so the same tree
+    passed and failed on different filesystems.
+
+    Scanning every object is strictly stronger than sampling one: a single
+    soft-float or wrong-ABI object anywhere in the link now fails, and the
+    hard-float requirement is asserted against the compiled code rather than
+    against whichever file happened to be first. The shader wrappers stay out of
+    the requirement for what they are -- data, not code -- and are still checked
+    for a softfp stamp, because a softfp blob would be a real mixed-ABI hazard.
+    """
     findings: list[Finding] = []
     if not build_dir.exists():
         return findings
-    objects = list(build_dir.glob("*.o"))
+    objects = sorted(build_dir.glob("*.o"))
     if not objects:
         return findings
     readelf = shutil.which("arm-none-eabi-readelf") or shutil.which("readelf")
     if not readelf:
         return findings
-    sample = objects[0]
-    try:
-        proc = subprocess.run(
-            [readelf, "-A", str(sample)],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return findings
-    blob = proc.stdout + proc.stderr
-    if "Tag_ABI_VFP_args" not in blob:
+
+    hard: list[Path] = []
+    softfp: list[Path] = []
+    other_abi: list[Path] = []
+    untagged_code: list[Path] = []
+    no_fp_arch: list[Path] = []
+
+    for obj in objects:
+        try:
+            proc = subprocess.run(
+                [readelf, "-A", str(obj)],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        blob = proc.stdout + proc.stderr
+        is_stub = bool(SHADER_STUB_RE.search(obj.name))
+        if "Tag_ABI_VFP_args" not in blob:
+            if not is_stub:
+                untagged_code.append(obj)
+        elif "VFP registers" in blob:
+            hard.append(obj)
+        elif "FP hardware" in blob:
+            softfp.append(obj)
+        else:
+            other_abi.append(obj)
+        if not is_stub and "Tag_FP_arch" not in blob:
+            no_fp_arch.append(obj)
+
+    if softfp:
         findings.append(
             Finding(
                 "R10",
                 "MUST",
-                repo_rel(sample),
+                repo_rel(softfp[0]),
                 0,
                 "object",
                 True,
                 "seed",
                 None,
-                "object missing Tag_ABI_VFP_args",
+                f"{len(softfp)} object(s) stamped softfp (Tag_ABI_VFP_args: FP hardware): "
+                + _shown(softfp),
             )
         )
-    if "VFP" not in blob and "Tag_FP_arch" not in blob:
+    if other_abi:
         findings.append(
             Finding(
                 "R10",
                 "MUST",
-                repo_rel(sample),
+                repo_rel(other_abi[0]),
                 0,
                 "object",
                 True,
                 "seed",
                 None,
-                "object missing VFP Tag_FP_arch",
+                f"{len(other_abi)} object(s) carry a non-hard-float Tag_ABI_VFP_args: "
+                + _shown(other_abi),
+            )
+        )
+    if untagged_code:
+        findings.append(
+            Finding(
+                "R10",
+                "MUST",
+                repo_rel(untagged_code[0]),
+                0,
+                "object",
+                True,
+                "seed",
+                None,
+                f"{len(untagged_code)} compiled object(s) missing Tag_ABI_VFP_args: "
+                + _shown(untagged_code),
+            )
+        )
+    if not hard:
+        findings.append(
+            Finding(
+                "R10",
+                "MUST",
+                repo_rel(build_dir),
+                0,
+                "object",
+                True,
+                "seed",
+                None,
+                f"no object in {repo_rel(build_dir)} carries Tag_ABI_VFP_args: VFP registers",
+            )
+        )
+    if no_fp_arch:
+        findings.append(
+            Finding(
+                "R10",
+                "MUST",
+                repo_rel(no_fp_arch[0]),
+                0,
+                "object",
+                True,
+                "seed",
+                None,
+                f"{len(no_fp_arch)} object(s) missing VFP Tag_FP_arch: " + _shown(no_fp_arch),
             )
         )
     return findings
