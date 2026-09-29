@@ -467,7 +467,8 @@ void ts_render_warp(TsRenderer rr, ts::GameEngine& engine) {
         const float shB = stereo ? warpShear(ts::BOX_ZEYE, slider * WARP_IOD_UI) : 0.0f;
         pauseBuildVerts(r, p, c3dToGlm(orthoUiPause), 0.0f, 0.0f, shB,
                         warpPauseT, /*hazeOn=*/false, stereo ? 2 : 1,
-                        ts::pauseBoxHW(engine.pause_box_hw));
+                        ts::pauseBoxHW(engine.pause_box_hw),
+                        ts::pauseBoxHH(engine.pause_box_hh));
     }
 
     // The ONE projection this screen uses: the shared UI box through the same

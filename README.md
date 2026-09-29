@@ -47,7 +47,7 @@ The web, plasma, wireframe glow, explosions, particles, and feedback effects wer
 
 SELECT only changes the camera viewpoint. The bottom screen stays dark until you tap it to wake the jukebox.
 
-Every button above except the touch deck is remappable in **Options → Controls**, including the viewpoint cycle, which used to be fixed to SELECT.
+Every button above except the touch deck is remappable in **Options → Controls**, including the viewpoint cycle, which used to be fixed to SELECT. Binding a button takes it from whatever action held it and leaves that row `<unbound>`, so no two actions ever share a key; **Reset to Defaults** puts the shipped layout back.
 
 ## Shared technology
 

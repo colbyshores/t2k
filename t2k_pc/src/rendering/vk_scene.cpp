@@ -268,10 +268,10 @@ void levelTexMeanEnsure(Renderer& r, int texSet) {
 // with. The chamber is already a blurred, moving picture of the surroundings,
 // both targets have one, and sampling it at the BOX's own uv sub-rect is what
 // makes the glass look like glass.
-void drawPauseBox(Renderer& r, float t, Chamber* haze, float boxHW) {
+void drawPauseBox(Renderer& r, float t, Chamber* haze, float boxHW, float boxHH) {
     if (t <= 0.001f || !r.sceneOpen) return;
     const float x0 = BOX_CX - boxHW, x1 = BOX_CX + boxHW;
-    const float y0 = BOX_CY - BOX_HH, y1 = BOX_CY + BOX_HH;
+    const float y0 = BOX_CY - boxHH, y1 = BOX_CY + boxHH;
     static const int idx[6] = {0, 1, 2, 0, 2, 3};
     const float p[4][3] = {{x0, y0, 0.0f}, {x1, y0, 0.0f}, {x1, y1, 0.0f}, {x0, y1, 0.0f}};
     // 1. The pane: straight-alpha dark glass, see-through so the web reads.
@@ -298,7 +298,7 @@ void drawPauseBox(Renderer& r, float t, Chamber* haze, float boxHW) {
     //    mask just cut, and the glass becomes a flat slab.
     if (haze && haze->primed && haze->hist[0].img) {
         static MeltMaskVert hz[MELT_HAZE_VERTS];   // fixed storage, .bss
-        const int n = pauseHazeGridBuild(hz, BOX_HAZE_GAIN * t, boxHW);
+        const int n = pauseHazeGridBuild(hz, BOX_HAZE_GAIN * t, boxHW, boxHH);
         TriStream q;
         if (triStreamBegin(r, q, n)) {
             for (int k = 0; k < n; ++k) {
@@ -1268,7 +1268,8 @@ void drawGameplay(Renderer& r, GameEngine& engine) {
     // the ramp, so the un-pause fades them out together on the normal frame.
     if (pauseT > 0.001f) {
         drawPauseBox(r, pauseT, pauseChamber ? &r.chamberPause : nullptr,
-                     pauseBoxHW(engine.pause_box_hw));
+                     pauseBoxHW(engine.pause_box_hw),
+                     pauseBoxHH(engine.pause_box_hh));
         flushPauseText(r, pauseT);
     }
 

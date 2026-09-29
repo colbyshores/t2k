@@ -271,7 +271,7 @@ constexpr int FB_STAMP_GAMEOVER = -4;
 // hoisted so ts_render_frame and the allocator can reach them.
 void pauseBuildVerts(RendererC3D* r, int p, const glm::mat4& Oeye, float gain,
                      float shearMelt, float shearBox, float t, bool hazeOn,
-                     int nEyes, float boxHW);
+                     int nEyes, float boxHW, float boxHH);
 void pauseChamberPass(RendererC3D* r, int p, int eye, int flip, float inject, bool sweep);
 void goChamberPass(RendererC3D* r, int p, int eye, int flip, float inject, bool sweep);
 void goComposite(RendererC3D* r, int p, int eye, int flip, float shUi);

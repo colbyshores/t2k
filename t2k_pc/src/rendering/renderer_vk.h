@@ -546,7 +546,7 @@ void chamberCompositeMasked(Renderer& r, Chamber& ch, float gain);
 // ramp t: a dark translucent panel, the bloom-mip blur add, and the hairline
 // border, all lerped by t. Shared by drawGameplay's and drawWarp's pause
 // paths so the two states' boxes cannot drift.
-void drawPauseBox(Renderer& r, float t, Chamber* haze, float boxHW);
+void drawPauseBox(Renderer& r, float t, Chamber* haze, float boxHW, float boxHH);
 // The pause overlay text (the shared Menu's CPU-staged rows), flushed on top
 // of the frost box. vk_scene.cpp; drawWarp's pause path calls it too.
 void flushPauseText(Renderer& r, float alpha);

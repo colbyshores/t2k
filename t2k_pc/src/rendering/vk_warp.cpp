@@ -524,7 +524,8 @@ void drawWarp(Renderer& r, GameEngine& engine) {
     const float pauseT = pauseFxEase(engine.pause_fx);
     if (pauseT > 0.001f) {
         drawPauseBox(r, pauseT, nullptr,   // no melt on a bonus round, by design
-                     pauseBoxHW(engine.pause_box_hw));
+                     pauseBoxHW(engine.pause_box_hw),
+                     pauseBoxHH(engine.pause_box_hh));
         flushPauseText(r, pauseT);
     }
 

@@ -138,29 +138,33 @@ struct ButtonMap {
 };
 static ButtonMap resolveButtons(const ts::ControllerMap& c) {
     ButtonMap m;
-    m.shoot  = keyMaskForBinding(c.shoot);   if (!m.shoot)  m.shoot  = KEY_A;
-    m.jump   = keyMaskForBinding(c.jump);    if (!m.jump)   m.jump   = KEY_B;
-    m.tremor = keyMaskForBinding(c.tremor);  if (!m.tremor) m.tremor = KEY_X;
-    m.zapper = keyMaskForBinding(c.zapper);  if (!m.zapper) m.zapper = KEY_Y;
+    // AN EMPTY BINDING IS UNBOUND, not "fall back to the shipped key". The
+    // Controls screen leaves empty slots every time a button is taken by
+    // another row, so a fallback here would silently put two actions back on
+    // one button -- the exact collision the menu just removed. (This function
+    // used to fall back on every row, which is precisely why the menu had to
+    // REFUSE a rebind instead of stealing it: the refusal was papering over a
+    // hole punched here.)
+    m.shoot  = keyMaskForBinding(c.shoot);
+    m.jump   = keyMaskForBinding(c.jump);
+    m.tremor = keyMaskForBinding(c.tremor);
+    m.zapper = keyMaskForBinding(c.zapper);
     m.pause  = keyMaskForBinding(c.pause);
     m.quit   = keyMaskForBinding(c.quit);
-    // SELECT is RESERVED for the camera toggle and must never drive a game action.
-    // (This is why START appeared dead: if c.pause failed to resolve, pause silently
-    // fell back to KEY_SELECT, so SELECT paused and START did nothing.) Strip SELECT
-    // from every action, then guarantee START pauses.
-    m.shoot &= ~KEY_SELECT; m.jump  &= ~KEY_SELECT; m.tremor &= ~KEY_SELECT;
-    m.zapper &= ~KEY_SELECT; m.pause &= ~KEY_SELECT; m.quit  &= ~KEY_SELECT;
-    m.left  &= ~KEY_SELECT; m.right &= ~KEY_SELECT;
-    if (!m.pause) m.pause = KEY_START;   // START is the pause/adjustment menu
+    m.left   = keyMaskForBinding(c.move_left);
+    m.right  = keyMaskForBinding(c.move_right);
+    m.cycle_view = keyMaskForBinding(c.cycle_view);
+
+    // THE ONE FLOOR THAT SURVIVES: START opens the adjustment menu unless some
+    // other action already owns it. Losing pause mid-run costs more than it
+    // gives -- the pause menu is the only way back to the rebinding screen
+    // without dying -- so an UNBOUND Pause still answers START. It is a floor,
+    // not an override: a player who put START on Shoot keeps START on Shoot,
+    // and Pause stays genuinely unbound, exactly as the table says.
+    const u32 taken = m.shoot | m.jump | m.tremor | m.zapper
+                    | m.left  | m.right | m.cycle_view;
+    if (!m.pause && !(taken & KEY_START)) m.pause = KEY_START;
     m.quit = 0;                          // quit is via the pause/boot menu only
-    m.left   = keyMaskForBinding(c.move_left);  if (!m.left)  m.left  = KEY_DLEFT | KEY_CPAD_LEFT;
-    m.right  = keyMaskForBinding(c.move_right); if (!m.right) m.right = KEY_DRIGHT | KEY_CPAD_RIGHT;
-    // Viewpoint cycling. SELECT is stripped from every ACTION above but is the
-    // default HERE, so it must be resolved after that strip and must not be
-    // stripped itself -- a player who moves it off SELECT is free to put
-    // SELECT on nothing else, and SELECT on nothing else is exactly what the
-    // strip was protecting (a dead START).
-    m.cycle_view = keyMaskForBinding(c.cycle_view); if (!m.cycle_view) m.cycle_view = KEY_SELECT;
     return m;
 }
 

@@ -1128,7 +1128,8 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
         const float shB = stereo ? warpShear(ts::BOX_ZEYE,  slider * WARP_IOD_UI) : 0.0f;
         pauseBuildVerts(r, p, c3dToGlm(orthoUi), pauseT * ts::PAUSE_MELT_COMPOSITE,
                         shM, shB, pauseT, r->pauseChamberOn, stereo ? 2 : 1,
-                        ts::pauseBoxHW(engine.pause_box_hw));
+                        ts::pauseBoxHW(engine.pause_box_hw),
+                        ts::pauseBoxHH(engine.pause_box_hh));
     }
 
     u64 _perf_fxScore = 0;

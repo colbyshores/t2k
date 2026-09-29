@@ -203,6 +203,13 @@ struct GameEngine {
     // a fixed width cannot fit "soundtrack  13_flossiesfrolic". Defaults to the
     // minimum, so an engine driven without a menu draws the box it always did.
     float pause_box_hw = 0.0f;
+    // The frost box's half-height for THIS pause, solved from the number of
+    // rows the open menu screen draws (ui/pause_fx.h pauseBoxHalfHeight). Same
+    // writer, same readers: the Controls screen is eleven rows and a fixed
+    // height drove its last row through the bottom of the glass. Defaults to
+    // the minimum, so an engine driven without a menu draws the box it always
+    // did.
+    float pause_box_hh = 0.0f;
     // Sim ticks the arrival has been frozen for, cleared at every handover
     // (camera_snap) and ticked by camera_xform. Bounds the hold -- see
     // ASSET_HOLD_MAX_TICKS; a hold that cannot end is a hang.

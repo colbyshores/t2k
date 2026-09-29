@@ -167,9 +167,10 @@ private:
     void pop();
     int  activate(Item& it);        // returns MenuAction or MENU_NONE
     void adjust(Item& it, int dir); // Left/Right
-    // Write a freshly captured button into the selected BIND row, unless some
-    // other action already answers to it -- one button, one action.
-    bool commitBind(int scr, int sel, const char* name);
+    // Write a freshly captured button into the selected BIND row, TAKING it
+    // from any other row that held it and leaving that row unbound -- one
+    // button, one action, with the emptied slot shown as such.
+    void commitBind(int scr, int sel, const char* name);
     void resetBinds();              // restore the shipped control defaults
     void applyLive();               // sync config -> engine / audio
     void valueText(const Item& it, char* out, int n) const;
@@ -196,11 +197,6 @@ private:
     // HOLD_CANCEL_FRAMES it aborts the capture; released sooner it binds.
     std::string pendingBind_;
     int      holdFrames_ = 0;
-    // Set when a capture was REJECTED because that button already drives
-    // another action, so the row can say so for a few frames. Points at the
-    // field the player was trying to write, not the one that already owns it.
-    std::string* bindWarnField_ = nullptr;
-    int      bindWarnFrames_ = 0;
     bool controlsChanged_ = false;
     bool saveReq_ = false;         // config needs persisting
 

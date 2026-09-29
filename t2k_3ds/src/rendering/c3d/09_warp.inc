@@ -1036,7 +1036,7 @@ void fbComposite(RendererC3D* r, int p, int eye, int flip) {
 // unsheared, so the chamber is read where the light actually is.
 void pauseBuildVerts(RendererC3D* r, int p, const glm::mat4& Oeye, float gain,
                      float shearMelt, float shearBox, float t, bool hazeOn,
-                     int nEyes, float boxHW) {
+                     int nEyes, float boxHW, float boxHH) {
     static ts::MeltMaskVert mask[ts::MELT_MASK_VERTS];   // .bss, no growth
     const int nMask = ts::pauseMeltMaskBuild(mask, gain);
     for (int eye = 0; eye < nEyes; ++eye) {
@@ -1056,10 +1056,11 @@ void pauseBuildVerts(RendererC3D* r, int p, const glm::mat4& Oeye, float gain,
     // primitive, so every "line" in this file is a billboard, and at the box's
     // scale an axis-aligned quad is exactly that.
     const float x0 = ts::BOX_CX - boxHW, x1 = ts::BOX_CX + boxHW;
-    const float y0 = ts::BOX_CY - ts::BOX_HH, y1 = ts::BOX_CY + ts::BOX_HH;
+    const float y0 = ts::BOX_CY - boxHH, y1 = ts::BOX_CY + boxHH;
     const float EW = 0.004f;   // border half-thickness, UI units
     static ts::MeltMaskVert hz[ts::MELT_HAZE_VERTS];   // .bss, no growth
-    const int nHaze = ts::pauseHazeGridBuild(hz, hazeOn ? ts::BOX_HAZE_GAIN * t : 0.0f, boxHW);
+    const int nHaze = ts::pauseHazeGridBuild(hz, hazeOn ? ts::BOX_HAZE_GAIN * t : 0.0f,
+                                            boxHW, boxHH);
     for (int eye = 0; eye < nEyes; ++eye) {
         const float sb = (eye == 0) ? -shearBox : shearBox;
         C3DVertex* out = r->pauseVbo[p] + PAUSE_BOX_BASE + eye * PAUSE_BOX_VERTS;

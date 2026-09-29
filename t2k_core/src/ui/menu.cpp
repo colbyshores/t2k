@@ -64,7 +64,11 @@ enum : unsigned { REP_UP = 1u, REP_DOWN = 2u, REP_LEFT = 4u, REP_RIGHT = 8u };
 // Both the draw site and the pause-box width measure use this constant so the
 // measured width cannot drift from the drawn one.
 constexpr const char* BIND_PROMPT = "<choose button>";
-constexpr const char* BIND_WARN   = "<already used>";
+// What a row shows when its button has been taken by another action. It has
+// to be WORDED rather than blank: an empty value reads as a rendering glitch,
+// and the whole point of the steal is that the player can see which slot they
+// just emptied and go fill it.
+constexpr const char* BIND_NONE   = "<unbound>";
 // How long a captured button may be held before the capture aborts. Tap inside
 // it and the button binds; keep holding and you are back where you started.
 // Frames, matching the auto-repeat timings above (~0.5 s at 60 fps).
@@ -84,6 +88,31 @@ bool tokenIn(const std::string& binding, const char* name) {
         start = plus + 1;
     }
     return false;
+}
+
+// Take `name` out of a binding list and return true if anything was removed.
+// The mirror of tokenIn, and it has to be token-wise for the same reason: a
+// string erase of "DPAD_LEFT" from "DPAD_LEFT+CPAD_LEFT" would also eat the
+// tail of a hypothetical "XDPAD_LEFT". Removing one token from a two-token
+// movement binding leaves the other one bound, which is the right outcome --
+// the player took the D-pad left, not the stick left.
+bool tokenRemove(std::string& binding, const char* name) {
+    if (!tokenIn(binding, name)) return false;
+    std::string kept;
+    size_t start = 0;
+    for (;;) {
+        const size_t plus = binding.find('+', start);
+        const size_t end  = (plus == std::string::npos) ? binding.size() : plus;
+        const std::string tok = binding.substr(start, end - start);
+        if (!tok.empty() && tok != name) {
+            if (!kept.empty()) kept += '+';
+            kept += tok;
+        }
+        if (plus == std::string::npos) break;
+        start = plus + 1;
+    }
+    binding = kept;
+    return true;
 }
 } // namespace
 
@@ -200,9 +229,9 @@ void Menu::build() {
         screens_[SCR_CONTROLS][n++] = BND("Pause", &cfg_->controls.pause);
         // The viewpoint cycle was hardcoded to SELECT on both targets, so it
         // was both undiscoverable and stuck. It is a row like any other now --
-        // and because BIND rows refuse a button another row already owns,
-        // putting this somewhere else is what frees SELECT up, and leaving it
-        // on SELECT is what stops anything else taking it.
+        // and because binding a button TAKES it from whichever row held it,
+        // putting this somewhere else is what frees SELECT up: the row shows
+        // "<unbound>" until something else claims it.
         screens_[SCR_CONTROLS][n++] = BND("Change Viewpoint", &cfg_->controls.cycle_view);
         screens_[SCR_CONTROLS][n++] = BND("Move Left", &cfg_->controls.move_left);
         screens_[SCR_CONTROLS][n++] = BND("Move Right", &cfg_->controls.move_right);
@@ -237,30 +266,40 @@ void Menu::applyLive() {
     if (hooks_.setSfxVolume)   hooks_.setSfxVolume(cfg_->sfx_volume * 0.01f);
 }
 
-// One button, one action.
+// One button, one action -- by TAKING, not by refusing.
 //
-// A captured button that already drives another row is REFUSED, not stolen.
-// Stealing is the tempting version and it is worse: taking A away from Shoot
-// to give it to Jump leaves Shoot bound to nothing, and the front end's
-// resolver answers an empty binding with a hardcoded fallback key -- which is
-// how two actions land back on one button, invisibly. Refusing keeps every
-// action deliberately placed, and the row says why for a few frames so the
-// rejection is not mistaken for a dead control.
-bool Menu::commitBind(int scr, int sel, const char* name) {
+// A captured button that another row owns is moved here, and the row it came
+// from is left UNBOUND. This is how every control remapper a player has ever
+// used behaves; the refusal it replaces made a re-layout a two-step dance the
+// UI never explained, and told you about the button instead of about the row
+// you had to go edit.
+//
+// The trap the refusal used to cite is real, but it belongs in the resolver
+// and it is handled there now. Taking A away from Shoot leaves Shoot empty,
+// and if the front end answered an empty binding with a hardcoded fallback
+// key you were back to two actions on one button, invisibly -- the exact
+// failure the refusal was preventing. So main_3ds.cpp's resolveButtons reads
+// an empty binding as NO KEY, with one exception: the guaranteed
+// START-opens-the-menu floor, which applies only while nothing else owns
+// START. Splitting it this way keeps the invariant (one button, one action)
+// without making the menu refuse the thing the player asked for.
+//
+// The consequence the player owns: an unbound row does nothing. That is why
+// the row SAYS "<unbound>" rather than going blank, and why the Controls
+// screen keeps its "Reset to Defaults" row -- the escape hatch for anyone
+// who binds themselves out of a playable layout.
+void Menu::commitBind(int scr, int sel, const char* name) {
     Item& cur = screens_[scr][sel];
     for (int i = 0; i < counts_[scr]; ++i) {
-        const Item& other = screens_[scr][i];
+        Item& other = screens_[scr][i];
         if (other.kind != Item::BIND || other.ps == cur.ps) continue;
-        if (tokenIn(*other.ps, name)) {
-            bindWarnField_  = cur.ps;
-            bindWarnFrames_ = 90;
-            return false;
-        }
+        if (tokenRemove(*other.ps, name)) controlsChanged_ = true;
     }
-    *cur.ps = name;
-    controlsChanged_ = true;
+    if (*cur.ps != name) {
+        *cur.ps = name;
+        controlsChanged_ = true;
+    }
     saveReq_ = true;
-    return true;
 }
 
 // The shipped control layout is ControllerMap's own member initialisers
@@ -268,8 +307,6 @@ bool Menu::commitBind(int scr, int sel, const char* name) {
 // player's OTHER settings are left alone: this resets controls, not the box.
 void Menu::resetBinds() {
     cfg_->controls = ControllerMap{};
-    bindWarnField_  = nullptr;
-    bindWarnFrames_ = 0;
     controlsChanged_ = true;
     saveReq_ = true;
 }
@@ -354,7 +391,6 @@ int Menu::activate(Item& it) {
 
 int Menu::update(const Input& raw) {
     if (depth_ == 0) return MENU_NONE;
-    if (bindWarnFrames_ > 0) --bindWarnFrames_;
 
     // A deferred screen change: perform it the moment the shared fade has
     // reached black (it then fades back in on its own). Input is ignored
@@ -498,7 +534,8 @@ void Menu::valueText(const Item& it, char* out, int n) const {
                 std::snprintf(out, n, "%s", hooks_.albumName(a));
             break;
         }
-        case Item::BIND:   std::snprintf(out, n, "%s", it.ps->c_str()); break;
+        case Item::BIND:   std::snprintf(out, n, "%s",
+                               it.ps->empty() ? BIND_NONE : it.ps->c_str()); break;
         default: out[0] = '\0';
     }
 }
@@ -574,10 +611,6 @@ void Menu::drawRows(TsRenderer, int frame, int scr, float cx, float rowsY,
         float cb = cursor ? 0.3f : 0.7f;
         if (binding_ && cursor) { cr = 1.0f; cg = 0.3f; cb = 0.3f;
             std::snprintf(line, sizeof(line), "%s  %s", it.label, BIND_PROMPT); }
-        else if (!binding_ && it.ps && it.ps == bindWarnField_ && bindWarnFrames_ > 0) {
-            // The row that was just refused, not the one that already owns the
-            // button: the player needs to see which row they failed to write.
-            std::snprintf(line, sizeof(line), "%s  %s", it.label, BIND_WARN); }
         writeAfont(line, cx, y, ts, ts * 1.25f, 0.0f, MENU_ROW_TH,
                    cr, cg, cb, pulse * alphaMul, true, false, 0, 0, 1.0f);
         y -= step;
@@ -611,7 +644,7 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
             if (val[0]) std::snprintf(line, sizeof(line), "%s  %s", it.label, val);
             else        std::snprintf(line, sizeof(line), "%s", it.label);
             // The binding prompt is the widest a Controls row ever gets
-            // (BIND_WARN is shorter), and it is the same constant the draw
+            // (BIND_NONE is shorter), and it is the same constant the draw
             // site uses, so the box cannot be measured against one string and
             // drawn with another.
             const int extra = (it.kind == Item::BIND)
@@ -626,26 +659,41 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
         // 40 fps handheld and a 60 fps desktop take the same time -- the
         // Aesthetic Contract's "timing is an invariant". The first frame of a
         // pause arrives at full size: there is nothing to glide from.
-        const float target = pauseBoxHalfWidth(widest);
+        //
+        // Width and height are eased together, with ONE easing factor, so the
+        // glass never grows one way before the other -- a box that stretched
+        // down while its sides lagged would read as a smear.
+        const float targetHW = pauseBoxHalfWidth(widest);
+        const float targetHH = pauseBoxHalfHeight(cnt);
         const int   now = eng_->time;
         const int   dt  = (boxLastMs_ < 0) ? 0 : (now - boxLastMs_);
         boxLastMs_ = now;
-        if (eng_->pause_box_hw <= 0.0f || eng_->pause_fx < 0.995f) {
-            eng_->pause_box_hw = target;
-        } else {
-            constexpr float BOX_GLIDE_MS = 160.0f;
-            float k = (float)(dt < 0 ? 0 : (dt > 50 ? 50 : dt)) / BOX_GLIDE_MS;
+        constexpr float BOX_GLIDE_MS = 160.0f;
+        // Snap when there is nothing to glide FROM: the first frame of a pause,
+        // or either half never having been measured.
+        const bool snap = eng_->pause_box_hw <= 0.0f || eng_->pause_box_hh <= 0.0f
+                      || eng_->pause_fx < 0.995f;
+        float k = 1.0f;
+        if (!snap) {
+            k = (float)(dt < 0 ? 0 : (dt > 50 ? 50 : dt)) / BOX_GLIDE_MS;
             if (k > 1.0f) k = 1.0f;
-            eng_->pause_box_hw += (target - eng_->pause_box_hw) * k;
         }
+        eng_->pause_box_hw += (targetHW - eng_->pause_box_hw) * k;
+        eng_->pause_box_hh += (targetHH - eng_->pause_box_hh) * k;
     }
     // Emitted at FULL alpha: the pause ramp is applied once, by the backend,
     // when it flushes the staged batch (ui/pause_fx.h). Doing it here as well
     // would square the ramp -- and, worse, would make the ramp-OUT impossible,
     // since nothing re-emits these rows once the menu has closed.
-    writeAfont(TITLES[scr], BOX_CX, BOX_TITLE_Y, 0.042f, 0.052f, 0.0f, MENU_TITLE_TH,
+    //
+    // The rows are laid out at the SAME half-height the backends build the
+    // glass from, so the last row cannot sit outside it. With no engine (no
+    // measurement possible) this falls back to the minimum, which is the
+    // layout this box has always had.
+    const float hh = pauseBoxHH(eng_ ? eng_->pause_box_hh : 0.0f);
+    writeAfont(TITLES[scr], BOX_CX, boxTitleY(hh), 0.042f, 0.052f, 0.0f, MENU_TITLE_TH,
                0.5f, 0.7f, 1.0f, 0.9f, true, false, 0, 0, 1.0f);
-    drawRows(r, frame, scr, BOX_CX, BOX_ROW_Y, BOX_ROW_DY, 0.024f, 1.0f);
+    drawRows(r, frame, scr, BOX_CX, boxRowY(hh), BOX_ROW_DY, 0.024f, 1.0f);
 }
 
 } // namespace ts

@@ -62,8 +62,10 @@ inline void pauseFxStep(PauseFx& fx, bool pauseOpen, int dtMs) {
 inline float pauseFxEase(float t) { return t * t * (3.0f - 2.0f * t); }
 
 // ---- the frost box (the 1.3333 x 1.0 UI box) --------------------------------
-// Centred over the web, sized to hold the options screen's longest list with
-// the title above the rows. The menu's overlay rows lay out from BOX_ROW_Y.
+// Centred over the web, sized to hold the open screen's widest AND tallest
+// list with the title above the rows (both halves are measured -- see
+// pauseBoxHalfWidth / pauseBoxHalfHeight). The menu's overlay rows lay out
+// from boxRowY(hh).
 // The box sits ON TOP of the web BY DESIGN (the mark-up's own words: "blurred
 // box lerps in on top of web with pause/options menu") -- what must stay
 // clear of the web is the MELT, which is what the mask below is for.
@@ -82,8 +84,37 @@ constexpr float BOX_CX = 0.6666f, BOX_CY = 0.52f;
 constexpr float BOX_HW_MIN = 0.40f;
 constexpr float BOX_HW_MAX = 0.63f;   // UI_W/2 - 0.037 of margin each side
 constexpr float BOX_PAD_X  = 0.045f;  // clear space between text and glass
-constexpr float BOX_HH     = 0.335f;
-constexpr float BOX_TITLE_Y = BOX_CY + BOX_HH - 0.075f;
+
+// THE HEIGHT IS MEASURED THE SAME WAY THE WIDTH IS. It used to be one constant
+// (0.335) sized for the pause screen's three rows, which is why the Controls
+// screen -- eleven rows -- drove "Back" straight through the bottom of the
+// glass (report, 2026-09-28). The vertical layout is expressed top-down from
+// the top edge so the half-height can be SOLVED for the row count rather than
+// searched:
+//   top edge -> title baseline        BOX_TITLE_PAD
+//   title    -> first row baseline   BOX_ROW0_GAP
+//   each further row                 BOX_ROW_DY
+//   last row   -> bottom edge        BOX_BOTTOM_PAD
+// so hh = (TITLE_PAD + ROW0_GAP + (rows-1)*ROW_DY + BOTTOM_PAD) / 2, clamped
+// to the range below. BOX_HH_MAX is set by the TOP edge, not the bottom:
+// BOX_CY is 0.52, so 0.45 leaves 0.03 of screen margin above and 0.07 below,
+// and it covers a 14-row list before the clamp starts to bite.
+constexpr float BOX_HH_MIN     = 0.335f;  // the pause screen's own size
+constexpr float BOX_HH_MAX     = 0.45f;   // keeps the glass off the screen edges
+constexpr float BOX_TITLE_PAD  = 0.075f;
+constexpr float BOX_ROW0_GAP   = 0.085f;
+constexpr float BOX_ROW_DY     = 0.052f;
+constexpr float BOX_BOTTOM_PAD = 0.045f;
+
+// Fit the box to the number of rows it must hold.
+inline float pauseBoxHalfHeight(int rows) {
+    if (rows < 1) rows = 1;
+    const float need = (BOX_TITLE_PAD + BOX_ROW0_GAP
+                       + (float)(rows - 1) * BOX_ROW_DY + BOX_BOTTOM_PAD) * 0.5f;
+    float hh = need > BOX_HH_MIN ? need : BOX_HH_MIN;
+    if (hh > BOX_HH_MAX) hh = BOX_HH_MAX;
+    return hh;
+}
 
 // Fit the box to the widest row it must hold. `widest` is the widest row's UI
 // width (font.h afontWidth); the result is clamped to the range above. The
@@ -103,8 +134,20 @@ inline float pauseBoxHW(float measured) {
     return measured > BOX_HW_MIN ? (measured < BOX_HW_MAX ? measured : BOX_HW_MAX)
                                  : BOX_HW_MIN;
 }
-constexpr float BOX_ROW_Y   = BOX_CY + 0.175f;
-constexpr float BOX_ROW_DY  = 0.052f;
+
+inline float pauseBoxHH(float measured) {
+    return measured > BOX_HH_MIN ? (measured < BOX_HH_MAX ? measured : BOX_HH_MAX)
+                                 : BOX_HH_MIN;
+}
+
+// Where the title and the first row sit for a box of half-height `hh`. At
+// hh == BOX_HH_MIN these come back at 0.78 and 0.695 -- the values this box
+// has always had, to within 6e-8 UI units (~0.01 px at 240p) of float
+// reassociation -- so the pause and options screens are unchanged and only a
+// taller box moves them.
+inline float boxTitleY(float hh) { return BOX_CY + hh - BOX_TITLE_PAD; }
+inline float boxRowY(float hh)  { return boxTitleY(hh) - BOX_ROW0_GAP; }
+
 // The glass, in DISPLAY-REFERRED panel units (DOCTRINE.md: the authored value
 // IS the panel value on both targets -- a gain "tuned for linear light" is a
 // parity bug). Straight-alpha dark pane, then the melt chamber added back
@@ -376,11 +419,13 @@ inline int pauseMeltMaskBuild(MeltMaskVert* out, float gain) {
 // Build the frost box's haze as a masked grid: the same chamber light the
 // composite shows, through the same keep-out, so the glass is frosted where
 // the melt is behind it and clear where the web is. Positions in UI space;
-// `gain` is BOX_HAZE_GAIN x the ramp.
-inline int pauseHazeGridBuild(MeltMaskVert* out, float gain, float boxHW) {
-    const float x0 = BOX_CX - boxHW, y0 = BOX_CY - BOX_HH;
+// `gain` is BOX_HAZE_GAIN x the ramp. The box's own measured half-extents go
+// in with it, so the haze can never be sized against a different box than the
+// pane and the border were drawn with.
+inline int pauseHazeGridBuild(MeltMaskVert* out, float gain, float boxHW, float boxHH) {
+    const float x0 = BOX_CX - boxHW, y0 = BOX_CY - boxHH;
     const float dx = (2.0f * boxHW) / (float)MELT_HAZE_GRID;
-    const float dy = (2.0f * BOX_HH) / (float)MELT_HAZE_GRID;
+    const float dy = (2.0f * boxHH) / (float)MELT_HAZE_GRID;
     int n = 0;
     auto put = [&](float x, float y) {
         MeltMaskVert& o = out[n++];
