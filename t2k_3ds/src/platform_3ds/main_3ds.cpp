@@ -976,8 +976,11 @@ int main(int argc, char** argv) {
             mi.leftHeld  = (kHeld & (KEY_DLEFT  | KEY_CPAD_LEFT))  != 0;
             mi.rightHeld = (kHeld & (KEY_DRIGHT | KEY_CPAD_RIGHT)) != 0;
             if (menu.capturing()) {                 // rebinding: raw capture
-                mi.cancelCapture  = (kDown & KEY_B) != 0;
+                // No cancel-on-B here. B is a bindable button, and cancelling
+                // on its leading edge is what made it impossible to bind; the
+                // menu now decides tap-vs-hold from these two fields.
                 mi.capturedButton = nameForKey(kDown);
+                mi.heldButton     = nameForKey(kHeld);
             }
             int act = menu.update(mi);
             if (menu.controlsChanged()) { BTN = resolveButtons(config.controls); menu.clearControlsChanged(); }

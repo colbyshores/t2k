@@ -55,6 +55,36 @@ constexpr float MENU_ROW_TH   = 0.12f;   // item rows (was 0.1)
 
 // Direction bits for the auto-repeat tracker (platform-neutral).
 enum : unsigned { REP_UP = 1u, REP_DOWN = 2u, REP_LEFT = 4u, REP_RIGHT = 8u };
+
+// The BIND row's prompt while it waits for input.
+//
+// "<choose button>", NOT "<press a button>": read at a glance the old string
+// parses as an instruction about a specific button -- "PRESS THE A BUTTON" --
+// and a player who took it that way bound everything to A (report, 2026-09-28).
+// Both the draw site and the pause-box width measure use this constant so the
+// measured width cannot drift from the drawn one.
+constexpr const char* BIND_PROMPT = "<choose button>";
+constexpr const char* BIND_WARN   = "<already used>";
+// How long a captured button may be held before the capture aborts. Tap inside
+// it and the button binds; keep holding and you are back where you started.
+// Frames, matching the auto-repeat timings above (~0.5 s at 60 fps).
+constexpr int HOLD_CANCEL_FRAMES = 30;
+
+// Does this binding list name `name` as one of its buttons? Split on '+' so a
+// combo ("DPAD_LEFT+CPAD_LEFT") is compared token by token -- a substring test
+// would be wrong here, since DPAD_LEFT and CPAD_LEFT share "PAD_LEFT".
+bool tokenIn(const std::string& binding, const char* name) {
+    const size_t nl = std::strlen(name);
+    size_t start = 0;
+    for (;;) {
+        const size_t plus  = binding.find('+', start);
+        const size_t end   = (plus == std::string::npos) ? binding.size() : plus;
+        if (end - start == nl && binding.compare(start, nl, name) == 0) return true;
+        if (plus == std::string::npos) break;
+        start = plus + 1;
+    }
+    return false;
+}
 } // namespace
 
 void Menu::init(GameConfig* cfg, GameEngine* eng, const Hooks& hooks) {
@@ -171,6 +201,15 @@ void Menu::build() {
         screens_[SCR_CONTROLS][n++] = BND("Move Left", &cfg_->controls.move_left);
         screens_[SCR_CONTROLS][n++] = BND("Move Right", &cfg_->controls.move_right);
         screens_[SCR_CONTROLS][n++] = TOG("Invert Movement", &cfg_->controls.invert_move);
+        // Restores the code defaults in save_load.h's ControllerMap, not a copy
+        // of the bundled JSON template: the struct's initialisers are the
+        // single source of truth for what "default controls" means, so a
+        // default changed in code cannot disagree with what this row writes.
+        // This is the escape hatch for a player who has bound themselves out
+        // of a playable layout -- before it, the only way back was deleting
+        // the config file by hand.
+        { Item rst{}; rst.label = "Reset to Defaults"; rst.kind = Item::RESET;
+          screens_[SCR_CONTROLS][n++] = rst; }
         screens_[SCR_CONTROLS][n++] = BACK;
     }
     counts_[SCR_CONTROLS] = n;
@@ -190,6 +229,43 @@ void Menu::applyLive() {
     if (hooks_.setMusicVolume) hooks_.setMusicVolume(cfg_->music_volume * 0.01f);
     if (hooks_.setMusicPaused) hooks_.setMusicPaused(!cfg_->mod_music);
     if (hooks_.setSfxVolume)   hooks_.setSfxVolume(cfg_->sfx_volume * 0.01f);
+}
+
+// One button, one action.
+//
+// A captured button that already drives another row is REFUSED, not stolen.
+// Stealing is the tempting version and it is worse: taking A away from Shoot
+// to give it to Jump leaves Shoot bound to nothing, and the front end's
+// resolver answers an empty binding with a hardcoded fallback key -- which is
+// how two actions land back on one button, invisibly. Refusing keeps every
+// action deliberately placed, and the row says why for a few frames so the
+// rejection is not mistaken for a dead control.
+bool Menu::commitBind(int scr, int sel, const char* name) {
+    Item& cur = screens_[scr][sel];
+    for (int i = 0; i < counts_[scr]; ++i) {
+        const Item& other = screens_[scr][i];
+        if (other.kind != Item::BIND || other.ps == cur.ps) continue;
+        if (tokenIn(*other.ps, name)) {
+            bindWarnField_  = cur.ps;
+            bindWarnFrames_ = 90;
+            return false;
+        }
+    }
+    *cur.ps = name;
+    controlsChanged_ = true;
+    saveReq_ = true;
+    return true;
+}
+
+// The shipped control layout is ControllerMap's own member initialisers
+// (save_load.h), so this cannot drift from a default changed in code. The
+// player's OTHER settings are left alone: this resets controls, not the box.
+void Menu::resetBinds() {
+    cfg_->controls = ControllerMap{};
+    bindWarnField_  = nullptr;
+    bindWarnFrames_ = 0;
+    controlsChanged_ = true;
+    saveReq_ = true;
 }
 
 void Menu::adjust(Item& it, int dir) {
@@ -261,7 +337,8 @@ int Menu::activate(Item& it) {
             if (fadeScreens_) { pendingKind_ = 2; screenFade().fadeOut(FADE_MENU_SCREEN); return MENU_NONE; }
             pop(); return MENU_NONE;
         case Item::TOGGLE:  *it.pb = !*it.pb; applyLive(); return MENU_NONE;
-        case Item::BIND:    binding_ = true; return MENU_NONE;      // capture next button
+        case Item::BIND:    binding_ = true; pendingBind_.clear(); holdFrames_ = 0; return MENU_NONE;
+        case Item::RESET:   resetBinds(); return MENU_NONE;
         case Item::CHOICE:  adjust(it, +1); return MENU_NONE;
         case Item::TRACK:   adjust(it, +1); return MENU_NONE;
         case Item::ALBUM:   adjust(it, +1); return MENU_NONE;
@@ -271,6 +348,7 @@ int Menu::activate(Item& it) {
 
 int Menu::update(const Input& raw) {
     if (depth_ == 0) return MENU_NONE;
+    if (bindWarnFrames_ > 0) --bindWarnFrames_;
 
     // A deferred screen change: perform it the moment the shared fade has
     // reached black (it then fades back in on its own). Input is ignored
@@ -294,10 +372,30 @@ int Menu::update(const Input& raw) {
 
     if (binding_) {                                   // capture a button for a BIND
         repeatMask_ = 0; repeatTick_ = 0;             // never auto-repeat a capture
-        if (raw.cancelCapture) { binding_ = false; return MENU_NONE; }
+        if (raw.cancelCapture) {
+            binding_ = false; pendingBind_.clear(); holdFrames_ = 0;
+            return MENU_NONE;
+        }
         if (raw.capturedButton) {
-            *screens_[scr][sel].ps = raw.capturedButton;
-            binding_ = false; controlsChanged_ = true;
+            // TAP BINDS, HOLD CANCELS. The decision cannot be made on the
+            // leading edge: B is both the menu's back key and a bindable
+            // button, and cancelling on B's press meant B could never be
+            // bound to anything (report, 2026-09-28). Deferring to release
+            // makes every button bindable and keeps a held button as the
+            // "get me out of here" gesture.
+            pendingBind_ = raw.capturedButton;
+            holdFrames_  = 0;
+            return MENU_NONE;
+        }
+        if (!pendingBind_.empty()) {
+            if (raw.heldButton) {                     // still down -- may still become a cancel
+                if (++holdFrames_ >= HOLD_CANCEL_FRAMES) {
+                    binding_ = false; pendingBind_.clear(); holdFrames_ = 0;
+                }
+                return MENU_NONE;
+            }
+            commitBind(scr, sel, pendingBind_.c_str());
+            binding_ = false; pendingBind_.clear(); holdFrames_ = 0;
         }
         return MENU_NONE;
     }
@@ -469,7 +567,11 @@ void Menu::drawRows(TsRenderer, int frame, int scr, float cx, float rowsY,
         float cg = cursor ? 1.0f : 0.7f;
         float cb = cursor ? 0.3f : 0.7f;
         if (binding_ && cursor) { cr = 1.0f; cg = 0.3f; cb = 0.3f;
-            std::snprintf(line, sizeof(line), "%s  <press a button>", it.label); }
+            std::snprintf(line, sizeof(line), "%s  %s", it.label, BIND_PROMPT); }
+        else if (!binding_ && it.ps && it.ps == bindWarnField_ && bindWarnFrames_ > 0) {
+            // The row that was just refused, not the one that already owns the
+            // button: the player needs to see which row they failed to write.
+            std::snprintf(line, sizeof(line), "%s  %s", it.label, BIND_WARN); }
         writeAfont(line, cx, y, ts, ts * 1.25f, 0.0f, MENU_ROW_TH,
                    cr, cg, cb, pulse * alphaMul, true, false, 0, 0, 1.0f);
         y -= step;
@@ -502,8 +604,12 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
             valueText(it, val, sizeof(val));
             if (val[0]) std::snprintf(line, sizeof(line), "%s  %s", it.label, val);
             else        std::snprintf(line, sizeof(line), "%s", it.label);
-            // The binding prompt is the widest a Controls row ever gets.
-            const int extra = (it.kind == Item::BIND) ? (int)std::strlen("  <press a button>") : 0;
+            // The binding prompt is the widest a Controls row ever gets
+            // (BIND_WARN is shorter), and it is the same constant the draw
+            // site uses, so the box cannot be measured against one string and
+            // drawn with another.
+            const int extra = (it.kind == Item::BIND)
+                              ? (int)std::strlen(BIND_PROMPT) + 2 : 0;
             const float w = afontWidth((int)std::strlen(line) + extra, rowSx, rowTh);
             if (w > widest) widest = w;
         }

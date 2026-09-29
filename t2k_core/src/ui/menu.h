@@ -94,6 +94,12 @@ public:
         // BIND capture (3DS only): the canonical name of a button pressed this
         // frame, or nullptr. Only read while the menu is capturing a binding.
         const char* capturedButton = nullptr;
+        // The canonical name of whatever is HELD this frame (same naming as
+        // capturedButton), or nullptr. The capture decides tap-vs-hold from
+        // this: releasing inside the window binds, holding past it cancels.
+        // It exists because B is both the menu's back key and a bindable
+        // button -- cancelling on B's leading edge made B impossible to bind.
+        const char* heldButton = nullptr;
         bool cancelCapture = false;
     };
 
@@ -104,7 +110,7 @@ public:
     // unlock so the newly-available rows appear without an app restart. The
     // stack/selection are left as-is; the caller re-opens the menu it wants.
     void rebuild() { build(); }
-    void close() { depth_ = 0; binding_ = false; saveReq_ = true; }
+    void close() { depth_ = 0; binding_ = false; pendingBind_.clear(); holdFrames_ = 0; saveReq_ = true; }
     bool active() const { return depth_ > 0; }
     // True only when the TOP of the stack is the BOOT (title) screen -- i.e. the
     // user is sitting on the title, not buried in Options/Controls. The attract
@@ -142,7 +148,10 @@ private:
     enum ScreenId { SCR_BOOT, SCR_PAUSE, SCR_OPTIONS, SCR_CONTROLS, SCR_COUNT };
     struct Item {
         const char* label;
-        enum Kind { ACTION, TOGGLE, SLIDER, CHOICE, TRACK, ALBUM, BIND, SUBMENU, BACK } kind;
+        // RESET is menu-internal (it restores the shipped control defaults and
+        // never returns a MenuAction), which is why it is its own kind rather
+        // than an ACTION target.
+        enum Kind { ACTION, TOGGLE, SLIDER, CHOICE, TRACK, ALBUM, BIND, RESET, SUBMENU, BACK } kind;
         bool* pb; int* pi; std::string* ps;
         int lo, hi, step;
         const char* const* opts; int nopts;
@@ -158,6 +167,10 @@ private:
     void pop();
     int  activate(Item& it);        // returns MenuAction or MENU_NONE
     void adjust(Item& it, int dir); // Left/Right
+    // Write a freshly captured button into the selected BIND row, unless some
+    // other action already answers to it -- one button, one action.
+    bool commitBind(int scr, int sel, const char* name);
+    void resetBinds();              // restore the shipped control defaults
     void applyLive();               // sync config -> engine / audio
     void valueText(const Item& it, char* out, int n) const;
     int  albumOfEntry(int entry) const;   // track-list row -> album, or -1
@@ -179,6 +192,15 @@ private:
 
     int  stack_[8]; int sel_[8]; int depth_ = 0;
     bool binding_ = false;         // capturing a button for a BIND item
+    // The pressed button whose tap-vs-hold is still undecided. Held past
+    // HOLD_CANCEL_FRAMES it aborts the capture; released sooner it binds.
+    std::string pendingBind_;
+    int      holdFrames_ = 0;
+    // Set when a capture was REJECTED because that button already drives
+    // another action, so the row can say so for a few frames. Points at the
+    // field the player was trying to write, not the one that already owns it.
+    std::string* bindWarnField_ = nullptr;
+    int      bindWarnFrames_ = 0;
     bool controlsChanged_ = false;
     bool saveReq_ = false;         // config needs persisting
 
