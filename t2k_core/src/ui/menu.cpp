@@ -198,6 +198,12 @@ void Menu::build() {
         screens_[SCR_CONTROLS][n++] = BND("Tremor", &cfg_->controls.tremor);
         screens_[SCR_CONTROLS][n++] = BND("Zapper", &cfg_->controls.zapper);
         screens_[SCR_CONTROLS][n++] = BND("Pause", &cfg_->controls.pause);
+        // The viewpoint cycle was hardcoded to SELECT on both targets, so it
+        // was both undiscoverable and stuck. It is a row like any other now --
+        // and because BIND rows refuse a button another row already owns,
+        // putting this somewhere else is what frees SELECT up, and leaving it
+        // on SELECT is what stops anything else taking it.
+        screens_[SCR_CONTROLS][n++] = BND("Change Viewpoint", &cfg_->controls.cycle_view);
         screens_[SCR_CONTROLS][n++] = BND("Move Left", &cfg_->controls.move_left);
         screens_[SCR_CONTROLS][n++] = BND("Move Right", &cfg_->controls.move_right);
         screens_[SCR_CONTROLS][n++] = TOG("Invert Movement", &cfg_->controls.invert_move);

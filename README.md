@@ -47,6 +47,8 @@ The web, plasma, wireframe glow, explosions, particles, and feedback effects wer
 
 SELECT only changes the camera viewpoint. The bottom screen stays dark until you tap it to wake the jukebox.
 
+Every button above except the touch deck is remappable in **Options → Controls**, including the viewpoint cycle, which used to be fixed to SELECT.
+
 ## Shared technology
 
 The 3DS and desktop targets share one simulation core. The engine's boundaries reflect the 3DS's hardware constraints.

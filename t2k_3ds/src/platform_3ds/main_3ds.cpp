@@ -134,7 +134,7 @@ static u32 keyMaskForBinding(const std::string& binding) {
 
 // Resolved controller masks for one session (built once from GameConfig).
 struct ButtonMap {
-    u32 shoot, jump, tremor, zapper, pause, quit, left, right;
+    u32 shoot, jump, tremor, zapper, pause, quit, left, right, cycle_view;
 };
 static ButtonMap resolveButtons(const ts::ControllerMap& c) {
     ButtonMap m;
@@ -155,6 +155,12 @@ static ButtonMap resolveButtons(const ts::ControllerMap& c) {
     m.quit = 0;                          // quit is via the pause/boot menu only
     m.left   = keyMaskForBinding(c.move_left);  if (!m.left)  m.left  = KEY_DLEFT | KEY_CPAD_LEFT;
     m.right  = keyMaskForBinding(c.move_right); if (!m.right) m.right = KEY_DRIGHT | KEY_CPAD_RIGHT;
+    // Viewpoint cycling. SELECT is stripped from every ACTION above but is the
+    // default HERE, so it must be resolved after that strip and must not be
+    // stripped itself -- a player who moves it off SELECT is free to put
+    // SELECT on nothing else, and SELECT on nothing else is exactly what the
+    // strip was protecting (a dead START).
+    m.cycle_view = keyMaskForBinding(c.cycle_view); if (!m.cycle_view) m.cycle_view = KEY_SELECT;
     return m;
 }
 
@@ -1122,7 +1128,10 @@ int main(int argc, char** argv) {
         // used to toggle the geometry-derived camera, which no longer exists;
         // leaving the button bound to a dead flag is the trap this codebase
         // already paid for once with start_level.
-        if (kDown & KEY_SELECT) ts::camera_cycle_view(engine);
+        // The KEY is a binding now (Controls > Change Viewpoint); SELECT is
+        // still its default. It was hardcoded here, which made the feature
+        // undiscoverable -- nothing on screen told the player it existed.
+        if (kDown & BTN.cycle_view) ts::camera_cycle_view(engine);
 
         // New 3DS C-stick (nub) = live FOV zoom. Push UP to zoom IN (narrower FOV),
         // DOWN to zoom OUT. Deadzone'd, frame-rate independent enough at ~60Hz, and

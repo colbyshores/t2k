@@ -92,6 +92,7 @@ void saveConfig(const GameConfig& config, const std::string& directory) {
             {"zapper", config.controls.zapper},
             {"pause", config.controls.pause},
             {"quit", config.controls.quit},
+            {"cycle_view", config.controls.cycle_view},
             {"move_left", config.controls.move_left},
             {"move_right", config.controls.move_right},
             {"invert_move", config.controls.invert_move},
@@ -284,6 +285,7 @@ GameConfig loadConfig(const std::string& directory) {
         config.controls.zapper     = getStr(c, "zapper", config.controls.zapper.c_str());
         config.controls.pause      = getStr(c, "pause", config.controls.pause.c_str());
         config.controls.quit       = getStr(c, "quit", config.controls.quit.c_str());
+        config.controls.cycle_view = getStr(c, "cycle_view", config.controls.cycle_view.c_str());
         config.controls.move_left  = getStr(c, "move_left", config.controls.move_left.c_str());
         config.controls.move_right = getStr(c, "move_right", config.controls.move_right.c_str());
         config.controls.invert_move = getBool(c, "invert_move", false);

@@ -57,6 +57,11 @@ struct ControllerMap {
     std::string zapper     = "Y";
     std::string pause      = "START";   // START opens the pause menu
     std::string quit       = "SELECT";   // (quit is via the pause/boot menu)
+    // Cycle the camera viewpoint (NEAR / MID / FAR / FIXED — game/camera.h).
+    // This was hardcoded to SELECT on both targets, which made it undiscoverable
+    // and unmovable; it is a binding like every other action now. SELECT stays
+    // the default so the shipped layout is unchanged.
+    std::string cycle_view = "SELECT";
     std::string move_left  = "DPAD_LEFT+CPAD_LEFT";
     std::string move_right = "DPAD_RIGHT+CPAD_RIGHT";
     bool invert_move = false;   // false = corrected (right stick right -> claw right)
