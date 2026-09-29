@@ -87,6 +87,12 @@ void shutdown();
 Src      source();
 uint64_t queued_samples();       // absolute source samples produced this track
 void     set_paused(bool paused);
+// The pause state as the SINKS must see it. This is not the replayer's flag:
+// a sink that only gated the MOD path would keep streaming every .dsp / album
+// / Play-All source while the menu said "Music Off" (the bug this exists for).
+// Both sinks stop feeding on this — the 3DS stops refilling its ndsp wave
+// queue, the desktop stops refilling its chunk queue and emits silence.
+bool     paused();
 // Belt-and-braces analyser rebind + sample-counter restart, used once by the
 // sink before it primes anything (the real rate is re-asserted by the
 // configure() the first apply_select() triggers).

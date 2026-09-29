@@ -153,6 +153,17 @@ uint64_t s_queuedSamples = 0;                      // samples queued this track
 int16_t  s_analysisScratch[DSP_CHUNK_SAMPLES];     // 16380 decoded samples
 uint8_t  s_rawScratch[DSP_BUF_BYTES];              // fill_pcm()'s raw ADPCM read
 
+// ---- Pause ---------------------------------------------------------------
+// THE SINK-LEVEL GATE, and it has to live in the core rather than in the
+// replayer. set_paused() used to reach only ModPlayer::setPlaying(), which
+// silences the MOD path and NOTHING ELSE: every .dsp / album / Play-All
+// source kept streaming, so the menu's "Music" toggle was a dead knob for
+// the shipped soundtrack on both targets. Sinks read this and stop feeding;
+// the replayer flag is still set so the MOD path keeps the behaviour it
+// always had. volatile because the desktop's audio callback reads it without
+// the stream lock (the 3DS worker holds s_lock, so it cannot race there).
+volatile bool s_paused = false;
+
 inline uint32_t be32(const uint8_t* p) {
     return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];
 }
@@ -542,6 +553,14 @@ bool ensureDspData() {
 
 // Load a MOD file off disk into the built-in replayer (bytes kept resident —
 // mod_player reads sample data in place). Returns false on error.
+//
+// Every MOD start goes through startModPlayer(), NOT ModPlayer::play()
+// directly: play() clears the replayer's pause unconditionally, so a track
+// change made while the music was OFF would otherwise start it back up.
+// The sink-level gate (s_paused) is the authority, so it is re-asserted
+// after every start.
+void startModPlayer() { s_player.play(); s_player.setPlaying(!s_paused); }
+
 bool loadModFile(const std::string& path) {
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) return false;
@@ -552,7 +571,7 @@ bool loadModFile(const std::string& path) {
     fclose(f);
     if ((long)rd != sz) return false;
     if (!s_player.load(s_modFileBuf.data(), s_modFileBuf.size())) return false;
-    s_player.play();
+    startModPlayer();
     return true;
 }
 
@@ -677,7 +696,7 @@ void apply_select(int i) {
         s_src = SRC_MOD; s_playlist = false;
         if (s_dsp) { fclose(s_dsp); s_dsp = nullptr; }
         size_t len; const unsigned char* d = songData(i, len);
-        s_player.load(d, len); s_player.play();
+        s_player.load(d, len); startModPlayer();
         configure(SRC_MOD, MOD_SAMPLE_RATE);
         if (s_sink.prime) s_sink.prime();
         setNowPlaying(s_names[i].c_str());
@@ -701,7 +720,8 @@ void shutdown() {
 
 Src      source()         { return s_src; }
 uint64_t queued_samples() { return s_queuedSamples; }
-void     set_paused(bool paused) { s_player.setPlaying(!paused); }
+void     set_paused(bool paused) { s_paused = paused; s_player.setPlaying(!paused); }
+bool     paused() { return s_paused; }
 
 void rebind_rate(uint32_t r) {
     s_queuedSamples = 0;

@@ -163,11 +163,29 @@ static inline void vfp_thread_fz_dn() {
 
 void musicThread(void*) {
     vfp_thread_fz_dn();  // before any float work on this thread (R1)
+    // ndsp has no pause. "Silence" here means NOTHING queued, so the paused
+    // path clears the channel once and stops refilling; the drained branch
+    // below re-primes from the current source the moment the gate opens.
+    // Without this the .dsp / album / Play-All sources kept streaming with
+    // the menu showing "Music Off" -- set_paused used to reach only the MOD
+    // replayer, which is why the toggle looked dead on the shipped
+    // soundtrack. (music_core.h's paused() is the shared gate.)
+    bool clearedPaused = false;
     while (s_running) {
         LightLock_Lock(&s_lock);
         // Pending selection/level requests first (they may swap the source the
         // refill below then feeds). All SD/decode work stays on THIS thread.
         core::consume_requests();
+        if (core::paused()) {
+            if (!clearedPaused) {
+                ndspChnWaveBufClear(MUSIC_CHANNEL);
+                clearedPaused = true;
+            }
+            LightLock_Unlock(&s_lock);
+            svcSleepThread(5 * 1000 * 1000ULL);
+            continue;
+        }
+        clearedPaused = false;
         // If the channel drained (all bufs done), ndsp won't auto-resume — reset.
         if (!ndspChnIsPlaying(MUSIC_CHANNEL)) {
             ndspChnWaveBufClear(MUSIC_CHANNEL);

@@ -151,6 +151,13 @@ bool pullSample(int16_t& out) {
 void SDLCALL hookMusic(void*, Uint8* stream, int len) {
     std::lock_guard<std::mutex> g(s_qlock);
 
+    // Paused: the shared sink gate (music_core.h paused()). Emit silence here
+    // rather than letting the consumer fall through to its starved path, which
+    // HOLDS the last sample to avoid a click on a producer hiccup — holding a
+    // DC offset for the whole pause is a different thing entirely. The queue
+    // is left intact, so unpausing resumes where it stopped.
+    if (core::paused()) { std::memset(stream, 0, (size_t)len); return; }
+
     const int frames = len / (int)(sizeof(int16_t) * (size_t)s_devChannels);
 
     // Playhead: the buffer we are about to fill becomes audible roughly one
@@ -236,6 +243,14 @@ void musicThread() {
             // Pending selection/level requests first (they may swap the source
             // the refill below then feeds). All file/decode work stays here.
             core::consume_requests();
+            // Paused: stop producing. The queue keeps what was already made, so
+            // the resume picks up mid-note instead of restarting the track, and
+            // the hook emits silence meanwhile. Without this gate the .dsp /
+            // album / Play-All sources streamed straight through "Music Off".
+            if (core::paused()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                continue;
+            }
             for (;;) {
                 const unsigned t = s_tail.load(std::memory_order_relaxed);
                 if (t - s_head.load(std::memory_order_acquire) >= (unsigned)NUM_CHUNKS) break;
