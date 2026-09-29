@@ -1212,7 +1212,12 @@ int main(int argc, char** argv) {
             // Pause: START opens the pause menu (Resume / Options / Quit to Menu).
             // The menu block above freezes the sim while it's open; RESUME there
             // adjusts the gameplay clock for the paused duration.
-            if (kDown & BTN.pause) {
+            //
+            // NOT once the game is over: the pause box over the game-over screen
+            // offers a Resume for a run that has already ended, and RESUME then
+            // re-runs the frozen death frame with the clock nudged. Same rule
+            // on both frontends -- see GameEngine::gameOverScreen().
+            if ((kDown & BTN.pause) && !engine.gameOverScreen()) {
                 pauseStart = engine.time;
                 ts::modmusic::music_set_paused(true);
                 menu.openPause();

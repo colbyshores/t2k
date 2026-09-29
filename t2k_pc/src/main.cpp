@@ -955,8 +955,13 @@ void Game::updateGameplay(const InputState& input) {
     // replacing the old desktop-only "quit? Y/N" prompt so both targets pause
     // the same way. The menu block in run() freezes the sim while it is open;
     // MENU_RESUME below adjusts the gameplay clock for the paused duration.
-    if (input.pressed.count(GameAction::PAUSE) ||
-        input.pressed.count(GameAction::CANCEL)) {
+    //
+    // NOT once the game is over: the pause box over the game-over screen offers
+    // a Resume for a run that has already ended. Same rule on both frontends --
+    // see GameEngine::gameOverScreen().
+    if ((input.pressed.count(GameAction::PAUSE) ||
+         input.pressed.count(GameAction::CANCEL)) &&
+        !engine_.gameOverScreen()) {
         pauseStartTime_ = engine_.time;
         // The music pauses with the game, as it always has on the 3DS
         // (main_3ds.cpp GameState::GAMEPLAY) -- the target that defines the

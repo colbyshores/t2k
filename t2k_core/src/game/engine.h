@@ -692,6 +692,21 @@ struct GameEngine {
     // the shatter has a real converge phase instead of a slow fade-in.
     void trigger_shatter(int kind, const char* text);
     bool is_level_clear();
+
+    // True from the FINAL death onward: the game-over dive, the frozen end
+    // screen, and everything after. The pause menu must not open over this --
+    // there is nothing left to pause, and a frost box over the game-over
+    // screen reads as a recoverable state when it is not.
+    //
+    // The predicate is `lives < 0`, the one the game-over ramp itself uses
+    // (gameover_geometry.cpp gameoverRamp), NOT `nolives_animation`, which
+    // free-runs pinned at 400 outside a live run and so cannot tell a death
+    // from a menu. `nolives_animation > 0` is ORed in only so the
+    // presentation-only gameover_test harness (which never sets lives) is
+    // covered the same way the ramp covers it.
+    bool gameOverScreen() const {
+        return player.lives < 0 || nolives_animation > 0;
+    }
 };
 
 } // namespace ts
