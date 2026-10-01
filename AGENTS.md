@@ -14,7 +14,7 @@ measures that target. A New-clocked run is not an OG pass.
 
 ## 1. What the ARM11 actually taxes
 
-Raw float arithmetic is not the problem. Three things are:
+Raw float arithmetic is not the problem. Four things are:
 
 1. **The coprocessor boundary.** Moving a value between the ARM integer
    register file and the VFP register file costs 20+ cycles (`vmov` / `vmrs` /
@@ -24,9 +24,14 @@ Raw float arithmetic is not the problem. Three things are:
    *irregular* — that is frame-pacing jank, not a smooth FPS drop.
 3. **Register file size.** 32 single-precision registers. Doubles consume two.
    Spills are memory traffic on a 16 KB L1.
+4. **Code footprint.** 16 KB L1 instruction cache, and L2 is OFF in an OG
+   profile. This is what inlining excess and template bloat actually cost —
+   not the arithmetic. It is also the only honest ARM11 argument for the
+   template restriction in §10; the "templates are slow" framing is false.
 
-This contract targets those three. It does **not** prohibit floating-point
+This contract targets 1–3 with §§3–4. It does **not** prohibit floating-point
 math, and it does **not** prohibit mixing int and float in the same function.
+Item 4 is named for reviewers: nothing here gates it.
 
 Full rule text, exemption grammar, standing exemptions, and the report schema:
 `tools/runner/contracts/vfp_hotpath.md`. The corpus of known hot functions is
@@ -369,3 +374,87 @@ production build. Do not change `APP_AUTHOR` back to `TSEngine`, and do not
 "align" the publisher to the engine name — the rename to `TSEngine Devs` is the
 decision (user, 2026-09-27). Changing `APP_UNIQUE_ID` is a separate, larger
 decision (it forks the install into a second title) and is out of scope here.
+
+---
+
+## 10. C++ implementation constraints — "C with classes"
+
+Scope is §8. This is the **language** half of DOCTRINE.md "Performance doctrine
+(C with classes)". The **numeric** half is §§3–4 and is deliberately not restated
+here — two copies of R2/R4/R6/R11 is two copies to drift.
+
+Do not introduce:
+
+- **Virtual functions, virtual destructors, or inheritance that depends on
+  virtual dispatch.** The reason is architecture, not the cycle argument §§1–4
+  make: the renderer seam is chosen at **build time** by which tree is compiled
+  (`renderer_c3d.cpp` vs `renderer_vk.cpp`, DOCTRINE.md "Rendering backend
+  seam"), so a vtable would put a runtime decision where the build already made
+  it. 0 virtuals in the tree today; `enemies.cpp:70` and the `enemies/arcade_*.cpp`
+  headers say so at each dispatch site.
+- **RTTI** — `dynamic_cast`, `typeid`.
+- **Exceptions.** Not "exceptions for control flow": exceptions at all. Both
+  build systems compile `-fno-exceptions -fno-rtti` (`t2k_3ds/Makefile`
+  `CXXFLAGS`, `t2k_pc/CMakeLists.txt`), so they do not compile. Setup errors
+  use return codes / status structs, as `vfp_set_fz_dn()` does.
+- **Project-defined templates.** Concrete types and ordinary functions. This is
+  **house style, not an ARM11 performance rule** — say it that way, because the
+  opposite claim is false: a template is compile-time, and an inlined template
+  over a fixed trip count is usually *cheaper* than the hand-duplicated concrete
+  functions or the `void*`-punned seam it would replace. The only ARM11
+  argument here is §1 item 4, code footprint in a 16 KB L1I with L2 off, and
+  that argues for restraint, not for a ban. The real reasons are readability and
+  one-implementation-per-behaviour. Do not defend this rule by claiming
+  templates are slow.
+- **Type-erased callables** (`std::function`, `std::bind`). 0 in the tree. The
+  seam is free functions over `GameEngine&` and a flat C-API header
+  (`rendering/render.h`), not stored callables. This one IS an ARM11 rule: a
+  heap-allocated target, an indirect call, and no inlining.
+
+In HOT PATH (§2) also:
+
+- **No per-frame container growth where the size is known.** Preallocate and
+  reuse — `grid_geometry.cpp textureLevel` resizes only when `n` changes, not
+  every call. Where a container genuinely grows during play, that is shipped
+  design and the rule is about its CONSEQUENCE, not the growth:
+  `enemies.cpp:967` re-fetches the enemy after `push_back` because the
+  reallocation invalidated the reference. Do not "optimise" the spawn vectors
+  into fixed arrays without checking that invariant first.
+
+On the 3DS worker threads, **respect the stack you were given**: SFX runs on
+**8 KB** (`t2k_3ds/src/audio/sfx_3ds.cpp:359`) and music on **16 KB**
+(`t2k_3ds/src/audio/music_3ds.cpp:275`). No recursion in those threads, and
+no large local arrays or local containers — an overflow there is silent memory
+corruption in the audio path, not a clean fault. Size locals against those
+numbers before adding them.
+
+Ordinary classes, structs, constructors, destructors, RAII, namespaces,
+non-virtual member functions and local lambdas remain permitted. Use them to
+make ownership and behaviour clear.
+
+**Do not "tidy" `-fsingle-precision-constant` into `COMMONFLAGS`.** It is set
+per-object for exactly three files (`t2k_3ds/Makefile:459-461`: `grid_geometry`,
+`line_geometry`, `entity_geometry`). Widening it retypes every unsuffixed float
+literal in the tree, which silently changes the **mechanics-gated DOUBLE** math
+R4 protects — `engine.cpp:370-386` computes spawn counts in double, and a ULP
+there moves a `round()` boundary and changes how many enemies a level spawns.
+That is a fidelity regression dressed as a cleanup. The presentation files
+already write `(float)M_PI` / `static_cast<float>(M_PI)` by hand; keep doing
+that.
+
+**Enforcement.** `python3 tools/runner/audit_c_with_classes.py` (wired into
+`tools/check.sh`) now gates the zero-tolerance constructs of this section:
+`virtual`, `override`, `dynamic_cast`, `typeid`, `throw`/`try`/`catch`,
+`template`, `std::function`/`std::bind`, and the `<typeinfo>`/`<exception>`/
+`<functional>` includes. The tree is at 0 of each, so the gate is green with no
+baseline file — a hit is new code, and the fix is to not write it, not to bless
+it. It strips comments and string literals before matching, because this tree
+documents its own rules in prose ("no virtual, no vtable" at `enemies.cpp:70`)
+and a naive grep flags that prose as code.
+
+What the gate still cannot see: the per-frame heap-growth rule (it is violated
+by correct shipped design, so a gate would fail on right code) and the worker
+stack rule. Those stay review-only. DOCTRINE.md's claim that this section is
+"enforced by the `perf-guard` agent" is stale — no such agent exists in
+`.kilo/agents/` (which holds `swarm-worker`, `swarm-orchestrator`,
+`swarm-validator`, `adversarial-review`).

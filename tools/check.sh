@@ -82,6 +82,12 @@ if [ -s "$tmp/new" ]; then
 fi
 [ -s "$tmp/gone" ] && echo "note: $(wc -l < "$tmp/gone") baseline candidate(s) no longer reported (fixed, moved, or rewritten) -- re-bless with tools/check.sh --bless-r11"
 
+gate "audit_c_with_classes (AGENTS.md 10 -- expect VERDICT: CONTRACT CLEAN)"
+python3 tools/runner/audit_c_with_classes.py > "$tmp/cwc.log" 2>&1
+rc=$?
+grep "VERDICT" "$tmp/cwc.log"
+[ $rc -eq 0 ] || { grep -A3 "VIOLATION(S)" "$tmp/cwc.log" | head -30; fail "audit_c_with_classes exit $rc"; }
+
 gate "warp_window_check (documented outcome windows vs the real sim)"
 bash t2k_core/tools/warp_window_check.sh > "$tmp/windows.log" 2>&1 || { tail -15 "$tmp/windows.log"; fail "warp_window_check"; }
 tail -3 "$tmp/windows.log"
