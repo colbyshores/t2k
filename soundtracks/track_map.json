@@ -171,7 +171,7 @@
     {
       "dsp": "11_berlin.dsp",
       "album": "Tempest 4000",
-      "album_order": 13,
+      "album_order": 12,
       "sha256": "2cf442ca6f2021b186dc450798c0fa55e6ca1c0a90941a6fd3136ee384a7329e",
       "bytes": 4872307,
       "samples": 8526368,
@@ -186,7 +186,7 @@
     {
       "dsp": "12_consciousness.dsp",
       "album": "Tempest 4000",
-      "album_order": 14,
+      "album_order": 13,
       "sha256": "c19f9cb209323871cf4c5844e29da7dbbd4acd9f588f073a06bdc519d35404e9",
       "bytes": 4402173,
       "samples": 7703633,
@@ -201,7 +201,7 @@
     {
       "dsp": "13_flossiesfrolic.dsp",
       "album": "Tempest 4000",
-      "album_order": 20,
+      "album_order": 15,
       "sha256": "5aff23941a3c817cc201bc012438e68a040099123a401fa411a2bca30966d049",
       "bytes": 5360960,
       "samples": 9381512,
@@ -216,7 +216,7 @@
     {
       "dsp": "14_fridgean.dsp",
       "album": "Tempest 4000",
-      "album_order": 18,
+      "album_order": 14,
       "sha256": "d5a4d2595c908c7e46185f6b716e2b2b3f526e06359c547db8f123acd5b209ca",
       "bytes": 3733070,
       "samples": 6532703,
@@ -231,7 +231,7 @@
     {
       "dsp": "15_inthezone.dsp",
       "album": "Tempest 4000",
-      "album_order": 24,
+      "album_order": 17,
       "sha256": "cae9019c6e95580499b7bfdab116f90c3efeb80912cdaa3bf136a56e51d80004",
       "bytes": 4170613,
       "samples": 7298403,
@@ -246,7 +246,7 @@
     {
       "dsp": "16_lasereverywhere.dsp",
       "album": "Tempest 4000",
-      "album_order": 25,
+      "album_order": 18,
       "sha256": "9f974ccef22886f2a8da735c1b62d68ead65a8077de829e05d6536841dcc53f3",
       "bytes": 3565811,
       "samples": 6240000,
@@ -261,7 +261,7 @@
     {
       "dsp": "17_noisepulse.dsp",
       "album": "Tempest 4000",
-      "album_order": 27,
+      "album_order": 20,
       "sha256": "ce835967c9da8062c5ba83ea12d7b958468bb26adaf9992b16179e230e015b04",
       "bytes": 4626786,
       "samples": 8096706,
@@ -276,7 +276,7 @@
     {
       "dsp": "18_spaceiseverything.dsp",
       "album": "Tempest 4000",
-      "album_order": 30,
+      "album_order": 22,
       "sha256": "cd99ea8f771e0a0c9999ade1db011cfc9dc8ae418c307071988b1ca086d9f9dc",
       "bytes": 3771018,
       "samples": 6599112,
@@ -291,7 +291,7 @@
     {
       "dsp": "19_tranceone.dsp",
       "album": "Tempest 4000",
-      "album_order": 35,
+      "album_order": 25,
       "sha256": "1005541c8720aeec28dbdfee29a13cdce783f639be742473edbcd1e14dc256a5",
       "bytes": 4955102,
       "samples": 8671260,
@@ -306,7 +306,7 @@
     {
       "dsp": "20_ginswigger.dsp",
       "album": "Tempest 4000",
-      "album_order": 21,
+      "album_order": 16,
       "sha256": "3800e218522940e10aa3aff67a0ce5bf192c5c2aaf2abd47b2147d8b8daa06a1",
       "bytes": 3038063,
       "samples": 5316441,
@@ -321,7 +321,7 @@
     {
       "dsp": "21_musicarena.dsp",
       "album": "Tempest 4000",
-      "album_order": 26,
+      "album_order": 19,
       "sha256": "add164673878cc17d383af73081e08add121f54fe17e2375a023baf5395d3e6a",
       "bytes": 2180650,
       "samples": 3815968,
@@ -330,21 +330,6 @@
         "folder": "TxK",
         "path": "TxK/musicarena.flac",
         "sha256": "d6c9b723d6d8ce0fb5f93f22ede25cf6e782fcf9afd5f1d6a568cc3448b46555",
-        "slug": "txk-ps-vita-gamerip-2014"
-      }
-    },
-    {
-      "dsp": "22_youlikeit.dsp",
-      "album": "Tempest 4000",
-      "album_order": 37,
-      "sha256": "f492f2b9a2282d25cdcfb6eb2d0949bb3da56798bdeb3484a9a5e781239f59f1",
-      "bytes": 4484768,
-      "samples": 7848176,
-      "duration": 245.256,
-      "source": {
-        "folder": "TxK",
-        "path": "TxK/youlikeit Final.flac",
-        "sha256": "981ef2f6711b543e670aabd739e10861cddb1e231df11f2704e127af9beba133",
         "slug": "txk-ps-vita-gamerip-2014"
       }
     },
@@ -365,8 +350,8 @@
     },
     {
       "dsp": "24_b2.dsp",
-      "album": "TxK",
-      "album_order": 0,
+      "album": "Tempest 4000",
+      "album_order": 21,
       "sha256": "591412667949d4d8ba73bfa426dce1f97af9854c8af5b9507e60f3de8beca70a",
       "bytes": 9952135,
       "samples": 17416068,
@@ -470,8 +455,8 @@
     },
     {
       "dsp": "31_mooing.dsp",
-      "album": "TxK",
-      "album_order": 17,
+      "album": "Tempest 4000",
+      "album_order": 26,
       "sha256": "be0769fb5fa00a6eb646a31bd035687cef3a0ddaf65d18a7c449ea1621d4f0d7",
       "bytes": 4484768,
       "samples": 7848176,
@@ -499,24 +484,9 @@
       }
     },
     {
-      "dsp": "33_limaverse.dsp",
-      "album": "Tempest 4000",
-      "album_order": 28,
-      "sha256": "78388132f6d91cf068623828117d850aba96106545570b0a2ce8a4730a1890e1",
-      "bytes": 9954266,
-      "samples": 17419796,
-      "duration": 544.369,
-      "source": {
-        "folder": "tempest4000_soundtrack",
-        "path": "tempest4000_soundtrack/29 Limaverse.flac",
-        "sha256": "6d869dce6573cf2af6db9dfc12f37710dddd80c51f6109dbc65806241379dadb",
-        "slug": "tempest-4000-gamerip"
-      }
-    },
-    {
       "dsp": "34_t2km.dsp",
       "album": "Tempest 4000",
-      "album_order": 31,
+      "album_order": 23,
       "sha256": "2a1cb0c71748ef05b7c01c92732510910d35edacc65e90846595f3eced5f2ba9",
       "bytes": 2430470,
       "samples": 4253153,
@@ -531,7 +501,7 @@
     {
       "dsp": "35_title.dsp",
       "album": "Tempest 4000",
-      "album_order": 33,
+      "album_order": 24,
       "sha256": "0e46ac9ace92bb465a1fd1d1be50a5e38808033ea58de9dc2008c39c6b8b4b3c",
       "bytes": 4049869,
       "samples": 7087102,
@@ -649,51 +619,6 @@
       }
     },
     {
-      "dsp": "43_tem_04.dsp",
-      "album": "Tempest 3000",
-      "album_order": 3,
-      "sha256": "eeb5ce2c5cd47d465b3e7c1866d66a8b467d6fb3da3b3795da120f9b0791af37",
-      "bytes": 4392830,
-      "samples": 7687284,
-      "duration": 240.228,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/04.flac",
-        "sha256": "b1d38ceb5b49a891b4a55290e0a543a995c4be9796dd964128c1b5e8b79e2221",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "44_tem_05.dsp",
-      "album": "Tempest 3000",
-      "album_order": 4,
-      "sha256": "26fb6cbe6a6a0e79102e0a2f6200265a659106128a1d30d9f9d23201e3056f7a",
-      "bytes": 4484152,
-      "samples": 7847097,
-      "duration": 245.222,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/05.flac",
-        "sha256": "d342f4b85174cdbdfd0b5b4fff2537d115b5997ddb669b1d80f875f65273d22a",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "45_tem_06.dsp",
-      "album": "Tempest 3000",
-      "album_order": 5,
-      "sha256": "f9da3b65802b4769b5f20a3686b6d1d2acc6ae14833d028489b49469bd9c60da",
-      "bytes": 4811507,
-      "samples": 8419967,
-      "duration": 263.124,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/06.flac",
-        "sha256": "690cdd27b4b6ec0b178ec1f19b881762f1edbd068d0df1b7ccdf2d232150cc8a",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
       "dsp": "46_tem_07.dsp",
       "album": "Tempest 3000",
       "album_order": 6,
@@ -724,66 +649,6 @@
       }
     },
     {
-      "dsp": "48_tem_09.dsp",
-      "album": "Tempest 3000",
-      "album_order": 8,
-      "sha256": "57ca4fe197b8ac7ca55443d80545e226d9b67e3d6695bb0c6e66f6c4fe3cf745",
-      "bytes": 5329285,
-      "samples": 9326079,
-      "duration": 291.44,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/09.flac",
-        "sha256": "886cae15456996595457872e691ce16c9e9a6f4d23c11a9c9cd930c365f2e5d9",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "49_tem_10.dsp",
-      "album": "Tempest 3000",
-      "album_order": 9,
-      "sha256": "d3fde973d6aa7f9c624d282381f7fb243e0dea0cefd7e985d0e656173f7811e6",
-      "bytes": 5532395,
-      "samples": 9681522,
-      "duration": 302.548,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/10.flac",
-        "sha256": "a1c06fd67ef10c46b44332139fe2ee3d9cea48d8f797bc424d80e1732dee80c7",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "50_tem_11.dsp",
-      "album": "Tempest 3000",
-      "album_order": 10,
-      "sha256": "c8e55804fc42f378affe14a755f079a554cee2aa11f62ee5433fa9f1b249e0bc",
-      "bytes": 5505389,
-      "samples": 9634261,
-      "duration": 301.071,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/11.flac",
-        "sha256": "10d1c3b6b5200444f219ad22c8245c0eaebd275be81f9daf706645b80377ccac",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "51_tem_12.dsp",
-      "album": "Tempest 3000",
-      "album_order": 11,
-      "sha256": "541d0b3c84f350757150af3f805b42fd0912c005f70fd9e0eb74455fa5b4a2cd",
-      "bytes": 5698907,
-      "samples": 9972918,
-      "duration": 311.654,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/12.flac",
-        "sha256": "33f1a6e120f846642cc32e4c1e0fadf9ed8022bd84cfe0895e9f348e96b1b133",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
       "dsp": "52_tem_13.dsp",
       "album": "Tempest 3000",
       "album_order": 12,
@@ -795,21 +660,6 @@
         "folder": "tempest3000_soundtrack",
         "path": "tempest3000_soundtrack/13.flac",
         "sha256": "b9ac768f8699727870b6ef2d04756d1eefe27da5ffe68d8dcceb0be40dda2eaf",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "53_tem_14.dsp",
-      "album": "Tempest 3000",
-      "album_order": 13,
-      "sha256": "f95baed6e33dfe68313d22be58d8b9a1c0d1c432c62a02e90398a22c4c40e73e",
-      "bytes": 5877943,
-      "samples": 10286231,
-      "duration": 321.445,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/14.flac",
-        "sha256": "d43e9bcf63ae57057d5c574bb3250e21295401523efce543b14c1a4f2d3aa3fd",
         "slug": "tempest-3000-nuon-gamerip-2000"
       }
     },
@@ -829,21 +679,6 @@
       }
     },
     {
-      "dsp": "55_tem_16.dsp",
-      "album": "Tempest 3000",
-      "album_order": 15,
-      "sha256": "0021450bd20236b7ac22e17c37fdc95b44c38774204272e8b1ce5b1f440f9338",
-      "bytes": 6349056,
-      "samples": 11110679,
-      "duration": 347.209,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/16.flac",
-        "sha256": "481422a4ee4571cd949b50f0f4d543354072d8f457f59b1b49cd8748f6bd820b",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
       "dsp": "56_tem_17.dsp",
       "album": "Tempest 3000",
       "album_order": 16,
@@ -855,36 +690,6 @@
         "folder": "tempest3000_soundtrack",
         "path": "tempest3000_soundtrack/17.flac",
         "sha256": "add31b9936058fd3c524cef50080bf950d181b04a7986b93950ef23929668a52",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "57_tem_18.dsp",
-      "album": "Tempest 3000",
-      "album_order": 17,
-      "sha256": "f2440fdd478420fafc08110f58180e06083fb8c516e50c76570dd9b756003c9c",
-      "bytes": 8245962,
-      "samples": 14430263,
-      "duration": 450.946,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/18.flac",
-        "sha256": "39645780a8ba66ba6bdfc5d3047dfdcf14be98e1f58516273f6fee97181a1cf0",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "58_tem_19.dsp",
-      "album": "Tempest 3000",
-      "album_order": 18,
-      "sha256": "1d3caf31f3516a2b2f9a407a26e2b817bff5631fb8c1e28538d398f9c53b6423",
-      "bytes": 8571675,
-      "samples": 15000261,
-      "duration": 468.758,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/19.flac",
-        "sha256": "a780fad1209a343e1a7936e4adef53a45e16394a1efa5ed4355ba5c75de3be98",
         "slug": "tempest-3000-nuon-gamerip-2000"
       }
     }
@@ -966,22 +771,22 @@
       "40_tem_01.dsp",
       "41_tem_02.dsp",
       "42_tem_03.dsp",
-      "43_tem_04.dsp",
-      "44_tem_05.dsp",
-      "45_tem_06.dsp",
+      "09_ultrayak.dsp",
+      "04_constructivedemolition.dsp",
+      "07_hyperprism.dsp",
       "46_tem_07.dsp",
       "47_tem_08.dsp",
-      "48_tem_09.dsp",
-      "49_tem_10.dsp",
-      "50_tem_11.dsp",
-      "51_tem_12.dsp",
+      "01_mindseye.dsp",
+      "06_digitalterror.dsp",
+      "03_trackingdepth.dsp",
+      "08_glidecontrol.dsp",
       "52_tem_13.dsp",
-      "53_tem_14.dsp",
+      "23_t2k.dsp",
       "54_tem_15.dsp",
-      "55_tem_16.dsp",
+      "05_futuretense.dsp",
       "56_tem_17.dsp",
-      "57_tem_18.dsp",
-      "58_tem_19.dsp"
+      "10_2000dub.dsp",
+      "02_easeyourself.dsp"
     ],
     "Tempest 4000": [
       "00_thermalresolution.dsp",
@@ -1005,12 +810,12 @@
       "16_lasereverywhere.dsp",
       "21_musicarena.dsp",
       "17_noisepulse.dsp",
-      "33_limaverse.dsp",
+      "24_b2.dsp",
       "18_spaceiseverything.dsp",
       "34_t2km.dsp",
       "35_title.dsp",
       "19_tranceone.dsp",
-      "22_youlikeit.dsp"
+      "31_mooing.dsp"
     ],
     "TxK": [
       "24_b2.dsp",
@@ -1032,8 +837,7 @@
       "30_machinecode.dsp",
       "31_mooing.dsp",
       "21_musicarena.dsp",
-      "32_wanderinghalls.dsp",
-      "22_youlikeit.dsp"
+      "32_wanderinghalls.dsp"
     ],
     "Space Giraffe": [
       "36_spa_01.dsp",

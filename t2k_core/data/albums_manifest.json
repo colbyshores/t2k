@@ -19,22 +19,22 @@
    "40_tem_01.dsp",
    "41_tem_02.dsp",
    "42_tem_03.dsp",
-   "43_tem_04.dsp",
-   "44_tem_05.dsp",
-   "45_tem_06.dsp",
+   "09_ultrayak.dsp",
+   "04_constructivedemolition.dsp",
+   "07_hyperprism.dsp",
    "46_tem_07.dsp",
    "47_tem_08.dsp",
-   "48_tem_09.dsp",
-   "49_tem_10.dsp",
-   "50_tem_11.dsp",
-   "51_tem_12.dsp",
+   "01_mindseye.dsp",
+   "06_digitalterror.dsp",
+   "03_trackingdepth.dsp",
+   "08_glidecontrol.dsp",
    "52_tem_13.dsp",
-   "53_tem_14.dsp",
+   "23_t2k.dsp",
    "54_tem_15.dsp",
-   "55_tem_16.dsp",
+   "05_futuretense.dsp",
    "56_tem_17.dsp",
-   "57_tem_18.dsp",
-   "58_tem_19.dsp"
+   "10_2000dub.dsp",
+   "02_easeyourself.dsp"
   ],
   "Tempest 4000": [
    "00_thermalresolution.dsp",
@@ -58,12 +58,12 @@
    "16_lasereverywhere.dsp",
    "21_musicarena.dsp",
    "17_noisepulse.dsp",
-   "33_limaverse.dsp",
+   "24_b2.dsp",
    "18_spaceiseverything.dsp",
    "34_t2km.dsp",
    "35_title.dsp",
    "19_tranceone.dsp",
-   "22_youlikeit.dsp"
+   "31_mooing.dsp"
   ],
   "TxK": [
    "24_b2.dsp",
@@ -85,8 +85,7 @@
    "30_machinecode.dsp",
    "31_mooing.dsp",
    "21_musicarena.dsp",
-   "32_wanderinghalls.dsp",
-   "22_youlikeit.dsp"
+   "32_wanderinghalls.dsp"
   ],
   "Space Giraffe": [
    "36_spa_01.dsp",
