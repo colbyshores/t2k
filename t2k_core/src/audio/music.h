@@ -54,7 +54,15 @@ void music_set_volume(float vol);
 // thread ever touches the filesystem, the ADPCM decoder, or the stream lock —
 // that synchronous work under the stream lock was the level-select browse stall.
 int         music_track_count();
+// IDENTITY, not a label: the pool filename stem (or the row label for the MOD /
+// album / Play-All rows). The saved soundtrack (config.soundtrack_name) and the
+// bonus-round reservation are matched against this string, so it must keep
+// returning the stem -- use music_track_display() to show a name to the player.
 const char* music_track_name(int i);
+// DISPLAY ONLY -- the human title from the album map, falling back to
+// music_track_name(i) when a file has no title. Never use it as a key: titles
+// can repeat across rows and can be reworded without changing what any file is.
+const char* music_track_display(int i);
 void        music_select(int i);
 // The completion unlock gate for the MOD chiptunes (the first two rows of the
 // list). The pickers ask music_track_select_base() where to start offering
@@ -79,7 +87,11 @@ int         music_album_entry_index(int a);          // album -> track-list row 
 int         music_album_count();
 const char* music_album_name(int a);
 int         music_album_track_count(int a);
-const char* music_album_track_name(int a, int t);   // basename, extension stripped
+const char* music_album_track_name(int a, int t);   // IDENTITY: basename, ext stripped
+// DISPLAY ONLY -- the human title for this album track, falling back to
+// music_album_track_name(a, t) when the map carries no title for that pool
+// file. Identity stays the stem (see music_track_name); this is for labels.
+const char* music_album_track_display(int a, int t);
 // The inclusive 0-based LEVEL BAND an album track owns in SYNC mode, read
 // from the core's reserved-filtered rotation. lo > hi means the track owns
 // no band (a reserved bonus track). The deck reads this instead of

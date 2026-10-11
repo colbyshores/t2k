@@ -43,6 +43,14 @@ public:
     // dismissed (nor the backlight cut) without it.
     struct Hooks {
         int         (*trackCount)()               = nullptr;
+        // DISPLAY ONLY. Every hook below that yields a string is a LABEL, never
+        // an identity key: the frontends bind these to music_track_display() /
+        // music_album_track_display(), which fall back to the pool stem when a
+        // file has no title. The identity accessors (music_track_name /
+        // music_album_track_name) are what config.soundtrack_name is written
+        // from and must NOT be bound here -- a title is rewordable and can
+        // repeat across rows, so using one as a key would break saved-selection
+        // restore and the bonus-round reservation.
         const char* (*trackName)(int)             = nullptr;
         // Where the top-level list starts. The two embedded MOD chiptunes are
         // the first rows and are gated behind the completion unlock: 0 once
@@ -57,6 +65,9 @@ public:
         // it, so its "play synced to levels" row had no valid entry to select
         // and passed -1 -- see the call site.
         int         (*albumEntry)(int)            = nullptr;
+        // DISPLAY ONLY (see trackName). The row is additionally prefixed with
+        // the per-album track number by render(); the hook returns the bare
+        // title so the numbering stays a presentation choice of this file.
         const char* (*albumTrackName)(int, int)   = nullptr;
         // The level band a track owns in sync mode (inclusive, 0-based).
         // Read from the music core's reserved-filtered rotation: lo > hi means
@@ -67,6 +78,9 @@ public:
         int         (*albumCurrent)()             = nullptr;  // -1 none
         int         (*albumCurrentTrack)()        = nullptr;
         bool        (*albumSync)()                = nullptr;
+        // DISPLAY ONLY (see trackName). music_now_playing() already stamps the
+        // title at every set site in music_core, so the header needs no
+        // display/identity handling of its own.
         const char* (*nowPlaying)()               = nullptr;
         void        (*selectEntry)(int)           = nullptr;  // full-list row tap
         void        (*selectAlbumTrack)(int, int) = nullptr;  // manual pick (locks)

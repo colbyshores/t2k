@@ -35,6 +35,10 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 DSP_DIR = os.path.join(HERE, "dsp")
 MOD_DIR = os.path.join(HERE, "mod")
+# The shipped album map + bonus-round reservation. This stage reads it to refuse
+# a write that would contradict it rather than silently overwrite it.
+MANIFEST_PATH = os.path.join(os.path.dirname(HERE),
+                             "t2k_core", "data", "albums_manifest.json")
 RATE = 32000
 
 # ------------------------------------------------------------------ decode ---
@@ -218,10 +222,47 @@ def main():
             names.append(base)
         album_map["Tempest 2000 MOD"] = names
 
+    # This stage is superseded by build_map.py + build.py for anything already
+    # in the shipped pool, and writing blindly could undo that work. Two guards:
+    #
+    # 1. bonus_rounds is NOT derivable from audio, and the game clears the bonus
+    #    reservation when the key is absent (music_core.cpp parseBonusRounds),
+    #    so an albums.json written without it silently un-reserves both bonus
+    #    rounds and puts bonus music back into normal level traversal. Carry it
+    #    from the manifest, which is the source of truth.
+    #
+    # 2. Refuse rather than overwrite the shipped album map with a different one.
+    #    This stage's mel + duration-gate matcher cannot see the re-rip duplicates
+    #    the manifest already aliases -- measured 2026-10-10, a same-track lossy
+    #    re-rip scores 0.43 under its own 0.90 threshold, BELOW a different track
+    #    at 0.53 -- so writing blindly re-emits audio the shipped map retired.
+    emb = {}
+    if os.path.exists(MANIFEST_PATH):
+        with open(MANIFEST_PATH) as fh:
+            emb = json.load(fh)
+
+    def basenames(mapping):
+        return {a: [os.path.basename(t) for t in ts] for a, ts in mapping.items()}
+
+    if emb.get("albums") and basenames(emb["albums"]) != basenames(album_map):
+        diff = sorted(a for a in set(emb["albums"]) | set(album_map)
+                      if emb["albums"].get(a) != album_map.get(a))
+        print("[refused] this stage's album map disagrees with "
+              "t2k_core/data/albums_manifest.json:")
+        for a in diff:
+            print(f"    {a}")
+        print("    dsp/albums.json NOT written. The supported path for the shipped "
+              "pool is build_map.py + build.py -- see soundtracks/README.md.")
+        sys.exit(1)
+
+    out = {"albums": album_map}
+    if emb.get("bonus_rounds"):
+        out["bonus_rounds"] = emb["bonus_rounds"]
+
     with open(os.path.join(DSP_DIR, "manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
     with open(os.path.join(DSP_DIR, "albums.json"), "w") as f:
-        json.dump({"albums": album_map}, f, indent=2)
+        json.dump(out, f, indent=2)
     print(f"\n{len(manifest)} DSP tracks; albums: "
           + ", ".join(f"{k}({len(v)})" for k, v in album_map.items()))
     print(f"wrote dsp/manifest.json + dsp/albums.json")

@@ -60,7 +60,24 @@ if [ -d "$POOL" ]; then
     # Regenerate the map against THIS pool, so the shipped albums.json can
     # never reference a track the romfs does not carry -- the exact failure
     # that shipped on the card (albums.json absent, every album invisible).
-    python3 "$REPO/t2k_core/tools/gen_albums.py" --music "$POOL" >&2
+    #
+    # --require-named is the SHIPPING stance, and it is checked HERE, before the
+    # hard-link loop below, on purpose. That loop copies "$POOL"/*.dsp and
+    # "$POOL"/*.mod -- the raw DIRECTORY LISTING, not the manifest -- so a stale
+    # file left in the gitignored pool ships as dead bytes in the CIA. No other
+    # check would ever notice: check_album_maps.py is deliberately pool-free, and
+    # gen_albums.py only WARNS about extras by default, because a hand-populated
+    # personal pool is legal (t2k_3ds/cia/README.md). Here the pool IS the
+    # artifact, so an unnamed file is fatal. It runs before the ~300 MB of
+    # hard-linking, so failing costs seconds instead of a staged romfs.
+    #
+    # The same call also refuses to run at all when t2k_core/data/track_titles.json
+    # is missing: it is a REQUIRED build input, and this is the seam that ships the
+    # pool, so a title-less albums.json here would be what the player sees -- the
+    # card copy WINS over the map embedded in the binary. The pool-less branch below
+    # does not weaken that: with no pool the romfs carries no albums.json, and the
+    # embedded header (Makefile / CMake --emit-header) hard-requires the same file.
+    python3 "$REPO/t2k_core/tools/gen_albums.py" --require-named --music "$POOL" >&2
 
     shopt -s nullglob
     n=0

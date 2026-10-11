@@ -96,6 +96,87 @@ gate "verify.sh (level data, real parser)"
 bash t2k_core/tools/verify.sh > "$tmp/verify.log" 2>&1 || { tail -15 "$tmp/verify.log"; fail "verify.sh"; }
 tail -3 "$tmp/verify.log"
 
+gate "check_album_maps.py (one album map, three files -- pool-free)"
+python3 tools/check_album_maps.py > "$tmp/albums.log" 2>&1
+rc=$?
+head -1 "$tmp/albums.log"
+[ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/albums.log"; fail "album map drift"; }
+
+gate "check_album_provenance.py (every album slot bound to a declared recording -- pool-free)"
+# The album map says WHICH FILE plays at WHICH SLOT; nothing said whether that file
+# is the RECORDING the album is supposed to have. track_map.json already pins every
+# .dsp sha256 to the source FLAC it was encoded from and the encoder is
+# byte-deterministic, so the bytes are proven -- what was missing is a DECLARATION
+# requirement: a slot holding a file from another album's source folder must be
+# written down, with its evidence, in t2k_core/data/album_aliases.json, and the
+# declarations must be EXACTLY the live set so the allowlist cannot rot. Without
+# this, pointing Space Giraffe slot 0 at any other valid track passed every gate:
+# the file exists, its hash matches itself, and all three map copies repeat the same
+# wrong choice. Reads committed JSON only -- no pool, no FLACs, no ffmpeg.
+python3 tools/check_album_provenance.py > "$tmp/prov.log" 2>&1
+rc=$?
+tail -1 "$tmp/prov.log"
+[ $rc -eq 0 ] || { sed -n '1,40p' "$tmp/prov.log"; fail "album provenance undeclared or stale"; }
+
+gate "build.py --verify-only (the built pool hashes to the pinned map, and nothing else is in it)"
+# The pool-extras hard check. Every deployable file must hash to track_map.json AND
+# soundtracks/dsp/ must contain NO file the map does not name. It was wired into no
+# automated entry point at all -- only ./build.sh verify -- so a stale or hand-edited
+# soundtracks/dsp/, which --stage and stage_romfs.sh both ship from, could carry
+# retired audio through a whole release: every other gate here walks the MAP, and a
+# file the map does not name is invisible to a walk of the map.
+#
+# A MISSING POOL IS NOT A FAILURE, same stance as the pool gates below.
+# T2K_MUSIC_POOL=none is the supported way to ship with no third-party audio at all,
+# and a checkout that has never run soundtracks/build.py simply has nothing to hash.
+# NB --verify-only reads soundtracks/dsp/ plus the map and needs NEITHER the FLAC
+# sources (those are only for encoding) NOR data/music/, so soundtracks/dsp/ is the
+# thing to test for; a partial pool still gets checked, which is the point.
+if [ "${T2K_MUSIC_POOL:-}" = "none" ]; then
+    echo "skipped (T2K_MUSIC_POOL=none -- this build ships no third-party audio)"
+elif [ ! -d soundtracks/dsp ] || [ -z "$(ls soundtracks/dsp/*.dsp 2>/dev/null)" ]; then
+    echo "skipped (no soundtracks/dsp/ pool built -- run: python3 soundtracks/build.py)"
+else
+    python3 soundtracks/build.py --verify-only > "$tmp/poolhash.log" 2>&1
+    rc=$?
+    head -1 "$tmp/poolhash.log"
+    [ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/poolhash.log"; fail "build.py --verify-only"; }
+fi
+
+gate "gen_albums.py --check (album manifest vs the music pool)"
+# --check catches a track listed twice in one album, duplicate audio in the pool
+# (whole-file AND ADPCM-payload hash), and the bonus-round structure. It does NOT
+# fail on EXTRAS or on missing POOL TRACKS -- those are warnings BY DESIGN: a loose
+# pool track stays individually selectable, and a track this card does not have is
+# excluded rather than fatal (see gen_albums.py's own docstring).
+#
+# t2k_core/data/track_titles.json is NOT covered by that tolerance: it is a
+# REQUIRED build input and --check hard-fails when it is missing, malformed or
+# empty, so this gate cannot go green on a tree that would build a title-less
+# jukebox. The next gate (gen_track_titles.py --check) proves the titles it
+# supplies actually COVER the pool; this one proves the file exists at all. Use
+# --require-named for the shipping-pool stance; stage_romfs.sh and
+# t2k_3ds/tools/build_production.sh pass it. NB this gate reads the pool, unlike
+# the pool-free map check above: with no data/music/ at all the bonus-round
+# reservation cannot find its tracks and this fails.
+python3 t2k_core/tools/gen_albums.py --check > "$tmp/gen_albums.log" 2>&1
+rc=$?
+head -1 "$tmp/gen_albums.log"
+[ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/gen_albums.log"; fail "gen_albums.py --check"; }
+
+gate "gen_track_titles.py --check (every pool file has a display title)"
+# Titles are DISPLAY ONLY -- the pool filename stem stays the runtime identity
+# key (saved-selection restore, bonus-round reservation), so this gate is about
+# coverage, never about renaming anything. Its KNOWN_MISSING list MUST SHRINK TO
+# EMPTY AND NEVER GROW: a new pool file gets a title, it does not get added to
+# the list. The script enforces that direction itself -- a gap outside the list
+# fails, and a list entry that has since been titled is reported as stale so the
+# list can be shortened. Pool-free (it reads the manifest), so it runs anywhere.
+python3 soundtracks/gen_track_titles.py --check > "$tmp/titles.log" 2>&1
+rc=$?
+tail -1 "$tmp/titles.log"
+[ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/titles.log"; fail "gen_track_titles.py --check"; }
+
 gate "demo_audit.sh (attract mode, CONTROL columns must be non-zero)"
 bash t2k_core/tools/demo_audit.sh > "$tmp/demo.log" 2>&1 || { tail -15 "$tmp/demo.log"; fail "demo_audit.sh"; }
 tail -8 "$tmp/demo.log"
@@ -106,7 +187,13 @@ echo "pins=$pins"
 [ "$pins" -ge "$PIN_MIN" ] || fail "@vfp-exempt count dropped below $PIN_MIN -- pins are the contract's enforcement surface (PRISTINE-SPEC 0.4)"
 
 gate "pyflakes (tools -- undefined names are the 2.1 defect class)"
-python3 -m pyflakes t2k_core/tools/*.py tools/runner/*.py t2k_3ds/tools/*.py > "$tmp/pyflakes.log" 2>&1
+# NB top-level tools/*.py is NOT globbed: this list names the files it
+# covers, so a gate added at the top level has to be named here or it is
+# silently unlinted. tools/check_album_provenance.py is listed by name for
+# that reason (the glob is deliberately not widened, so that a future
+# top-level script cannot make this gate red for someone else).
+python3 -m pyflakes t2k_core/tools/*.py tools/runner/*.py t2k_3ds/tools/*.py \
+                tools/check_album_provenance.py > "$tmp/pyflakes.log" 2>&1
 rc=$?
 if [ $rc -ne 0 ]; then
     cat "$tmp/pyflakes.log"

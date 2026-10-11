@@ -430,13 +430,19 @@ int main(int argc, char** argv) {
     {
         Menu::Hooks h;
         h.trackCount     = []() { return ts::modmusic::music_track_count(); };
-        h.trackName      = [](int i) { return ts::modmusic::music_track_name(i); };
+        // DISPLAY. The Soundtrack row shows the player a NAME; the row's own
+        // selection writes config.soundtrack (the index) and the mirror below
+        // writes config.soundtrack_name from the IDENTITY accessor, so nothing
+        // here keys off what is displayed.
+        h.trackName      = [](int i) { return ts::modmusic::music_track_display(i); };
         h.trackSelectBase= []() { return ts::modmusic::music_track_select_base(); };
         h.trackSelect    = [](int i) {
             ts::modmusic::music_select(i);
             // Mirror the NAME key too -- the menu writes the raw index into
             // config.soundtrack itself, but the index renumbers when the SD's
             // album set changes; the name is what survives (music_init).
+            // IDENTITY -- the STEM, not the title. resolve_entry() matches this
+            // string against the pool stems on the next boot.
             config.soundtrack_name = ts::modmusic::music_track_name(i);
             config.album_sync      = true;
         };
@@ -449,6 +455,10 @@ int main(int argc, char** argv) {
         h.albumEntry       = [](int a) { return ts::modmusic::music_album_entry_index(a); };
         h.albumTrackCount  = [](int a) { return ts::modmusic::music_album_track_count(a); };
         h.albumCurrentTrack= []() { return ts::modmusic::music_album_current_track(); };
+        // DISPLAY (menu.h): the Album row names the AUDIBLE track beside its
+        // "t/N" ordinal. Identity is untouched -- the row writes the album ENTRY
+        // index through trackSelect, which mirrors the STEM below.
+        h.albumTrackDisplay= [](int a, int t) { return ts::modmusic::music_album_track_display(a, t); };
         h.setMusicVolume = [](float v) { ts::modmusic::music_set_volume(v); };
         h.setMusicPaused = [](bool p) { ts::modmusic::music_set_paused(p); };
         h.setSfxVolume   = [](float v) { ts::sfx3ds::set_volume(v); };
@@ -469,12 +479,17 @@ int main(int argc, char** argv) {
     {
         TouchPanel::Hooks th;
         th.trackCount        = []() { return ts::modmusic::music_track_count(); };
-        th.trackName         = [] (int i) { return ts::modmusic::music_track_name(i); };
+        // DISPLAY ONLY, both string hooks below (touch_panel.h says why): the
+        // deck is a label surface. The identity accessors stay bound where a
+        // string is REMEMBERED -- config.soundtrack_name just below, and
+        // findTrackByName further down, which resolves the bonus-round pool
+        // filenames.
+        th.trackName         = [] (int i) { return ts::modmusic::music_track_display(i); };
         th.trackSelectBase   = []() { return ts::modmusic::music_track_select_base(); };
         th.trackIsAlbum      = [](int i) { return ts::modmusic::music_entry_album_index(i) >= 0; };
         th.trackAlbumIndex   = [](int i) { return ts::modmusic::music_entry_album_index(i); };
         th.albumTrackCount   = [](int a) { return ts::modmusic::music_album_track_count(a); };
-        th.albumTrackName    = [](int a, int t) { return ts::modmusic::music_album_track_name(a, t); };
+        th.albumTrackName    = [](int a, int t) { return ts::modmusic::music_album_track_display(a, t); };
         th.albumTrackBand    = [](int a, int t, int* lo, int* hi) {
             ts::modmusic::music_album_track_band(a, t, lo, hi);
         };
@@ -486,6 +501,7 @@ int main(int argc, char** argv) {
         th.selectEntry       = [](int i) {
             ts::modmusic::music_select(i);
             config.soundtrack      = i;
+            // IDENTITY -- the STEM, not the title (see the menu hook above).
             config.soundtrack_name = ts::modmusic::music_track_name(i);
             config.album_sync      = true;      // selecting an entry = sync mode
         };
@@ -579,6 +595,8 @@ int main(int argc, char** argv) {
     auto findTrackByName = [](const char* name) -> int {
         const int n = ts::modmusic::music_track_count();
         for (int i = 0; i < n; ++i) {
+            // IDENTITY: the bonus-round map names POOL FILES, so it compares
+            // against the stem. A title here would silently stop matching.
             const char* tn = ts::modmusic::music_track_name(i);
             if (tn && std::strcmp(tn, name) == 0) return i;
         }
@@ -1338,7 +1356,16 @@ int main(int argc, char** argv) {
                     bonusMusicOverride = false;
                     if (ts::modmusic::music_album_current() < 0) {
                         const int idx = findTrackByName(config.soundtrack_name.c_str());
-                        if (idx >= 0) ts::modmusic::music_select(idx);
+                        // A saved name that is no longer on the card must not
+                        // leave the BONUS track playing into the next level.
+                        // Fall back to row 0 -- the same defined default
+                        // music_core's resolve_entry uses, and always present
+                        // because the MOD songs are embedded, not scanned.
+                        if (idx < 0)
+                            std::printf("[music] saved soundtrack \"%s\" is not on "
+                                        "this card, using the default\n",
+                                        config.soundtrack_name.c_str());
+                        ts::modmusic::music_select(idx >= 0 ? idx : 0);
                     }
                 }
 

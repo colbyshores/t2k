@@ -11,6 +11,10 @@
 #                   bare `make cia`, for anything leaving this machine. See
 #                   DOCTRINE.md "The installable build" / "build production".
 #   make pc      -> t2k_pc/CMakeLists  (CMake, SDL2 + desktop renderer) -> t2k_pc/build/t2k
+#   make music   -> soundtracks/build.py --regen: rebuild + verify the soundtrack
+#                   pool from the pinned map, refresh the display titles, and run
+#                   the music gates. Touches no compiler; deliberately NOT part
+#                   of `all` (see the target below for what it needs).
 #   make all     -> both
 #   make clean   -> both build trees
 #
@@ -31,7 +35,7 @@ JOBS      ?= $(shell nproc 2>/dev/null || echo 4)
 PC_BUILD  := t2k_pc/build
 PC_CMAKE_ARGS ?=
 
-.PHONY: all 3ds cia production pc check clean clean-3ds clean-pc
+.PHONY: all 3ds cia production pc music check clean clean-3ds clean-pc
 
 all: pc 3ds
 
@@ -50,6 +54,17 @@ production:
 pc:
 	cmake -S t2k_pc -B $(PC_BUILD) $(PC_CMAKE_ARGS)
 	cmake --build $(PC_BUILD) -j$(JOBS)
+
+# The soundtrack pipeline in one command: vendored encoder -> display titles ->
+# pool (FLAC -> DSP-ADPCM, every file hash-checked against soundtracks/track_map.json)
+# -> album maps -> the music gates. Needs the gitignored source FLACs under
+# soundtracks/ (~230 MB, see soundtracks/download.py) and ffmpeg on PATH; without
+# them it stops and prints what is still possible from committed files alone
+# (`make music` is then `python3 soundtracks/build.py --regen --titles-only`).
+# NOT a prerequisite of `all`: it writes 230 MB of copyrighted audio, and a build
+# of the game must not depend on having the right to ship it.
+music:
+	@python3 soundtracks/build.py --regen
 
 # Gate suite (docs/PRISTINE-SPEC.md 1): builds both targets, then runs every
 # verification gate and fails on the first failure. Deliberately NOT wired into

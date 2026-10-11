@@ -149,7 +149,17 @@ bool mods_unlocked();
 
 int         track_count();
 int         track_select_base();   // 0 unlocked, MOD_TRACK_COUNT locked
+// IDENTITY. The pool filename stem (or the row label for the MOD / album /
+// Play-All rows). resolve_entry() matches a saved config.soundtrack_name
+// against THIS string and the bonus-round reservation resolves pool filenames
+// through it, so it is a key, not a label -- do not "fix" it into a title.
 const char* track_name(int i);
+// DISPLAY ONLY. The album map's title for row i, else exactly what track_name(i)
+// returns (an untitled file renders as it always did). Never an identity key:
+// titles are display sugar over the stem, and a title may legitimately repeat
+// across rows. Lock-free on the same boot-immutable basis as track_name();
+// never NULL for a valid index.
+const char* track_display(int i);
 int         entry_album_index(int i);
 int         album_entry_index(int a);              // album -> track-list row (-1)
 
@@ -185,7 +195,13 @@ int bonus_track_row(int album, int round);
 int         album_count();
 const char* album_name(int a);
 int         album_track_count(int a);
+// IDENTITY -- see track_name(). Stripped stem; the level-band display and the
+// panel's row addressing are built on it.
 const char* album_track_name(int a, int t);
+// DISPLAY ONLY -- see track_display(). Title for album a track t, else the
+// stem album_track_name(a, t) returns. Never an identity key, never NULL for a
+// valid index.
+const char* album_track_display(int a, int t);
 // The inclusive 0-based LEVEL BAND an album track owns in sync mode, read
 // from the SAME reserved-filtered list applyAlbumLevel maps onto. For a VALID
 // (album, track) pair, lo > hi means exactly one thing: the track is a

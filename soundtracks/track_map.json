@@ -514,21 +514,6 @@
       }
     },
     {
-      "dsp": "36_spa_01.dsp",
-      "album": "Space Giraffe",
-      "album_order": 0,
-      "sha256": "eee673a4668f3299558f9a69c8cb6a1585faedc4ef444d1227725ae8a9fda13d",
-      "bytes": 10907788,
-      "samples": 19088459,
-      "duration": 596.514,
-      "source": {
-        "folder": "Space_Giraffe",
-        "path": "Space_Giraffe/01.flac",
-        "sha256": "84e088715eb80214a609fe0ffc0035f41dfcef230b4f63230fa7beeab32139c0",
-        "slug": "space-giraffe-windows-gamerip-2009"
-      }
-    },
-    {
       "dsp": "37_spa_02.dsp",
       "album": "Space Giraffe",
       "album_order": 1,
@@ -840,7 +825,7 @@
       "32_wanderinghalls.dsp"
     ],
     "Space Giraffe": [
-      "36_spa_01.dsp",
+      "13_flossiesfrolic.dsp",
       "37_spa_02.dsp",
       "38_spa_03.dsp",
       "39_spa_04.dsp"

@@ -21,12 +21,16 @@ The Tempest 2000 MOD album (`mod/*.mod`, streamed natively, never converted) is
 NOT on KHInsider — keep those files local; convert_dsp.py stages them into dsp/.
 
 Usage:
-    python3 download.py                      # every album, then convert
+    python3 download.py                      # every album (fetch + organize only)
     python3 download.py TxK Space_Giraffe    # subset (folder / display / slug)
-    python3 download.py --no-convert         # fetch + organize only
+    python3 download.py --convert            # ...then run the SUPERSEDED chain
     python3 download.py --status             # what is present / missing
     python3 download.py -f mp3               # prefer mp3 over flac
     python3 download.py --url URL --into DIR # ad-hoc extra album
+
+The shipped pool is built by build_map.py + build.py, which pin each .dsp to its
+source FLAC byte-exactly. See soundtracks/README.md before reaching for
+--convert.
 
 Re-runnable: existing audio files are skipped, so an interrupted run resumes.
 Audio is gitignored (see the `soundtracks/` block in the root .gitignore); only
@@ -272,7 +276,11 @@ def main():
     parser.add_argument("-f", "--format", default="flac", choices=["flac", "mp3"],
                       help="preferred source format (default: flac)")
     parser.add_argument("--no-convert", action="store_true",
-                      help="fetch + organize only; skip catalog/dedupe/convert")
+                      help="accepted for compatibility; conversion is now opt-in "
+                           "via --convert")
+    parser.add_argument("--convert", action="store_true",
+                      help="opt in to the SUPERSEDED catalog/dedupe/convert chain "
+                           "(the shipped pool is built by build_map.py + build.py)")
     parser.add_argument("--status", action="store_true",
                       help="report what is present/missing and exit")
     parser.add_argument("--url", action="append", default=[],
@@ -314,8 +322,16 @@ def main():
     total_fail = sum(r[2] for r in results.values())
     print(f"\ndownloads: {total_new} new across {len(results)} album(s), {total_fail} failed")
 
-    if args.no_convert:
-        print("--no-convert: skipping catalog/dedupe/convert")
+    if not args.convert:
+        # Default changed: the catalog/dedupe/convert chain is SUPERSEDED for the
+        # shipped pool. build_map.py + build.py pin every .dsp to its source FLAC
+        # byte-exactly and own the album map; the mel matcher here cannot see the
+        # re-rip duplicates the manifest already aliases (a same-track lossy
+        # re-rip scores 0.43 under its own 0.90 threshold, below a different
+        # track at 0.53), so running it by default kept re-emitting retired audio.
+        print("fetched and organized. Skipping the superseded "
+              "catalog/dedupe/convert chain -- pass --convert to run it, or use "
+              "build_map.py + build.py for the shipped pool.")
         return
 
     run_stage("catalog_songs.py")

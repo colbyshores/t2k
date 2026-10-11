@@ -60,7 +60,20 @@ const unsigned char* songData(int idx, size_t& len) {
 }
 
 // ---- Track list (MOD entries + scanned .dsp files) ----
-std::vector<std::string> s_names;                 // display names, all tracks
+// PARALLEL ARRAYS: s_names / s_display / s_paths are the same length and index
+// the same row. scanTracks() has EXACTLY FOUR push sites (the two embedded MODs,
+// the album rows, the Play All row, the loose files) and EVERY ONE must push to
+// all three vectors or the invariant breaks and a display accessor starts
+// reporting another row's title.
+//
+// s_names is the IDENTITY form and must not be "improved" into a title:
+// resolve_entry() matches a saved config.soundtrack_name against it, and the
+// bonus-round reservation resolves pool filenames through it (see displayOf).
+// s_display is the DISPLAY form: the album map's title when it has one, else the
+// same string as s_names, so an untitled file renders exactly as it did before
+// titles existed.
+std::vector<std::string> s_names;                 // identity: stem / row label
+std::vector<std::string> s_display;               // display: title, else s_names[i]
 std::vector<std::string> s_paths;                 // .dsp path ("" MOD, "*ALL*", "*ALBUM:n*")
 bool s_playlist = false;
 
@@ -70,7 +83,15 @@ bool s_playlist = false;
 struct Album {
     std::string name;
     std::vector<std::string> paths;
-    std::vector<std::string> trackNames;   // display: basename, ext stripped
+    // IDENTITY: basename, extension stripped. album_track_name() returns this
+    // and the panel addresses tracks by it; it is NOT the display title.
+    std::vector<std::string> trackNames;
+    // DISPLAY title for the SAME index, "" when the album map carries none (the
+    // accessor then falls back to trackNames). Keyed by the FULL filename with
+    // extension when looked up, because 00_thermalresolution.dsp and
+    // 00_thermalresolution.mod share a stem and are different recordings.
+    // Pushed at the same site as trackNames, so the two stay the same length.
+    std::vector<std::string> trackTitles;
     // Indices into paths/trackNames that the level-synced rotation may use,
     // i.e. the album MINUS the reserved bonus tracks. The reserved tracks
     // keep their REAL indices here (so album_track_name and the panel's
@@ -91,6 +112,17 @@ constexpr int TOTAL_LEVELS = 100;   // levels(), and the level counter's cap
 // whenever a track opens, read lock-free by the UI — snprintf always
 // terminates, so the worst a torn read shows is a half-updated STRING, never a
 // runaway read.
+//
+// It carries the DISPLAY string (title, else stem) because every reader renders
+// it: the touch-panel header and the two sinks' boot logs. Nothing parses it for
+// identity — saved selection persists config.soundtrack_name, which is written
+// from track_name(), NOT from here.
+//
+// 64 bytes is ample: the longest title in t2k_core/data/track_titles.json is 30
+// bytes ("Thermal Resolution (T3 edit 2)"), the runner-up is 29 ("Constructive
+// Demolition <Mod>"), and the longest stem is 25 -- 33 bytes of headroom over
+// today's data, kept because titles are hand-authored and can grow. The snprintf
+// can only truncate a hand-authored title over 63 chars.
 char s_nowPlaying[64] = "";
 
 // ---- Async request slots -------------------------------------------------
@@ -270,6 +302,39 @@ std::string displayOf(const std::string& fn) {
     return n;
 }
 
+// ---- Display titles -------------------------------------------------------
+// Keyed by the FULL pool filename INCLUDING extension, and the extension is not
+// decoration: 00_thermalresolution.dsp and 00_thermalresolution.mod share a stem
+// and are different recordings (a downmix and a module), so they must resolve to
+// different titles. This is display metadata only — the stripped stem stays the
+// runtime identity key for saved-selection restore and the bonus-round
+// reservation, and nothing here is allowed to change that.
+std::map<std::string, std::string> s_titles;
+
+// Read the "titles" object out of the album-map document. Absent (a card copy
+// predating titles, or a checkout with no track_titles.json) simply leaves the
+// map empty, and every display surface falls back to the stem it showed before.
+void parseTitles(const nlohmann::json& j) {
+    s_titles.clear();
+    auto ti = j.find("titles");
+    if (ti == j.end() || !ti->is_object()) return;
+    for (auto it = ti->begin(); it != ti->end(); ++it)
+        if (it->is_string()) s_titles[it.key()] = it->get<std::string>();
+}
+
+// The title for a pool filename (FULL name, extension included), or nullptr.
+const std::string* titleOf(const std::string& fn) {
+    auto it = s_titles.find(fn);
+    return it == s_titles.end() ? nullptr : &it->second;
+}
+
+// THE ONE fallback rule, used by every display surface: the title when there is
+// one, otherwise the identity string the row already had. Both arguments must
+// outlive the result — they are boot-immutable vectors, never temporaries.
+const char* displayText(const std::string& title, const std::string& identity) {
+    return title.empty() ? identity.c_str() : title.c_str();
+}
+
 std::vector<std::string> stringList(const nlohmann::json& v) {
     std::vector<std::string> out;
     if (v.is_array())
@@ -364,9 +429,12 @@ int nextDspIndex(int cur) {
 // bonus-round tracks are listed and individually selectable, but the rotation
 // never reaches them.
 void scanTracks() {
-    s_names.clear(); s_paths.clear(); s_albums.clear();
-    s_names.push_back("MOD: Song 1"); s_paths.push_back("");
-    s_names.push_back("MOD: Song 2"); s_paths.push_back("");
+    s_names.clear(); s_display.clear(); s_paths.clear(); s_albums.clear();
+    s_titles.clear();
+    // PUSH SITE 1 of 4 (see the parallel-array note on s_names): the embedded
+    // MODs have no pool file and therefore no title — display == identity.
+    s_names.push_back("MOD: Song 1"); s_display.push_back("MOD: Song 1"); s_paths.push_back("");
+    s_names.push_back("MOD: Song 2"); s_display.push_back("MOD: Song 2"); s_paths.push_back("");
 
     const char* MUSIC_DIR = s_musicDir.c_str();
 
@@ -433,6 +501,9 @@ void scanTracks() {
             // First, so the album loop below can filter each album's sync
             // rotation against the reserved names.
             parseBonusRounds(j);
+            // Titles come from the SAME document (card copy when it parses,
+            // embedded map otherwise) so the two can never disagree.
+            parseTitles(j);
             auto ai = j.find("albums");
             if (ai != j.end() && ai->is_object()) {
                 for (auto it = ai->begin(); it != ai->end(); ++it) {
@@ -452,6 +523,14 @@ void scanTracks() {
                                 if (!probe) { ++dropped; continue; }
                                 fclose(probe);
                                 al.paths.push_back(path);
+                                // Title lookup happens on the FULL filename, so
+                                // grab it before the strip below destroys the
+                                // extension that separates .dsp from .mod twins.
+                                std::string key = fn;
+                                size_t kslash = key.find_last_of('/');
+                                if (kslash != std::string::npos) key = key.substr(kslash + 1);
+                                const std::string* tp = titleOf(key);
+                                al.trackTitles.push_back(tp ? *tp : std::string());
                                 // Display name: basename, extension stripped.
                                 // Precomputed here because the accessors return
                                 // c_str() lock-free — safe only because these
@@ -498,7 +577,9 @@ void scanTracks() {
     // Album entries (level-synced) first, then Play All, then loose tracks.
     for (size_t i = 0; i < s_albums.size(); ++i) {
         char m[24]; std::snprintf(m, sizeof(m), "*ALBUM:%d*", (int)i);
+        // PUSH SITE 2 of 4: an album row is a label, not a track — no title.
         s_names.push_back(std::string("Album: ") + s_albums[i].name);
+        s_display.push_back(std::string("Album: ") + s_albums[i].name);
         s_paths.push_back(m);
     }
     // Play All only when the ROTATION has something to play. Gating on the
@@ -510,9 +591,22 @@ void scanTracks() {
         if (reservedName(fn.substr(0, fn.size() - 4))) continue;
         anyRotatable = true; break;
     }
-    if (anyRotatable) { s_names.push_back("Play All (CD)"); s_paths.push_back("*ALL*"); }
+    // PUSH SITE 3 of 4: a synthetic row, so display == identity here too.
+    if (anyRotatable) {
+        s_names.push_back("Play All (CD)");
+        s_display.push_back("Play All (CD)");
+        s_paths.push_back("*ALL*");
+    }
     for (auto& fn : loose) {
-        s_names.push_back(fn.substr(0, fn.size() - 4));
+        // PUSH SITE 4 of 4, and the only one where display != identity.
+        // s_names keeps the stripped stem — it is what a saved
+        // config.soundtrack_name and the bonus-round reservation match against.
+        // The title is keyed by the FULL filename (extension included) so the
+        // .dsp/.mod twins resolve apart; no title means the stem, never blank.
+        const std::string stem = fn.substr(0, fn.size() - 4);
+        const std::string* tp = titleOf(fn);
+        s_names.push_back(stem);
+        s_display.push_back(tp ? *tp : stem);
         s_paths.push_back(s_musicDir + "/" + fn);
     }
     // AFTER the loose rows: the reservation resolves against the list it just
@@ -647,7 +741,7 @@ void applyAlbumLevel(int level) {
     if (idx == s_albumTrack) return;
     s_albumTrack = idx;
     if (openTrackFile(al.paths[idx])) {    // .mod or .dsp
-        setNowPlaying(al.trackNames[idx].c_str());
+        setNowPlaying(displayText(al.trackTitles[idx], al.trackNames[idx]));
         // One line per BOUNDARY CROSSING, not per level -- the guard above
         // means this can only fire when the track actually changes. It is the
         // only way to see the level->track mapping without a debugger, on
@@ -678,9 +772,18 @@ int resolve_entry(int songIndex, const char* preferName) {
     // composition depends on the music folder's contents — add or remove one
     // album and every later entry renumbers, silently changing the player's
     // soundtrack. The saved NAME survives that; the index is only the fallback.
+    //
+    // A name that WAS saved but no longer resolves is a third case, and the
+    // index is the worst possible fallback for it: retiring tracks shrinks the
+    // list, so a stale index usually stays in range and lands on an unrelated
+    // track. Trust neither -- name the failure and fall back to the same defined
+    // default the out-of-range path uses. Silent reassignment is the bug.
     if (preferName && preferName[0]) {
         for (int i = 0; i < (int)s_names.size(); ++i)
-            if (s_names[i] == preferName) { songIndex = i; break; }
+            if (s_names[i] == preferName) return i;
+        std::printf("[music] saved soundtrack \"%s\" is not on this card, "
+                    "using the default\n", preferName);
+        songIndex = 0;
     }
     if (songIndex < 0 || songIndex >= (int)s_paths.size()) songIndex = 0;
     return songIndex;
@@ -699,7 +802,7 @@ void apply_select(int i) {
         s_player.load(d, len); startModPlayer();
         configure(SRC_MOD, MOD_SAMPLE_RATE);
         if (s_sink.prime) s_sink.prime();
-        setNowPlaying(s_names[i].c_str());
+        setNowPlaying(s_display[i].c_str());
     } else if (path.rfind("*ALBUM:", 0) == 0) {  // ---- level-synced album ----
         s_albumMode = true; s_playlist = false;
         s_syncMode  = true;                   // choosing an album row = sync mode
@@ -710,7 +813,7 @@ void apply_select(int i) {
         s_playlist = (path == "*ALL*");
         s_playIdx  = s_playlist ? firstDsp() : i;
         if (s_playIdx >= 0 && openTrackFile(s_paths[s_playIdx]))
-            setNowPlaying(s_names[s_playIdx].c_str());
+            setNowPlaying(s_display[s_playIdx].c_str());
     }
 }
 
@@ -852,7 +955,8 @@ void consume_requests() {
                 s_albumMode = true; s_syncMode = false; s_playlist = false;
                 s_albumIdx = rq.selA; s_albumTrack = rq.selB;
                 if (openTrackFile(s_albums[rq.selA].paths[rq.selB]))
-                    setNowPlaying(s_albums[rq.selA].trackNames[rq.selB].c_str());
+                    setNowPlaying(displayText(s_albums[rq.selA].trackTitles[rq.selB],
+                                              s_albums[rq.selA].trackNames[rq.selB]));
             }
             break;
         case PendingReq::SEL_SYNC:
@@ -898,8 +1002,19 @@ bool mods_unlocked() { return s_modsUnlocked; }
 
 int         track_count() { return (int)s_names.size(); }
 int         track_select_base() { return s_modsUnlocked ? 0 : MOD_TRACK_COUNT; }
+// IDENTITY. The stripped stem, and it must stay that way: resolve_entry() matches
+// a saved config.soundtrack_name against this string and the bonus-round
+// reservation resolves pool filenames through it. Use track_display() to SHOW a
+// track; use this to REMEMBER which track it is.
 const char* track_name(int i) {
     return (i >= 0 && i < (int)s_names.size()) ? s_names[i].c_str() : "";
+}
+
+// DISPLAY ONLY — never an identity key. The album map's title for row i, or the
+// same string track_name() returns when there is no title. Boot-immutable like
+// track_name(), so lock-free on the same basis; never NULL for a valid index.
+const char* track_display(int i) {
+    return (i >= 0 && i < (int)s_display.size()) ? s_display[i].c_str() : "";
 }
 
 // Which album does track-list entry i name, or -1 if it is not an album row.
@@ -929,10 +1044,23 @@ const char* album_name(int a) {
 int album_track_count(int a) {
     return (a >= 0 && a < (int)s_albums.size()) ? (int)s_albums[a].paths.size() : 0;
 }
+// IDENTITY — see track_name(). Stripped stem, and the panel's row addressing
+// and the level-band display are built on it.
 const char* album_track_name(int a, int t) {
     if (a < 0 || a >= (int)s_albums.size()) return "";
     const Album& al = s_albums[a];
     return (t >= 0 && t < (int)al.trackNames.size()) ? al.trackNames[t].c_str() : "";
+}
+
+// DISPLAY ONLY — never an identity key. The title for album a track t, falling
+// back to album_track_name(a, t) when the album map carries no title for that
+// pool file. trackTitles and trackNames are pushed at the same site, so bounds-
+// checking one bounds the other. Never NULL for a valid index.
+const char* album_track_display(int a, int t) {
+    if (a < 0 || a >= (int)s_albums.size()) return "";
+    const Album& al = s_albums[a];
+    if (t < 0 || t >= (int)al.trackNames.size()) return "";
+    return displayText(al.trackTitles[t], al.trackNames[t]);
 }
 
 // The track-list ROW a bonus round should play. The selected album's override

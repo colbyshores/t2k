@@ -69,6 +69,40 @@ constexpr const char* BIND_PROMPT = "<choose button>";
 // and the whole point of the steal is that the player can see which slot they
 // just emptied and go fill it.
 constexpr const char* BIND_NONE   = "<unbound>";
+
+// Widest a row may be is the SCREEN itself. Rows are centred at cx and the
+// full-screen path has no box to grow -- the pause overlay measures and grows its
+// own (see renderOverlay / pauseBoxHalfWidth) -- so anything wider simply runs
+// off both edges. Track titles made that reachable: the longest is 30 bytes
+// ("Thermal Resolution (T3 edit 2)"), so "Soundtrack  " + it is 42 characters,
+// and the Album row's ordinal pushes "Album  " + that title + " 19/19" to 43,
+// where a row carries 39 at ts 0.024 and only 33 at the 0.028 the desktop options
+// screen uses (fewer rows -> bigger text). It was already reachable with a bare
+// 25-char stem at 0.028; titles just made it the common case.
+//
+// Truncate the VALUE (never the label -- the label is what the row IS) to what
+// the label leaves, and mark the cut with two dots so it reads as truncation and
+// not punctuation, the way ui/touch_panel.cpp's fitName does. The advance law is
+// linear in the character count (font.h afontWidth), so the limit is one divide
+// and not a search -- AGENTS.md T1.
+//
+// `adv` is UI units per character at the row's text size, and BOTH row paths call
+// this so the pause box cannot be measured against one string and drawn with
+// another -- the same reason it measures with MENU_ROW_TH.
+void capRowValue(char* val, const char* label, float adv) {
+    if (!val[0]) return;
+    constexpr float SCREEN_W = 1.3333f;                       // the shared UI space
+    const int maxRow = (int)(SCREEN_W / adv + 0.25f);         // +0.25: afontWidth's tail
+    const int room = maxRow - (int)std::strlen(label) - 2;    // the "  " between
+    if ((int)std::strlen(val) <= room) return;
+    if (room < 3) { val[0] = '\0'; return; }                  // label alone fills the row
+    // Cut on a CHARACTER boundary: a title can carry a multi-byte UTF-8 sequence
+    // ("Mind\u2019s Eye"), and splitting one mid-sequence draws mojibake where a
+    // truncation was meant.
+    int cut = room - 2;
+    while (cut > 0 && (((unsigned char)val[cut]) & 0xC0) == 0x80) --cut;
+    val[cut] = '.'; val[cut + 1] = '.'; val[cut + 2] = '\0';
+}
 // How long a captured button may be held before the capture aborts. Tap inside
 // it and the button binds; keep holding and you are back where you started.
 // Frames, matching the auto-repeat timings above (~0.5 s at 60 fps).
@@ -528,8 +562,22 @@ void Menu::valueText(const Item& it, char* out, int n) const {
             // the right thing to show meanwhile.
             const int nt = hooks_.albumTrackCount ? hooks_.albumTrackCount(a) : 0;
             const int t  = hooks_.albumCurrentTrack ? hooks_.albumCurrentTrack() : -1;
-            if (nt > 0 && t >= 0)
-                std::snprintf(out, n, "%s %d/%d", hooks_.albumName(a), t + 1, nt);
+            // The NAME beside the ordinal is the AUDIBLE TRACK's title, not the
+            // album's. The album's own name is already on screen one row down --
+            // the Soundtrack row reads the SAME cfg.soundtrack and shows it as
+            // "Album: <name>" -- so repeating it here said nothing the next row
+            // did not, while the track actually playing appeared nowhere in the
+            // menu. It comes from the DISPLAY accessor and is never a key: this
+            // row still writes cfg.soundtrack through the album ENTRY index.
+            //
+            // No "NN " prefix, unlike the touch panel's album rows: "t/N" already
+            // numbers this track, and two numbers on one row is one too many.
+            //
+            // With no title hook (a frontend that has no album map) or no track
+            // loaded yet, the bare album name is what shows -- the existing
+            // meanwhile-state, and not a dead row.
+            if (nt > 0 && t >= 0 && hooks_.albumTrackDisplay)
+                std::snprintf(out, n, "%s %d/%d", hooks_.albumTrackDisplay(a, t), t + 1, nt);
             else
                 std::snprintf(out, n, "%s", hooks_.albumName(a));
             break;
@@ -597,10 +645,16 @@ void Menu::drawRows(TsRenderer, int frame, int scr, float cx, float rowsY,
     int sel = sel_[depth_ - 1];
     int cnt = counts_[scr];
     float y = rowsY;
-    char val[32], line[96];
+    // 48: the longest value is a 30-byte title plus its " t/N" ordinal
+    // ("Thermal Resolution (T3 edit 2) 19/19" = 36, +NUL = 37). The 11 bytes
+    // left over are headroom, not slack to reclaim: titles are hand-authored
+    // data that can grow, and this is sized for the worst case, not today's.
+    char val[48], line[96];
+    const float rowAdv = (MENU_ROW_TH + 1.3f) * ts;   // UI units per character
     for (int i = 0; i < cnt; ++i) {
         const Item& it = screens_[scr][i];
         valueText(it, val, sizeof(val));
+        capRowValue(val, it.label, rowAdv);
         if (val[0]) std::snprintf(line, sizeof(line), "%s  %s", it.label, val);
         else        std::snprintf(line, sizeof(line), "%s", it.label);
 
@@ -628,19 +682,22 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
     static const char* TITLES[SCR_COUNT] = { "t2k", "paused", "options",
                                              "controls" };
     // FIT THE GLASS TO THE WIDEST ROW BEFORE DRAWING ANYTHING. Rows are
-    // "<label>  <value>" and a scanned soundtrack name runs to 31 characters,
-    // so a fixed box cannot hold every screen -- "soundtrack  13_flossies-
-    // frolic" ran straight out through the border. Measured with the font's
-    // own advance law (font.h afontWidth) at the exact size and thickness
-    // drawRows will use, so what is measured is what is drawn.
+    // "<label>  <value>" and a soundtrack value runs to 36 bytes (a 30-byte
+    // title plus its " t/N"), so a fixed box cannot hold every screen --
+    // "soundtrack  13_flossiesfrolic" ran straight out through the border.
+    // Measured with the font's own advance law (font.h afontWidth) at the exact
+    // size and thickness drawRows will use, so what is measured is what is drawn.
     if (eng_) {
         const int cnt = counts_[scr];
         const float rowSx = 0.024f, rowTh = MENU_ROW_TH;
         float widest = afontWidth((int)std::strlen(TITLES[scr]), 0.042f, MENU_TITLE_TH);
-        char val[32], line[96];
+        char val[48], line[96];
         for (int i = 0; i < cnt; ++i) {
             const Item& it = screens_[scr][i];
             valueText(it, val, sizeof(val));
+            // Same cap drawRows applies, at the size drawRows uses for this path,
+            // so the glass is sized for the string that is actually drawn.
+            capRowValue(val, it.label, (rowTh + 1.3f) * rowSx);
             if (val[0]) std::snprintf(line, sizeof(line), "%s  %s", it.label, val);
             else        std::snprintf(line, sizeof(line), "%s", it.label);
             // The binding prompt is the widest a Controls row ever gets

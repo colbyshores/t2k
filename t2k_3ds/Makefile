@@ -163,6 +163,24 @@ LEVELS_HDR  := $(BUILD)/levels_json.h
 #---------------------------------------------------------------------------------
 ALBUMS_JSON := $(CORE)/data/albums_manifest.json
 ALBUMS_HDR  := $(BUILD)/albums_json.h
+# track_titles.json is an INPUT to the embed -- gen_albums.py --emit-header
+# reads it -- so it must rebuild the header: a titles-only edit left a stale
+# 41-title header behind a fresh 53-title source on 2026-10-11.
+#
+# It is an UNCONDITIONAL prerequisite, and the $(wildcard ...) that used to sit
+# here is gone on purpose. wildcard() only kept the dependency when the file
+# existed, which was a hazard rather than a courtesy, because gen_albums.py now
+# treats the file as a REQUIRED build input:
+#   * absent file -> wildcard() drops it from the prerequisites, the header is
+#     not rebuilt, and a title-less header survives a GREEN build;
+#   * file reappears later -> the existing header is not out of date relative to
+#     the prerequisites make recorded, so the stale title-less header keeps
+#     shipping into the next CIA.
+# Naming it unconditionally makes make itself the first thing to complain
+# ("No rule to make target ... track_titles.json") before a single file is
+# compiled, and gen_albums.py --emit-header hard-fails as the backstop for a
+# build that reaches the recipe anyway.
+ALBUMS_TITLES := $(CORE)/data/track_titles.json
 
 #---------------------------------------------------------------------------------
 # Targets
@@ -247,7 +265,7 @@ $(BUILD)/%.o: %.cpp | $(BUILD)
 # renderer_c3d.cpp includes the generated shader header.
 $(BUILD)/renderer_c3d.o: $(SHADER_HDR) $(GRID_SHADER_HDR) $(PART_SHADER_HDR) $(RIVER_SHADER_HDR) $(SEG_SHADER_HDR)
 
-$(ALBUMS_HDR): $(ALBUMS_JSON) $(CORE)/tools/gen_albums.py | $(BUILD)
+$(ALBUMS_HDR): $(ALBUMS_JSON) $(ALBUMS_TITLES) $(CORE)/tools/gen_albums.py | $(BUILD)
 	@echo "EMBD t2k_core/data/albums_manifest.json"
 	@python3 $(CORE)/tools/gen_albums.py --emit-header $@
 

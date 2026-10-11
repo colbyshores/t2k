@@ -4,6 +4,12 @@
 # artifact is going to leave this machine (a tester, a reviewer, a console
 # that isn't the dev unit).
 #
+# Before the compiler runs at all this also verifies the CHEAP data gates -- the
+# three copies of the album map agree, and the music pool contains exactly the
+# files the manifest names (no extras, nothing unnamed). Those used to be
+# invisible until makerom, minutes into the build, because stage_romfs.sh runs
+# inside `make cia`. See step 3b.
+#
 # What "deterministic" means here, precisely: same commit + same music pool ->
 # byte-identical inputs to makerom/bannertool every time, because this script
 # ALWAYS starts from `make -C t2k_3ds clean` (DOCTRINE.md already warns that a
@@ -98,6 +104,62 @@ RSF="$ROOT/t2k_3ds/cia/t2k.rsf"
 grep -q '1ff50000-1ff57fff' "$RSF" || fail "$RSF is missing the DSP IORegisterMapping (see DOCTRINE.md: 'THE EXHEADER MUST MAP DSP RAM')"
 grep -q '1ff70000-1ff77fff' "$RSF" || fail "$RSF is missing the second DSP IORegisterMapping range"
 log "t2k.rsf verified: DSP RAM mapped"
+
+# ---- 3b. The cheap data gates, BEFORE the expensive part ----------------------
+# stage_romfs.sh runs deep inside step 4 (t2k_3ds/Makefile:411 -> $(CIA_ROMFS)
+# -> $(TARGET).cia at :424), so every soundtrack/album-map problem used to
+# surface only AFTER `make clean` and a full compile of the tree -- minutes of
+# build to learn that a filename was wrong. These checks are filename and hash
+# checks: seconds.
+#
+# A MISSING POOL IS NOT A FAILURE, and must stay that way. DOCTRINE.md's CIA
+# section requires that "a pool-less machine still builds a valid CIA and says
+# it shipped without the CD soundtrack", and T2K_MUSIC_POOL=none is the
+# supported way to ship with no third-party audio at all. gen_albums.py --check
+# DOES fail without a pool (the bonus-round reservation cannot find its two
+# tracks), so skipping is required here, not optional -- exactly the same
+# `none` / absent-pool stance stage_romfs.sh takes.
+#
+# NB do NOT "improve" this into `bash tools/check.sh`. That suite rebuilds BOTH
+# target trees (make pc + make 3ds), has no cheap-subset flag, and aborts on the
+# first unrelated failure -- it is the opposite of a pre-flight, and it would
+# make a CIA handoff depend on gates that have nothing to do with the CIA.
+#
+# --require-named is the pool-extras check (a pool file no album and no bonus
+# round names ships as dead bytes -- see stage_romfs.sh). It is a strict
+# SUPERSET of plain --check, so the two are run as ONE call rather than two:
+# scan_pool md5-hashes the whole ~300 MB pool, and doing it twice buys nothing.
+
+# This one is POOL-FREE, so it sits ABOVE the pool guard and runs on a pool-less
+# machine too: an album slot pointing at another album's recording is wrong whether
+# or not this machine has the audio. track_map.json already pins every .dsp sha256
+# to the source FLAC it was encoded from, so what this gate adds is a DECLARATION
+# requirement -- every cross-album slot binding must be written down with its
+# evidence in t2k_core/data/album_aliases.json, and the declarations must be exactly
+# the live set so the allowlist cannot rot. A wrong alias here ships the wrong song
+# at a level band and nothing else in this script notices: --require-named only
+# proves the file exists, has a title, and is named by some album.
+log "checking every album slot is bound to a declared recording (pool-free)"
+python3 "$ROOT/tools/check_album_provenance.py" \
+    || fail "album provenance undeclared or stale (tools/check_album_provenance.py)"
+
+POOL="${T2K_MUSIC_POOL:-$ROOT/data/music}"
+if [[ "$POOL" == "none" || ! -d "$POOL" ]]; then
+    log "no music pool (T2K_MUSIC_POOL=${T2K_MUSIC_POOL:-unset}) -- skipping the pool checks;"
+    log "        this CIA will carry NO CD soundtrack (see DOCTRINE.md's CIA section)"
+else
+    log "checking the album map is one map in three files (pool-free)"
+    python3 "$ROOT/tools/check_album_maps.py" || fail "album map drift (tools/check_album_maps.py)"
+    log "checking the album manifest against the pool at $POOL"
+    python3 "$ROOT/t2k_core/tools/gen_albums.py" --check --require-named --music "$POOL" \
+        || fail "album manifest / music pool mismatch (gen_albums.py --check --require-named)"
+fi
+
+# Skipping the pool checks above must NOT skip the titles requirement, and it does
+# not have to be done here: gen_albums.py hard-fails on a missing
+# t2k_core/data/track_titles.json in EVERY mode, including the pool-less
+# --emit-header that both build systems run during the make below, so a CIA cannot
+# ship a title-less jukebox whether or not this machine has any audio.
 
 # ---- 4. Always a clean build --------------------------------------------------
 log "cleaning 3ds build tree"

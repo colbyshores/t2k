@@ -284,6 +284,8 @@ private:
     static int findTrackByName(const char* name) {
         const int n = ts::modmusic::music_track_count();
         for (int i = 0; i < n; ++i) {
+            // IDENTITY: the bonus-round map names POOL FILES, so it compares
+            // against the stem. A title here would silently stop matching.
             const char* tn = ts::modmusic::music_track_name(i);
             if (tn && std::strcmp(tn, name) == 0) return i;
         }
@@ -483,7 +485,9 @@ Game::Game() {
         g_menuSound = &sound_;
         Menu::Hooks h;
         h.trackCount     = []() { return ts::modmusic::music_track_count(); };
-        h.trackName      = [](int i) { return ts::modmusic::music_track_name(i); };
+        // DISPLAY. Same split as main_3ds.cpp: the row SHOWS a title, the mirror
+        // below WRITES the stem.
+        h.trackName      = [](int i) { return ts::modmusic::music_track_display(i); };
         h.trackSelectBase= []() { return ts::modmusic::music_track_select_base(); };
         h.trackSelect    = [](int i) {
             ts::modmusic::music_select(i);
@@ -491,6 +495,8 @@ Game::Game() {
             // config.soundtrack itself, but the index renumbers when the music
             // folder's album set changes; the name is what survives.
             if (g_menuConfig) {
+                // IDENTITY -- the STEM, not the title: resolve_entry() matches
+                // this against the pool stems on the next boot.
                 g_menuConfig->soundtrack_name = ts::modmusic::music_track_name(i);
                 g_menuConfig->album_sync      = true;
             }
@@ -504,6 +510,9 @@ Game::Game() {
         h.albumEntry       = [](int a) { return ts::modmusic::music_album_entry_index(a); };
         h.albumTrackCount  = [](int a) { return ts::modmusic::music_album_track_count(a); };
         h.albumCurrentTrack= []() { return ts::modmusic::music_album_current_track(); };
+        // DISPLAY (menu.h): the Album row names the audible track beside its
+        // "t/N" ordinal; the row still writes the album ENTRY index.
+        h.albumTrackDisplay= [](int a, int t) { return ts::modmusic::music_album_track_display(a, t); };
         h.setMusicVolume = [](float v) { ts::modmusic::music_set_volume(v); };
         h.setMusicPaused = [](bool p) { ts::modmusic::music_set_paused(p); };
         h.setSfxVolume   = [](float v) { if (g_menuSound) g_menuSound->setSfxVolume(v); };

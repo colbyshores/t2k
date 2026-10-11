@@ -9,7 +9,10 @@ encode match against the reference pool) and reproduces every deployable file:
 
 Each output is checked against the SHA-256 pinned in the map, so "correct file,
 correct name, correct order" is proven rather than assumed. The album order the
-game reads is taken from the map too, and written to `dsp/albums.json`.
+game reads is taken from the map too, and written to `dsp/albums.json`
+together with the display titles from `t2k_core/data/track_titles.json`
+(via `gen_albums.py`'s loader, which treats that file as a REQUIRED build
+input: no titles file, no albums.json, exit non-zero).
 
 Nothing here needs the reference pool: the map is the spec. The FLAC sources are
 local-only (gitignored); `--fetch` pulls them from KHInsider.
@@ -17,6 +20,17 @@ local-only (gitignored); `--fetch` pulls them from KHInsider.
     python3 build.py                # build + verify from local FLACs
     python3 build.py --fetch        # download missing FLACs first, then build
     python3 build.py --verify-only  # hash the existing pool against the map
+    python3 build.py --regen        # the whole supported chain, in the right
+                                    # order, pre-flighted before anything runs
+    python3 build.py --regen --dry-run    # print that chain, run nothing
+    python3 build.py --regen --titles-only # the pool-less half, for a checkout
+                                    # without the (gitignored, ~230 MB) FLACs
+
+`--regen` is the one command. It pre-flights the toolchain and the sources and
+reports EVERY missing thing at once, so a contributor without the FLAC set learns
+in one run what they can and cannot do here instead of discovering it one failure
+at a time. It never does a partial job and calls it success: without sources it
+stops (exit 1) and prints what is still possible from committed files alone.
 
 Deps: ffmpeg on PATH; tools/bin/dspadpcm (built by tools/build_dspadpcm.sh).
 """
@@ -24,9 +38,11 @@ import argparse
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -42,6 +58,9 @@ FORCE = bool(os.environ.get("T2K_FORCE_REBUILD"))
 # tools/stage_romfs.sh copies from here into the CIA's romfs/music.
 STAGE_DIR = os.path.join(ROOT, "data", "music")
 EMBEDDED_MANIFEST = os.path.join(ROOT, "t2k_core", "data", "albums_manifest.json")
+# Display titles live in their own file and are owned by gen_albums.py, which
+# is also where its loader lives -- see load_titles() below.
+GEN_ALBUMS_DIR = os.path.join(ROOT, "t2k_core", "tools")
 
 
 def sha256(path):
@@ -57,6 +76,43 @@ def ensure_encoder():
         return
     print("building vendored DSP encoder...")
     subprocess.run(["bash", os.path.join(ROOT, "tools", "build_dspadpcm.sh")], check=True)
+
+
+def map_files(m):
+    """Every audio filename the pinned map names.
+
+    The map is authoritative in BOTH directions. A pool file it does not name is
+    a leftover from an earlier map, not a loose track: the pipeline was additive
+    only, so replacing a track was self-healing (the re-encoded file overwrites
+    and is hash-checked) but REMOVING a track left its bytes on disk forever,
+    where --stage re-stages them and stage_romfs.sh ships whatever the directory
+    happens to list. Both pools are gitignored, so a `git pull` never clears them.
+    """
+    named = {t["dsp"] for t in m["tracks"]}
+    named |= {d["file"] for d in m.get("mods", [])}
+    return named
+
+
+def extras(directory, named):
+    """Pool files present in `directory` that the map does not name."""
+    if not os.path.isdir(directory):
+        return []
+    return sorted(n for n in os.listdir(directory)
+                  if n.endswith((".dsp", ".mod")) and n not in named)
+
+
+def prune(directory, named):
+    """Delete pool files the map does not name, so the pool matches the map."""
+    removed = freed = 0
+    for name in extras(directory, named):
+        path = os.path.join(directory, name)
+        freed += os.path.getsize(path)
+        os.remove(path)
+        removed += 1
+    if removed:
+        print(f"pruned {removed} file(s) the pinned map does not name from "
+              f"{directory} ({freed / 1e6:.1f} MB)")
+    return removed
 
 
 def copy_into(src, dst):
@@ -85,6 +141,38 @@ def encode_track(src_flac, out_dsp):
     finally:
         if os.path.exists(wav):
             os.remove(wav)
+
+
+def load_titles():
+    """pool filename -> display title, from t2k_core/data/track_titles.json.
+
+    Imported from gen_albums.py rather than copied: that file owns the titles
+    contract -- which bookkeeping keys (`_comment`, `_missing`, `_unverified`)
+    must never be embedded, and that the file itself is a REQUIRED build input
+    whose absence, malformed JSON, or missing "titles" object is fatal. A second
+    copy of that rule here is a second definition free to drift, which is the bug
+    this function exists to avoid. There is no import cycle: gen_albums.py imports
+    nothing from this directory, and the import is lazy so `--verify-only` (which
+    writes no album map) stays independent of it.
+
+    The emptiness check below is the one part gen_albums.load_titles() cannot do
+    for us: it proves the FILE is readable, and only the callers, who hold the
+    manifest, can say that zero usable titles is wrong. Here that matters more
+    than anywhere else in the tree -- dsp/albums.json is the copy --stage puts on
+    the card, and the card copy WINS over the map embedded in the binary, so a
+    title-less write here is what the player actually sees.
+    """
+    if GEN_ALBUMS_DIR not in sys.path:
+        sys.path.insert(0, GEN_ALBUMS_DIR)
+    import gen_albums
+    titles = gen_albums.load_titles()
+    if not titles:
+        sys.exit(f"{gen_albums.relpath(gen_albums.TITLES)} supplied 0 usable display "
+                 "titles, and dsp/albums.json is the copy the card reads (it wins "
+                 "over the embedded map at load) -- writing it title-less would ship "
+                 "raw pool filename stems where titles exist. Regenerate with: "
+                 "python3 soundtracks/gen_track_titles.py --write")
+    return titles
 
 
 def build(fetch=False):
@@ -144,6 +232,7 @@ def build(fetch=False):
         built += 1
         print(f"  {d['file']}  (copied from {d['source']['path']})")
 
+    titles = load_titles()
     with open(os.path.join(DSP_DIR, "albums.json"), "w") as f:
         # indent=1 matches the committed file's style; a reformat here shows up
         # as a 115-line diff on a tracked file and hides real changes.
@@ -151,12 +240,22 @@ def build(fetch=False):
         # build_map.py reads it back out of this file when it regenerates the
         # pinned map, so dropping it here would silently un-reserve the bonus
         # tracks the next time the map is rebuilt.
+        # titles ride along for the same reason in the other direction: this file
+        # is staged to the card by --stage, and the card copy WINS over the
+        # embedded map at load (music_core.cpp reads data/music/albums.json
+        # first and falls back to the embed), so an albums.json without titles is
+        # what the player actually sees -- raw stems while titles exist. Same
+        # explicit allowlist as gen_albums.py: the titles object only, never its
+        # generator bookkeeping, and the FULL map rather than the playable subset
+        # so this copy and the embedded header are directly comparable.
         json.dump({"albums": m["albums"],
-                  "bonus_rounds": m.get("bonus_rounds", {})}, f, indent=1)
+                  "bonus_rounds": m.get("bonus_rounds", {}),
+                  "titles": titles}, f, indent=1)
 
     print(f"\ndsp/: {built} built, {cached} already correct, {mismatched} hash-differs")
     print(f"wrote dsp/albums.json ({sum(len(v) for v in m['albums'].values())} "
-          f"entries across {len(m['albums'])} albums)")
+          f"entries across {len(m['albums'])} albums, {len(titles)} titles)")
+    prune(DSP_DIR, map_files(m))
     check_embedded(m)
     return 0 if mismatched == 0 else 2
 
@@ -179,6 +278,18 @@ def check_embedded(m):
     for album in m["albums"]:
         if album not in emb_albums:
             problems.append(f"{album}: in the map but not the embedded manifest")
+    for album in emb_albums:
+        if album not in m["albums"]:
+            problems.append(f"{album}: in the embedded manifest but not the map")
+    # Compare the LISTINGS, not just the album names. Order is load-bearing: it is
+    # the level-sync traversal order (music_core.cpp applyAlbumLevel maps
+    # level -> index into this list), so a reordered or re-membered album is a
+    # gameplay change, and it is exactly the drift a name-only check cannot see.
+    for album, names in emb_albums.items():
+        if album in m["albums"] and m["albums"][album] != names:
+            problems.append(
+                f"{album}: listing differs — map {json.dumps(m['albums'][album])} "
+                f"vs manifest {json.dumps(names)}")
     # The bonus-round reservation is the one thing here that changes what the
     # bonus rounds SOUND like, so it is compared as a whole rather than sampled.
     if emb.get("bonus_rounds", {}) != m.get("bonus_rounds", {}):
@@ -216,7 +327,299 @@ def verify_only():
     print(f"{total - len(bad)}/{total} deployable files match the pinned map")
     for n, why in bad:
         print(f"  {n}: {why}")
-    return 1 if bad else 0
+    # Extras are a failure, not a note. A stale pool file is invisible to every
+    # other check here (they all walk the map) yet stage_romfs.sh ships the
+    # directory listing, so a "clean" verify could still package retired audio.
+    extra = extras(DSP_DIR, map_files(m))
+    if extra:
+        print(f"{len(extra)} pool file(s) the pinned map does not name:")
+        for n in extra:
+            print(f"  {n}: not in the map")
+        print("  prune with: python3 soundtracks/build.py")
+    return 1 if (bad or extra) else 0
+
+
+# ---------------------------------------------------------------------------
+# --regen: the whole supported chain, in one command
+# ---------------------------------------------------------------------------
+#
+# The order below is the order the pipeline actually works in, and two of its
+# steps are load-bearing for reasons that are not obvious:
+#
+#   * titles BEFORE the pool. build.py embeds track_titles.json into
+#     dsp/albums.json, so generating titles AFTER the pool leaves the card copy
+#     one full run behind -- which is exactly the drift check_album_maps.py was
+#     written to catch, and it would be caught there rather than here.
+#   * gen_albums.py --emit-header as a CHECK. An orphan title key ERRORs there,
+#     and both the 3DS Makefile and the PC CMake run --emit-header on every build,
+#     so proving the embed regenerates is what stops a green regeneration from
+#     breaking the next compile. It writes to a scratch path: the real header is a
+#     build artifact and belongs to the build.
+#
+# build_map.py is deliberately NOT in this chain. It re-derives the pinned map
+# from a pool that has just been re-cut, and a one-command rebuild must not let a
+# machine rewrite the thing that is the spec. Re-cut the map on purpose, with
+# `python3 soundtracks/build_map.py`, when the pool genuinely changes.
+
+DSPADPCM_BUILD = os.path.join(ROOT, "tools", "build_dspadpcm.sh")
+TITLES_TOOL = os.path.join(HERE, "gen_track_titles.py")
+GEN_ALBUMS_TOOL = os.path.join(ROOT, "t2k_core", "tools", "gen_albums.py")
+CHECK_MAPS_TOOL = os.path.join(ROOT, "tools", "check_album_maps.py")
+CHECK_PROVENANCE_TOOL = os.path.join(ROOT, "tools", "check_album_provenance.py")
+
+POOL_LESS_MESSAGE = """\
+what still works from committed files alone (no FLACs, no ffmpeg, no pool):
+  python3 soundtracks/gen_track_titles.py --write    titles, from track_map.json
+  python3 t2k_core/tools/gen_albums.py --emit-header OUT.h
+                                                     the build-time embed
+  python3 soundtracks/gen_track_titles.py --check     the pool-free gates
+  python3 tools/check_album_maps.py
+  python3 tools/check_album_provenance.py
+or run exactly that as one command:
+  python3 soundtracks/build.py --regen --titles-only
+A build that carries NO third-party audio stays fully supported -- this checkout
+is not broken, it is the pool-less shape:
+  T2K_MUSIC_POOL=none bash t2k_3ds/tools/build_production.sh
+"""
+
+
+def source_groups(m):
+    """Every FLAC source folder the pinned map needs, with what is on disk.
+
+    Derived from the map, never from a hardcoded list: the map is the spec, so a
+    folder that stops being needed stops being asked for, and a new rip folder is
+    asked about the moment it lands in the map.
+    """
+    groups = {}
+    for t in m["tracks"]:
+        src = t.get("source") or {}
+        groups.setdefault(src.get("folder") or "<none>", []).append(src.get("path") or "")
+    out = []
+    for folder in sorted(groups):
+        paths = sorted(groups[folder])
+        dirpath = os.path.join(HERE, folder)
+        present = os.path.isdir(dirpath)
+        out.append({
+            "folder": folder,
+            "present": present,
+            "entries": len(paths),
+            "flac": len([f for f in os.listdir(dirpath)
+                         if f.lower().endswith(".flac")]) if present else 0,
+            "absent": [x for x in paths if not os.path.exists(os.path.join(HERE, x))],
+        })
+    return out
+
+
+def mod_sources_missing(m):
+    """The tracked MOD album sources that are not on disk.
+
+    These ship in git (`soundtracks/mod/`) and are never fetched, so a missing one
+    is a broken checkout rather than a missing download -- a different fix, and
+    worth naming as its own line rather than folding into the FLAC report.
+    """
+    return [d["source"]["path"] for d in m.get("mods", [])
+            if not os.path.exists(os.path.join(HERE, d["source"]["path"]))]
+
+
+def pool_on_disk():
+    """Is there a built pool to gate? A pool-less checkout is a SUPPORTED state."""
+    if not os.path.isdir(DSP_DIR):
+        return False
+    names = os.listdir(DSP_DIR)
+    return (os.path.exists(os.path.join(DSP_DIR, "albums.json"))
+            and any(f.endswith(".dsp") for f in names))
+
+
+def preflight(m):
+    """Check EVERYTHING the chain needs, in one pass, before touching anything.
+
+    -> (report, blockers, warnings). Reporting every finding at once is the whole
+    point: a contributor without the FLAC set used to learn about the gaps one per
+    run, from a README, and `build.py` exiting 1 before writing anything is correct
+    behaviour that was simply undiscoverable. `blockers` make the pool impossible;
+    `warnings` are things this chain does not need (and says so).
+    """
+    report, blockers, warnings = [], [], []
+
+    if os.path.exists(ENCODER):
+        report.append(f"  encoder     ok        {os.path.relpath(ENCODER, ROOT)}")
+    elif os.path.exists(DSPADPCM_BUILD):
+        report.append(f"  encoder     missing   {os.path.relpath(ENCODER, ROOT)} -- "
+                      "building it first (tools/build_dspadpcm.sh is idempotent)")
+    else:
+        blockers.append(f"neither {os.path.relpath(ENCODER, ROOT)} nor "
+                        f"{os.path.relpath(DSPADPCM_BUILD, ROOT)} exists: the vendored "
+                        "DSP-ADPCM encoder is gone and there is nothing to build it from")
+
+    ff = shutil.which("ffmpeg")
+    if ff:
+        report.append(f"  ffmpeg      ok        {ff}")
+    else:
+        blockers.append("ffmpeg is not on PATH: a FLAC cannot be decoded to 32 kHz "
+                        "mono PCM, so no .dsp can be encoded")
+    fp = shutil.which("ffprobe")
+    if fp:
+        report.append(f"  ffprobe     ok        {fp}")
+    else:
+        warnings.append("ffprobe is not on PATH -- soundtracks/build_map.py needs it. "
+                        "--regen does not re-cut the map, so this does not block it")
+
+    for g in source_groups(m):
+        rel = f"soundtracks/{g['folder']}"
+        if not g["present"]:
+            blockers.append(f"source folder {rel} is absent -- {g['entries']} mapped "
+                            "file(s) encode from it")
+            report.append(f"  FLAC        MISSING   {rel}  ({g['entries']} map entries)")
+        elif g["absent"]:
+            blockers.append(f"{rel} is present but {len(g['absent'])} of its "
+                            f"{g['entries']} mapped file(s) are not on disk, e.g. "
+                            + ", ".join(g["absent"][:3]))
+            report.append(f"  FLAC        PARTIAL   {rel}  ({g['flac']} flac on disk, "
+                          f"{len(g['absent'])} mapped file(s) absent)")
+        else:
+            report.append(f"  FLAC        ok        {rel}  ({g['flac']} flac, "
+                          f"{g['entries']} map entries)")
+
+    mods_missing = mod_sources_missing(m)
+    if mods_missing:
+        blockers.append("tracked MOD source(s) missing from the checkout: "
+                        + ", ".join(mods_missing))
+    return report, blockers, warnings
+
+
+def regen_plan(args, pool_possible, embed_header):
+    """The ordered chain as (label, argv, tolerates_exit_2) triples.
+
+    --dry-run prints exactly this list, so what you read is what runs. The pool
+    step re-invokes THIS script with the caller's own flags rather than calling
+    build() again: one definition of what building the pool means, and
+    T2K_FORCE_REBUILD keeps working because it travels in the environment.
+    """
+    py = sys.executable or "python3"
+    me = os.path.abspath(__file__)
+    plan = []
+    if not os.path.exists(ENCODER):
+        # Only when it is actually missing: the script is idempotent, but
+        # "idempotent" is not "free", and a tree that already has the encoder must
+        # not depend on the vendored C sources still being present to rebuild it.
+        plan.append(("build the vendored DSP-ADPCM encoder (tools/build_dspadpcm.sh "
+                     "is idempotent)", ["bash", DSPADPCM_BUILD], False))
+    plan.append(("regenerate display titles from the pinned map (needs no FLACs)",
+                 [py, TITLES_TOOL, "--write"], False))
+    if pool_possible:
+        build_argv = [py, me]
+        if args.fetch:
+            build_argv.append("--fetch")
+        if args.stage:
+            build_argv.append("--stage")
+        plan.append(("re-encode + hash-verify the pool, write dsp/albums.json, prune extras",
+                     build_argv, True))
+        plan.append(("regenerate the pool's album map (data/music/albums.json)",
+                     [py, GEN_ALBUMS_TOOL], False))
+    plan.append(("prove the build-time embed regenerates (an orphan title key ERRORs "
+                 "here, and both build systems run it)",
+                 [py, GEN_ALBUMS_TOOL, "--emit-header", embed_header], False))
+    plan.append(("gate: every pool file has a title, and no title key names a "
+                 "retired file", [py, TITLES_TOOL, "--check"], False))
+    if os.path.exists(os.path.join(DSP_DIR, "albums.json")):
+        plan.append(("gate: the three copies of the album map agree",
+                     [py, CHECK_MAPS_TOOL], False))
+    plan.append(("gate: every album slot is bound to a declared recording",
+                 [py, CHECK_PROVENANCE_TOOL], False))
+    if pool_on_disk():
+        plan.append(("gate: the built pool hashes to the pinned map",
+                     [py, me, "--verify-only"], False))
+    return plan
+
+
+def run_plan(plan, dry_run):
+    """Run the plan in order. -> exit code. 2 means built-but-hash-differs ONLY."""
+    total = len(plan)
+    width = len(str(total))
+    hash_drift = False
+    for i, (label, argv, tolerate) in enumerate(plan, 1):
+        line = " ".join(shlex.quote(a) for a in argv)
+        if dry_run:
+            print(f"  [{i:{width}}/{total}] {label}\n            {line}")
+            continue
+        print(f"\n=== [{i}/{total}] {label} ===\n$ {line}", flush=True)
+        rc = subprocess.run(argv).returncode
+        if rc == 2 and tolerate:
+            # 2 is not a failure here and must stay that way: it means the files
+            # were BUILT and every one of them differs from its pinned hash, which
+            # is what a different ffmpeg/swresample build legitimately produces.
+            # Duration is the contract; build.sh depends on this exact code.
+            print("[warn] step exited 2: built, but some hashes differ from the pin "
+                  "(expected with a different ffmpeg/swresample build). Continuing.")
+            hash_drift = True
+            continue
+        if rc != 0:
+            print(f"\n--regen FAILED at step {i}/{total} ({label}) -- exit {rc}",
+                  file=sys.stderr)
+            print("Nothing after it ran. Fix this and re-run --regen.", file=sys.stderr)
+            return rc
+    if dry_run:
+        return 0
+    if hash_drift:
+        print("\n--regen: every step ran, but the pool hashes differ from the pinned "
+              "map -- exit 2.")
+        return 2
+    print(f"\n--regen: all {total} step(s) passed.")
+    return 0
+
+
+def regen(args):
+    """Pre-flight, then run the chain. -> exit code."""
+    if not os.path.exists(MAP_PATH):
+        print(f"missing {MAP_PATH} -- the pinned map is committed, so a checkout "
+              "without it is a checkout problem, not a pipeline one.")
+        return 1
+    with open(MAP_PATH) as f:
+        m = json.load(f)
+
+    no_audio = os.environ.get("T2K_MUSIC_POOL") == "none"
+    report, blockers, warnings = preflight(m)
+    print("soundtracks/build.py --regen -- pre-flight")
+    for line in report:
+        print(line)
+    for w in warnings:
+        print(f"  [warn]    {w}")
+
+    pool_possible = not blockers and not no_audio
+    if no_audio:
+        print("\nT2K_MUSIC_POOL=none -- this build deliberately carries no "
+              "third-party audio, so the pool steps are skipped, not failed.")
+    if args.titles_only:
+        pool_possible = False
+        print("--titles-only -- running the pool-less subset on purpose.")
+
+    if not pool_possible and not (no_audio or args.titles_only):
+        print("\nBLOCKED -- the .dsp pool cannot be re-cut from this checkout:")
+        for b in blockers:
+            print(f"  - {b}")
+        print("\nconsequence: nothing under soundtracks/dsp/ or data/music/ can be "
+              "rebuilt or re-verified against source. The committed map, the display "
+              "titles and every album gate are unaffected -- they need no audio.")
+        print()
+        print(POOL_LESS_MESSAGE)
+        if args.dry_run:
+            print("--dry-run: the real run would stop here with exit 1. Nothing ran "
+                  "either way, so --dry-run exits 0.")
+            return 0
+        return 1
+
+    embed_header = os.path.join(tempfile.gettempdir(),
+                                f"t2k-regen-albums_json-{os.getpid()}.h")
+    plan = regen_plan(args, pool_possible, embed_header)
+    if os.path.exists(ENCODER):
+        print("(encoder already built -- the tools/build_dspadpcm.sh step is not "
+              "part of this run)")
+    print(f"\n--regen plan ({len(plan)} step(s)"
+          + (", dry run -- nothing will be executed):" if args.dry_run else "):"))
+    rc = run_plan(plan, args.dry_run)
+    if os.path.exists(embed_header):
+        os.remove(embed_header)
+    return rc
 
 
 def main():
@@ -227,20 +630,51 @@ def main():
                     help="hash the existing pool against the map, build nothing")
     ap.add_argument("--stage", action="store_true",
                     help="also refresh the repo-root data/music/ staging pool")
+    ap.add_argument("--regen", action="store_true",
+                    help="run the whole supported chain in order (encoder, titles, "
+                         "pool, album map, gates) after pre-flighting every "
+                         "dependency and source at once")
+    ap.add_argument("--titles-only", action="store_true",
+                    help="with --regen: run only the part that needs no FLACs "
+                         "(titles, embed, pool-free gates) instead of stopping")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="with --regen: print the ordered commands, run nothing")
     args = ap.parse_args()
+
+    if args.titles_only and not args.regen:
+        sys.exit("--titles-only only means something with --regen.")
+    if args.regen and args.verify_only:
+        sys.exit("--regen already runs --verify-only as a gate; do not combine them.")
+    if args.regen:
+        sys.exit(regen(args))
 
     rc = verify_only() if args.verify_only else build(args.fetch)
 
     if args.stage and rc != 1:
         os.makedirs(STAGE_DIR, exist_ok=True)
+        m = json.load(open(MAP_PATH))
         n = 0
+        staged_bytes = 0
         for name in os.listdir(DSP_DIR):
             if name.endswith((".dsp", ".mod")):
                 copy_into(os.path.join(DSP_DIR, name), os.path.join(STAGE_DIR, name))
                 n += 1
         copy_into(os.path.join(DSP_DIR, "albums.json"),
                      os.path.join(STAGE_DIR, "albums.json"))
-        print(f"staged {n} audio files + albums.json -> {STAGE_DIR}")
+        # The staging pool is what stage_romfs.sh ships, so it has to be pruned
+        # too -- pruning dsp/ alone would leave the retired files one hop away.
+        prune(STAGE_DIR, map_files(m))
+        # Count AFTER the prune, from the directory that actually ships. The
+        # copy loop above counted dsp/ as it was read, which can be more than
+        # what survives here -- and a number that overstates the payload defeats
+        # the reason it is logged: a CIA built against a deduped map that comes
+        # out the old size is the symptom this whole path exists to catch.
+        shipped = [f for f in os.listdir(STAGE_DIR) if f.endswith((".dsp", ".mod"))]
+        staged_bytes = sum(os.path.getsize(os.path.join(STAGE_DIR, f)) for f in shipped)
+        print(f"staged {len(shipped)} audio files ({staged_bytes / 1e6:.1f} MB) "
+              f"+ albums.json -> {STAGE_DIR}"
+              + (f" (copied {n}, pruned {n - len(shipped)})"
+                 if n != len(shipped) else ""))
     sys.exit(rc)
 
 

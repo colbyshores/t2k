@@ -326,6 +326,7 @@ void music_request_sync(bool syncToLevels) {
 
 int         music_track_count()            { return core::track_count(); }
 const char* music_track_name(int i)        { return core::track_name(i); }
+const char* music_track_display(int i)     { return core::track_display(i); }
 void        music_set_mods_unlocked(bool u){ core::set_mods_unlocked(u); }
 int         music_track_select_base()      { return core::track_select_base(); }
 int         music_entry_album_index(int i) { return core::entry_album_index(i); }
@@ -334,6 +335,8 @@ int         music_album_count()            { return core::album_count(); }
 const char* music_album_name(int a)        { return core::album_name(a); }
 int         music_album_track_count(int a) { return core::album_track_count(a); }
 const char* music_album_track_name(int a, int t) { return core::album_track_name(a, t); }
+// DISPLAY ONLY (title, else stem) -- the stem pair above stays the identity key.
+const char* music_album_track_display(int a, int t) { return core::album_track_display(a, t); }
 void        music_album_track_band(int a, int t, int* lo, int* hi) {
     int l = 1, h = 0;                       // no band, if the core says nothing else
     core::album_track_band(a, t, l, h);

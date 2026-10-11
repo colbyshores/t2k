@@ -102,13 +102,26 @@ add_custom_command(
 # wins when present. gen_albums.py validates the manifest first, so a manifest
 # with a duplicated track fails the build.
 set(ALBUMS_EMBED_HDR "${GEN_DIR}/albums_json.h")
+# track_titles.json is an INPUT to the embed -- gen_albums.py --emit-header
+# reads it -- so it must rebuild the header: a titles-only edit left a stale
+# 41-title header behind a fresh 53-title source on 2026-10-11.
+#
+# Listed UNCONDITIONALLY. The if(EXISTS) guard that used to add it conditionally
+# was the same hazard the 3DS Makefile had with $(wildcard): a missing file
+# silently left the dependency list instead of failing the build, and a titles
+# file that appeared later never made the stale title-less header out of date.
+# gen_albums.py now treats the file as a REQUIRED build input and hard-fails
+# without it, so the dependency is declared unconditionally and CMake errors on
+# the missing prerequisite instead of embedding a title-less map.
+set(ALBUMS_EMBED_DEPS "${CORE}/data/albums_manifest.json"
+                      "${CORE}/data/track_titles.json"
+                      "${CORE}/tools/gen_albums.py")
 add_custom_command(
     OUTPUT "${ALBUMS_EMBED_HDR}"
     COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_DIR}"
     COMMAND ${Python3_EXECUTABLE} "${CORE}/tools/gen_albums.py"
             --emit-header "${ALBUMS_EMBED_HDR}"
-    DEPENDS "${CORE}/data/albums_manifest.json"
-            "${CORE}/tools/gen_albums.py"
+    DEPENDS ${ALBUMS_EMBED_DEPS}
     COMMENT "Embedding t2k_core/data/albums_manifest.json (validated)")
 
 # Build tag (git rev + date) for the title screen: regenerated every build,

@@ -1,0 +1,130 @@
+{
+  "_comment": "pool filename -> display title. Display metadata only: the pool filename stem is the runtime identity key used for saved-selection restore and bonus-round reservation, so a title is NEVER a rename. Order here is meaningless.",
+  "_missingReason": "Every pool file now has a title, so `_missing` is empty; this key is kept only to record why it was ever non-empty and to retract a claim made here while it was. The former twelve gaps came from two rips whose filenames are bare numbers (NN.flac), which carry no title. The text in this place used to assert that the numeric suffix of tem_NN / spa_NN IS the published track number on the source album. That was FALSE: the gamerip order is DVD-Video audio-track order, not the OST tracklist order -- Intimidation, track 1 of the Tempest 3000 OST, is `52_tem_13.dsp` -- so a tem_NN / spa_NN suffix carries no published track number and must not be read as one. The Space Giraffe titles are publisher-issued; the Tempest 3000 titles are community-sourced and are recorded under `_unverified`.",
+  "_missing": [],
+  "_unverified": [
+    {
+      "files": [
+        "00_thermalresolution.mod",
+        "01_mindseye.mod",
+        "02_digitalterror.mod",
+        "03_constructivedemolition.mod",
+        "04_ultrayak.mod",
+        "05_glidecontrol.mod",
+        "06_constructivedemolition.mod"
+      ],
+      "note": "MOD-render titles are CONFIRMED by the Tempest 4000 gamerip, notinferred from the pool stem (upgraded 2026-10-11 after a consoleplaytest). The Tempest 4000 rip ships a MOD render of each of thesetracks and marks it with a trailing ' M' in its own filenames: 33Thermal Resolution M.flac, 30 Minds Eye M.flac, 17 Digital TerrorM.flac, 16 Constructive Demolition M.flac, 37 Ultra Yak M.flac, 23Glide Control M.flac, 13 2000 Dub M.flac. Every title in the'Tempest 2000 MOD' album now matches one of those rendersone-for-one, which is what replaced the old 'inferred from filenamestem' provenance. The '<Mod>' suffix is ours -- the rip marks itsrenders ' M', the game spells it out -- the titles themselves arethe published Tempest 2000 names. THE SECOND'constructivedemolition' IS NOT A SECOND CONSTRUCTIVE DEMOLITION:06_constructivedemolition.mod (source mod/t2k-4.mod, byte-distinctfrom 03_'s mod/t2k-6.mod) is the '2000 Dub' MOD render, identifiedon a real console by the user on 2026-10-11 and corroborated by therip, which carries exactly ONE 'Constructive Demolition M' renderand a separate '2000 Dub M' render -- there is no evidence of twodistinct Constructive Demolition modules, so the '(MOD 2)' numberingthis note used to record was our own invention and is retired. Thepool stem 06_constructivedemolition is a historical mislabel andSTAYS: stems are the runtime identity key for saved-selectionrestore and bonus-round reservation, so a title is never a rename.WHAT THIS DOES NOT PROVE: the .mod files carry no title of their own-- their embedded NOISETRACKER headers are unlabelled scene names('wierd -SMILE!-', 'temp20 -SMILE!-', 'reggadelia -SMILE!-', ...) --so the identification rests on the Tempest 4000 render set plus theconsole listen, not on anything inside the modules; per-module audioidentity against each named render was not measured on this machine.",
+      "confidence": "high for the six titles that match a Tempest 4000 MOD render one-for-one; console-confirmed by the user for 06_ = 2000 Dub; the .mod files themselves carry no title evidence at all"
+    },
+    {
+      "files": [
+        "34_t2km.dsp"
+      ],
+      "note": "'T2KM' was never a published title, it is 'T2K Mod' written as one word. Source: tempest4000_soundtrack/32 T2KM.flac. The trailing M is the same MOD-render marker the rip puts on its twelve MOD renders ('33 Thermal Resolution M'), only written without a space, which is why the derivation's ' M' rule does not strip it and hands back the bare rip name 'T2KM'. Confirmed by the user on a real console 2026-10-11 and titled 'T2K <Mod>' so it carries the house MOD-render suffix. HAND DIVERGENCE, deliberate: the derivation cannot know that an unspaced M is the marker, so --write reports a CONFLICT for this file and the hand value wins. The pool stem 34_t2km is untouched.",
+      "confidence": "high (user-confirmed on console 2026-10-11; the rip's own ' M' marker convention, here written without the space)"
+    },
+    {
+      "files": [
+        "35_title.dsp"
+      ],
+      "note": "'Title' was flagged as a WEAK display string when the Tempest 4000 titles were first derived -- a bare word with nothing behind it. The user confirmed on a real console 2026-10-11 what it actually is: the source is tempest4000_soundtrack/34 Title M.flac, whose trailing ' M' is the MOD-render marker, so this is the MOD render of the title theme and it is titled 'Title <Mod>'. The derivation strips the ' M' marker and so derives the bare 'Title'; the '<Mod>' is a hand-authored divergence it cannot know, and --write reports a CONFLICT and keeps the hand value. The pool stem 35_title is untouched.",
+      "confidence": "high (user-confirmed on console 2026-10-11; the ' M' marker is the rip's own)"
+    },
+    {
+      "files": [
+        "37_spa_02.dsp",
+        "38_spa_03.dsp",
+        "39_spa_04.dsp"
+      ],
+      "note": "Space Giraffe (37_spa_02 / 38_spa_03 / 39_spa_04, plus the album's slot 0): PUBLISHER-ISSUED titles, HIGH confidence. Source: the official Llamasoft soundtrack page (minotaurproject.co.uk/SpaceGiraffe/soundtrack.php) and the official SpaceGiraffeOST.zip hosted there; VGMdb lists it as a commercial digital release (vgmdb.net/album/16832). Audio identity between the repo gamerip and the OST was established by waveform normalized cross-correlation against the reference audio (research pass, 2026-10-11); gamerip order matches the official order 1:1 and durations agree within 0.3 s (the durations compared were the four gamerip files as originally shipped; slot 0 has since been deduped, see the next note). Published credits: Flossie's Frolic = Jeff Minter (credited 'Yak'), Satipn = Redpoint, Side of the Angels = Jim McCauley, Gardening By Numbers = Redpoint. Apostrophe: 'Flossie's Frolic' is written with a straight U+0027, NOT the U+2019 kept in 'Mind’s Eye'. U+2019 is preserved there because the Tempest 2000 rip FILENAME literally contains it, which is the published spelling; the only rip evidence here ('TxK/Flossies Frolic.flac') has no apostrophe at all, and the official page could not be re-fetched from this machine to confirm a typographic one, so the plain ASCII apostrophe is used rather than inventing a typographic spelling. The album's slot 0 (Space Giraffe track 1, 'Flossie's Frolic') is no longer a spa_NN file: the Space Giraffe gamerip copy was retired as a duplicate and slot 0 now aliases 13_flossiesfrolic.dsp -- see the dedupe note. The three remaining spa_NN files are the gamerip copies of OST tracks 2-4, and gamerip order still matches the official order 1:1 for them.",
+      "confidence": "high (publisher-issued OST release)"
+    },
+    {
+      "files": [
+        "13_flossiesfrolic.dsp"
+      ],
+      "note": "ONE FILE, TWO ALBUMS -- the Space Giraffe copy of this recording was RETIRED as a duplicate (dedupe 2026-10-11, same precedent as the Tempest 3000 re-rips: same-index alias in the manifest, regenerate the maps, prune both pools). The surviving file is this one, 13_flossiesfrolic.dsp (TxK rip, 293.17 s, 5,360,960 B). The retired file was the Space Giraffe gamerip of the same OST track 1 -- slot 0 of the spa_NN set, source soundtracks/Space_Giraffe/01.flac, 596.51 s, 10,907,788 B -- and it is named here by slot, duration and byte size rather than by filename on purpose: a retired pool file should not survive as a grep-able reference. The two were the SAME recording, measured on this machine by lag-searching cross-correlation on the pool .dsp files themselves: every excerpt of the short file matches at lag ~0 AND at lag ~293.28 s with near-identical ncc (0.9495 / 0.9494), and the long file self-correlates at ncc 0.9955 with a seam click at 293.257 s -- i.e. the long file is pass + pass + a 10.06 s closing reprise of the opening. An earlier window study on the FLAC sources agreed: every 5 s window of the 293 s TxK file matches Space_Giraffe/01.flac at ncc 0.964-0.997 (median 0.989) at a single lag drifting 218 -> 269 samples across 293 s, the signature of one master resampled to two rates (31999 Hz gamerip vs 48000 Hz TxK rip), not of two recordings. Space Giraffe slot 0 now aliases this file AT THE SAME INDEX, which is what preserves the album's level bands: 4 unreserved tracks -> bands 0-24 / 25-49 / 50-74 / 75-99 before AND after, and album track changes are level-driven, not duration-driven, so the 293 s file simply loops twice per former period. That is safe because the engine ignores DSP header loop points entirely (loop_flag is 0, loop points span the whole file) and loops by reopening the file at EOF -- music_core.cpp ensureDspData. ACCEPTED LOSS: the 10.06 s closing reprise is not in the TxK file and is therefore gone from the album; the user accepted it, and the source FLAC stays on disk so the decision is reversible. Neither file is named by bonus_rounds. The display title is now the plain official Llamasoft OST name 'Flossie's Frolic' -- the '(TxK)' qualifier this file used to carry was there to tell two pool copies apart, and with one file serving the TxK, Tempest 4000 and Space Giraffe albums it would mislabel the Space Giraffe row. Pool stems are untouched, so saved-selection restore and bonus-round reservation do not move.",
+      "confidence": "high (measured on this machine: lag-searched cross-correlation of the pool .dsp files, plus the earlier FLAC window study)"
+    },
+    {
+      "files": [
+        "46_tem_07.dsp",
+        "47_tem_08.dsp",
+        "52_tem_13.dsp",
+        "54_tem_15.dsp",
+        "56_tem_17.dsp"
+      ],
+      "note": "Tempest 3000 (46_tem_07 / 47_tem_08 / 52_tem_13 / 54_tem_15 / 56_tem_17): NO publisher-issued tracklist exists anywhere -- nothing on VGMdb, Discogs or Rate Your Music. The only listing is the Nuon-Dome community archive (nuon-dome.com/media.html), which has hosted these soundtrack MP3s with names and credits since ~2001, corroborated by independent YouTube OGST uploads. Composers are T(NT), Andre Meyer and James Grunke -- NOT Jeff Minter. AUDIO identity is proven by waveform normalized cross-correlation against the reference audio; the NAMES are community-sourced, so confidence is bounded by the archive, not by a publisher. Per-file ncc from the research pass (2026-10-11): Crowning Glory (T(NT)) 0.98, Bibble (T(NT)) 0.96, Sht Overload (T(NT)) 0.97, Intimidation (T(NT)) 0.77 with duration 316.2 s vs 317.4 s, and Flash (Andre Meyer) 0.49 -- the weakest of the set (best match by ~5x, but the one most likely to be mislabelled). If a publisher tracklist ever surfaces, Flash and Intimidation are the two to re-check first.",
+      "confidence": "medium (community archive; no publisher tracklist exists)"
+    },
+    {
+      "files": [
+        "40_tem_01.dsp"
+      ],
+      "note": "40_tem_01.dsp is TWO different songs spliced into one pool file: a truncated 'Smash Rom' (0-72 s) followed by 'Breath' (72-298 s), ncc 0.99 / 0.98 against the two reference tracks (research pass, 2026-10-11). Naming it after either song alone would be wrong, so the display title is 'Smash Rom / Breath'. The slash is ours; it is display text only and the stem 40_tem_01 is untouched. Provenance is the Nuon-Dome community archive, same caveat as the other Tempest 3000 entries -- no publisher tracklist exists.",
+      "confidence": "medium (community archive; two-song splice is measured)"
+    },
+    {
+      "files": [
+        "41_tem_02.dsp",
+        "42_tem_03.dsp"
+      ],
+      "note": "41_tem_02.dsp and 42_tem_03.dsp are NOT Tempest 3000 compositions: both are re-rips of the Tempest 2000 'Thermal Resolution' already in the pool as 00_thermalresolution.dsp. Measured on this machine 2026-10-11: tempest3000_soundtrack/02.flac (133 s) matches T2000 'Thermal Resolution' from +2.16 s at ncc 0.87-0.99 (median 0.97) and tempest3000_soundtrack/03.flac (103 s) matches it from +135.85 s at ncc 0.84-1.00 (median 0.97), each at a constant lag -- i.e. the DVD-Video rip split the one Tempest 2000 track across two audio tracks. They are titled 'Thermal Resolution (T3 edit)' and 'Thermal Resolution (T3 edit 2)' so they cannot collide with the existing 'Thermal Resolution' or 'Thermal Resolution (MOD)' entries in a flat list; both parentheticals are ours, not published, and '(T3 edit 2)' is a numbering of our own making. HAND DIVERGENCE, deliberate: neither title is derived (the tem_NN rip names are bare numbers and carry no title), so these two are hand-authored end to end. The parenthetical used to read '(T3000 Edit)' / '(T3000 Edit 2)'; it was shortened to '(T3 edit)' / '(T3 edit 2)' on 2026-10-11 because the 34- and 36-byte album rows '02 Thermal Resolution (T3000 Edit)' / '03 ... Edit 2)' were the two longest strings the touch panel had to fit and they clipped in the now-playing header and the flat list. T3 is this tree's abbreviation for Tempest 3000 (see music_core.cpp's album comments) and 'edit' is kept because it is the load-bearing word: these are NOT Tempest 3000 compositions, they are edits of the Tempest 2000 track. The pool stems 41_tem_02 / 42_tem_03 are untouched, so saved-selection restore and the bonus-round reservation do not move.",
+      "confidence": "high for the audio identity (measured), ours for the parenthetical suffix"
+    }
+  ],
+  "titles": {
+    "00_thermalresolution.dsp": "Thermal Resolution",
+    "00_thermalresolution.mod": "Thermal Resolution <Mod>",
+    "01_mindseye.dsp": "Mind’s Eye",
+    "01_mindseye.mod": "Mind’s Eye <Mod>",
+    "02_digitalterror.mod": "Digital Terror <Mod>",
+    "02_easeyourself.dsp": "Ease Yourself",
+    "03_constructivedemolition.mod": "Constructive Demolition <Mod>",
+    "03_trackingdepth.dsp": "Tracking Depth",
+    "04_constructivedemolition.dsp": "Constructive Demolition",
+    "04_ultrayak.mod": "Ultra Yak <Mod>",
+    "05_futuretense.dsp": "Future Tense",
+    "05_glidecontrol.mod": "Glide Control <Mod>",
+    "06_constructivedemolition.mod": "2000 Dub <Mod>",
+    "06_digitalterror.dsp": "Digital Terror",
+    "07_hyperprism.dsp": "Hyper Prism",
+    "08_glidecontrol.dsp": "Glide Control",
+    "09_ultrayak.dsp": "Ultra Yak",
+    "10_2000dub.dsp": "2000 Dub",
+    "11_berlin.dsp": "Berlin",
+    "12_consciousness.dsp": "Consciousness",
+    "13_flossiesfrolic.dsp": "Flossie's Frolic",
+    "14_fridgean.dsp": "Fridgean",
+    "15_inthezone.dsp": "In The Zone",
+    "16_lasereverywhere.dsp": "Laser Everywhere",
+    "17_noisepulse.dsp": "Noise Pulse",
+    "18_spaceiseverything.dsp": "Space Is Everything",
+    "19_tranceone.dsp": "Trance One",
+    "20_ginswigger.dsp": "Ginswigger",
+    "21_musicarena.dsp": "Music Arena",
+    "23_t2k.dsp": "T2K",
+    "24_b2.dsp": "B2",
+    "25_b3.dsp": "B3",
+    "26_mintertrance.dsp": "Minter Trance",
+    "27_nebulalost.dsp": "Nebula Lost",
+    "28_spaceflight.dsp": "Space Flight",
+    "29_hypertest2.dsp": "Hypertest 2",
+    "30_machinecode.dsp": "Machine Code",
+    "31_mooing.dsp": "Mooing",
+    "32_wanderinghalls.dsp": "Wandering Halls",
+    "34_t2km.dsp": "T2K <Mod>",
+    "35_title.dsp": "Title <Mod>",
+    "37_spa_02.dsp": "Satipn",
+    "38_spa_03.dsp": "Side of the Angels",
+    "39_spa_04.dsp": "Gardening By Numbers",
+    "40_tem_01.dsp": "Smash Rom / Breath",
+    "41_tem_02.dsp": "Thermal Resolution (T3 edit)",
+    "42_tem_03.dsp": "Thermal Resolution (T3 edit 2)",
+    "46_tem_07.dsp": "Crowning Glory",
+    "47_tem_08.dsp": "Bibble",
+    "52_tem_13.dsp": "Intimidation",
+    "54_tem_15.dsp": "Sht Overload",
+    "56_tem_17.dsp": "Flash"
+  }
+}

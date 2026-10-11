@@ -79,6 +79,14 @@ public:
         int         (*albumEntry)(int)         = nullptr;  // album -> track-list row
         int         (*albumTrackCount)(int)    = nullptr;  // for the "n/N" readout
         int         (*albumCurrentTrack)()     = nullptr;  // -1 until one loads
+        // DISPLAY ONLY -- the album map's title for album a track t, falling back
+        // to the pool stem when a file has no title. The Album row shows the
+        // AUDIBLE track's name beside its "t/N" ordinal; the album's own name
+        // stays on the Soundtrack row ("Album: <name>"), which reads the same
+        // cfg.soundtrack value. Never a key: the row still writes the album ENTRY
+        // index, exactly as before. A null hook leaves the row showing the album
+        // name -- what it showed before titles existed, so no dead control.
+        const char* (*albumTrackDisplay)(int, int) = nullptr;
         void        (*setMusicVolume)(float)   = nullptr;  // 0..1
         void        (*setMusicPaused)(bool)    = nullptr;
         void        (*setSfxVolume)(float)     = nullptr;  // 0..1

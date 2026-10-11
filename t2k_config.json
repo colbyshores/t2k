@@ -1,10 +1,13 @@
 {
   "album_sync": true,
   "arcade_mode": false,
+  "arcade_unlocked": false,
   "audio_pulse_pct": 100,
+  "bonus_music": true,
   "burst_test": false,
   "config_version": 4,
   "controls": {
+    "cycle_view": "SELECT",
     "invert_move": false,
     "jump": "B",
     "move_left": "DPAD_LEFT+CPAD_LEFT",
@@ -16,10 +19,10 @@
     "zapper": "Y"
   },
   "diag_log": false,
+  "ending_test": false,
   "enemy_set": 1,
   "fov_deg": 60,
   "fullscreen": false,
-  "gameover_style": 0,
   "gameover_test": false,
   "highscore_test": 0,
   "highscores": [

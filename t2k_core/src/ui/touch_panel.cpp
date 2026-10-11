@@ -123,10 +123,32 @@ void neonLine(float x0, float y0, float x1, float y1,
 // rather than guessed -- an over-long track name must not run under the
 // group-span caption or off the screen. Truncation ends in '.' so it reads as
 // deliberate.
-// The smallest a row name may shrink to before it is clipped instead: ~9.4 px,
-// still above the ~8 px SMALL_SX this panel already ships for captions, so it is
-// a size this screen is known to render legibly.
-constexpr float NAME_SX_MIN = 0.029f;
+// The smallest a row name may shrink to before it is clipped instead. It is not
+// a taste number: it is DERIVED, and the derivation is the legibility argument.
+// A row drawn at this scale has glyph height ROW_SY * (NAME_SX_MIN / ROW_SX),
+// because panelText scales the height with the width. Solve that for the
+// smallest glyph height this panel ships anywhere -- SMALL_SY, the 8.16 px
+// caption / eyebrow / mode-chip size the screen is known to render legibly --
+// and the floor falls out: SMALL_SY * ROW_SX / ROW_SY = 0.025130, i.e. a row
+// glyph of exactly SMALL_SY -- 8.16 px -- by construction. The list can shrink
+// to match its own captions and never below them, which is the line the
+// previous hand-picked 0.027 (8.77 px) was fumbling towards from above.
+//
+// The old comment claimed 0.026 would already make the list "the same height as
+// its own captions". Measured, it does not: 0.026 is 8.44 px, still 0.28 px
+// clear of SMALL_SY. The claim was right about the boundary and wrong about
+// where it was, and the boundary is what matters -- below 0.025130 the primary
+// content of the screen becomes smaller than its secondary labels.
+//
+// What the floor buys, measured against the real card map (a string of len bytes
+// fits whole iff len <= avail / (1.45 * NAME_SX_MIN)):
+//   album row  avail 0.925 -> 25 bytes (was 23)
+//   flat list  avail 1.100 -> 30 bytes (was 28)
+//   header     avail 1.225 -> 33 bytes (was 31)
+// Going lower is still not on the table. The strings that clip even now are 26-34
+// bytes and the longest needs sx 0.0188 -- 5.7 px -- which is not text, and no
+// amount of floor-moving reaches it; only shorter titles or a wider column do.
+constexpr float NAME_SX_MIN = SMALL_SY * ROW_SX / ROW_SY;
 
 // Fit a name into `avail`; returns the scale to DRAW it at.
 //
@@ -372,7 +394,21 @@ void TouchPanel::render(int paletteLevel, int timeMs, const AudioFeatures& audio
         // most of why album names read as cut off.
         const float LABEL_W = (view_ == V_TOP) ? (ROW_XR - ROW_X)
                                                : (CAPTION_X - CAPTION_PAD - ROW_X);
+        // Worst case a row label ever holds, across every view:
+        //   top view    -- the longest track-list name, "Album: Tempest 2000 MOD"
+        //                  (23) or a 30-byte title (see below);
+        //   album view  -- "NN " + the longest title in
+        //                  t2k_core/data/track_titles.json, "Thermal Resolution
+        //                  (T3 edit 2)" = 30 bytes -> 3 + 30 = 33, +NUL = 34.
+        //                  An untitled file falls back to its stem (<= 25)
+        //                  through the display accessor, so the number still
+        //                  prints and the row does not read as broken.
+        // 40 covers both with 6 bytes of headroom over today's data -- titles
+        // are hand-authored and can grow, so this is the worst case, not this
+        // month's longest. fitName caps at cap-1 regardless, so a longer title
+        // truncates rather than overflows.
         char label[40];        // room for the shrink-to-fit path to use
+        char numbered[40];     // album-view row: "NN " + title, before fitting
         float labelSx = ROW_SX;
         bool isLive = false;       // is this row the audible thing right now?
         char caption[12] = "";     // level-group span, V_ALBUM sync mode
@@ -395,9 +431,23 @@ void TouchPanel::render(int paletteLevel, int timeMs, const AudioFeatures& audio
             rowB = -1;
         } else {
             const int t = i - 1;
-            labelSx = fitName(label, sizeof label,
-                              hooks_.albumTrackName ? hooks_.albumTrackName(albumView_, t) : "",
-                              ROW_SX, LABEL_W);
+            // Number album tracks by their POSITION IN THE ALBUM, zero-padded to
+            // two digits. `t` is the per-album index the level-sync traversal
+            // already walks (music_core maps level -> track within the album),
+            // so the number on the row is the album's own track number. The flat
+            // top-view list deliberately gets NO number: it is sorted by
+            // filename, so a global index there is a position in a sort order,
+            // not a track number, and inventing one would be a fake fact.
+            //
+            // The prefix is composed BEFORE fitting, not written into `label` and
+            // then fitted around: fitName solves the scale from the string it is
+            // given, and a prefix applied afterwards would be shrunk by a solve
+            // that never counted it (and re-introducing a per-prefix budget is
+            // the search AGENTS.md T1 forbids). Composing first keeps the one
+            // closed-form divide the only fit calculation.
+            std::snprintf(numbered, sizeof numbered, "%02d %s", t + 1,
+                          hooks_.albumTrackName ? hooks_.albumTrackName(albumView_, t) : "");
+            labelSx = fitName(label, sizeof label, numbered, ROW_SX, LABEL_W);
             isLive = (albumView_ == curAlbum && t == curTrack);
             rowA = albumView_; rowB = t;
             // The level span this track owns in sync mode, READ FROM THE CORE
