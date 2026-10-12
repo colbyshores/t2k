@@ -38,10 +38,13 @@
 //     course knowledge beyond the front gate's x/y/z and the current speed —
 //     i.e. what the screen shows.
 //   The forward simulation inside the controller is the controller's own model
-//     of the physics (it must have one to aim); the shipped constants are passed
-//     in on the command line so one binary can fly a differently-built warp.cpp.
-//     The VERDICT never comes from that model: it comes from the real
-//     ts::move_warp run.
+//     of the physics (it must have one to aim). Its defaults ARE the engine's
+//     flight constants (ts::gates_tuning in game/warp.h) — one definition, no
+//     retyped numbers, so the model can never drift from the physics the game
+//     actually runs. --fric is an explicit OVERRIDE of those engine-derived
+//     defaults (not their source), for flying a differently-built warp.cpp
+//     without rebuilding. The VERDICT never comes from that model: it comes
+//     from the real ts::move_warp run.
 //
 // CONTROL RUN (--control <factor>): scales every inter-gate delta by <factor>
 // before flying. That is exactly the failure mode a friction change can create —
@@ -75,12 +78,22 @@ constexpr float ON_GATE         = 4.0f;  // 'already on the gate' band (< the +-
 constexpr float SECURE          = 7.0f;  // pre-aim only while this inside the front box
 constexpr int   MAX_STEPS       = 40000; // ~640 s of sim; a course never runs this long
 
-// The controller's model of the flight law. Defaults are the shipped constants;
-// --fric re-points them so the same binary can fly a build of warp.cpp whose
-// friction constants differ (used to measure the pre-change values).
+// The controller's model of the flight law. The DEFAULTS are the engine's own
+// flight constants (ts::gates_tuning, game/warp.h) — the single definition the
+// sim runs on, so this harness cannot certify courses against stale physics.
+// --fric is an explicit override of the engine-derived defaults, NOT the source
+// of the values: it re-points the two frictions so the same binary can fly a
+// build of warp.cpp whose friction constants differ (used to measure the
+// pre-change values).
 struct Model {
-    float h_acc = 0.14f, h_fric = 0.93f,  h_cap = 2.0f, h_pos = 96.0f;
-    float v_acc = 0.12f, v_fric = 0.975f, v_cap = 1.0f, v_pos = 120.0f;
+    float h_acc  = ts::gates_tuning::H_ACC;
+    float h_fric = ts::gates_tuning::H_FRIC;
+    float h_cap  = ts::gates_tuning::H_CAP;
+    float h_pos  = ts::gates_tuning::H_POS_MAX;
+    float v_acc  = ts::gates_tuning::V_ACC;
+    float v_fric = ts::gates_tuning::V_FRIC;
+    float v_cap  = ts::gates_tuning::V_CAP;
+    float v_pos  = ts::gates_tuning::V_POS_MAX;
 };
 
 inline float clampf(float v, float lo, float hi) {
@@ -312,9 +325,11 @@ void probe_kick(const char* label, float dyn, float speed, float start_y) {
     bool clamped = false;
     while (frames < 4000 && !s.warp_level_end) {
         float av = s.axis_y.vel < 0 ? -s.axis_y.vel : s.axis_y.vel;
-        if (above_cap < 0.0f && av <= 1.01f) above_cap = s.axis_y.value - y0;
+        if (above_cap < 0.0f && av <= ts::gates_tuning::V_CAP + 0.01f)
+            above_cap = s.axis_y.value - y0;
         if (av < 0.01f) break;
-        if (s.axis_y.value >= 119.99f || s.axis_y.value <= -119.99f) clamped = true;
+        if (s.axis_y.value >= ts::gates_tuning::V_POS_MAX - 0.01f ||
+            s.axis_y.value <= -(ts::gates_tuning::V_POS_MAX - 0.01f)) clamped = true;
         t += 16;
         ts::move_warp(engine, s, false, false, false, false, t);
         ++frames;
@@ -331,7 +346,8 @@ void probe_kick(const char* label, float dyn, float speed, float start_y) {
 int main(int argc, char** argv) {
     float control = 0.0f;
     bool dump = false;
-    Model model{};
+    bool fric_override = false;
+    Model model{};   // defaults sourced from ts::gates_tuning (game/warp.h)
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--control") == 0 && i + 1 < argc) {
             control = (float)std::atof(argv[++i]);
@@ -340,13 +356,19 @@ int main(int argc, char** argv) {
         } else if (std::strcmp(argv[i], "--fric") == 0 && i + 2 < argc) {
             model.h_fric = (float)std::atof(argv[++i]);
             model.v_fric = (float)std::atof(argv[++i]);
+            fric_override = true;
         }
     }
 
     std::printf("controller: reaction=%d frames (%.0f ms) with efference copy, "
-                "re-steer every %d frames, vel_deadband=%.2f, model h_fric=%.3f v_fric=%.3f\n",
-                REACTION_FRAMES, REACTION_FRAMES * 16.0f, CONTROL_PERIOD, VEL_TOL,
-                model.h_fric, model.v_fric);
+                "re-steer every %d frames, vel_deadband=%.2f\n",
+                REACTION_FRAMES, REACTION_FRAMES * 16.0f, CONTROL_PERIOD, VEL_TOL);
+    std::printf("model h_acc=%.3f h_fric=%.3f h_cap=%.2f h_pos=%.1f "
+                "v_acc=%.3f v_fric=%.3f v_cap=%.2f v_pos=%.1f  "
+                "[engine ts::gates_tuning, game/warp.h%s]\n",
+                model.h_acc, model.h_fric, model.h_cap, model.h_pos,
+                model.v_acc, model.v_fric, model.v_cap, model.v_pos,
+                fric_override ? ", h_fric/v_fric overridden by --fric" : "");
     if (control > 0.0f)
         std::printf("CONTROL RUN: inter-gate deltas inflated x%.2f "
                     "(generator at a reach the physics no longer provides)\n", control);
