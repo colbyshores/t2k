@@ -589,13 +589,22 @@ int evalWorld(const State& st, int slot, int nowMs, float beat,
         constexpr int   FLIGHT  = 1150;    // ms from spoken to detonating
         constexpr float RING    = 1.05f;   // spiral radius off the tube axis
         constexpr float BASE    = 0.60f;   // sign size vs a normal message
+        // CHANT SIZE. A user size preference, kept as its own named constant
+        // rather than folded into a measured ratio, so it stays readable and
+        // reversible on its own. It rides the uniform knob below and NOTHING
+        // else: the bake, YES_SIZE_FIX (a width-normalisation correction) and
+        // YES_THICK (the thickness knob) are untouched, so the stroke-closure
+        // ratio dot/spacing = FAT*THICK stays exactly as scale-invariant as it
+        // was. (user, 2026-10-12: render the chant 25% smaller)
+        constexpr float YES_CHANT_SCALE = 0.75f;
         // Uniform size knob. Applied to the layout (kx/ky) AND the dot sizes
         // (sz/fsz) together so the whole sign scales as one: the stroke-closure
         // ratio dot/spacing = FAT*THICK/BASE is scale-invariant, so halving
         // both leaves the stroke looking identical, just half as big. Halving
         // BASE alone would shrink the footprint but keep the dots full-size --
-        // a thicker stroke, not a smaller sign. (user, 2026-09-27: -50%)
-        constexpr float YES_SCALE = 0.5f;
+        // a thicker stroke, not a smaller sign. (user, 2026-09-27: -50%,
+        // times YES_CHANT_SCALE on 2026-10-12 -> 0.375)
+        constexpr float YES_SCALE = 0.5f * YES_CHANT_SCALE;
         // The coalesce window: the sign is fully materialised at this age,
         // which is also the instant the centre sheet starts fading in.
         constexpr int   YES_COALESCE_MS = 300;
