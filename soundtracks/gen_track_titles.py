@@ -28,8 +28,18 @@ under `soundtracks/`; nothing here is invented):
   TxK/                       "Name.flac"     -> strip the extension, then:
       - drop the trailing " Final" rip artifact ("Consciousness Final" ->
         "Consciousness", "Fridgean Final" -> "Fridgean", "Nebula Lost Final" ->
-        "Nebula Lost");
+        "Nebula Lost"). The derived "Consciousness" is NOT the committed title: that file is
+        hand-titled from the OST (see the CONFLICT list below);
+
       - repair the lowercase/unspaced rip names via TXK_TITLES below.
+      - the two bare side-label names "B2.flac" / "B3.flac" derive the bare "B2" /
+        "B3", which are rip labels and NOT titles, so both files are hand-titled from
+        the official TxK OST (see the CONFLICT list below and the matching
+        `_unverified` note). THE GAMERIP ORDER IS REVERSED AGAINST THE OST HERE:
+        `24_b2.dsp` is OST track 12 "Limaverse" (544 s, our file 544.252 s) and
+        `25_b3.dsp` is OST track 11 "Limaworld" (390 s, our file 390.000 s exactly).
+        Do not assign them by the stem: the durations are the arbiter, and the two are
+        distinct adjacent tracks by the same artist (Coupler), 154 s apart.
   tempest4000_soundtrack/  "NN Name.flac"   -> strip "NN " (NO period after the
       number in this rip) and a trailing " M", which marks the MOD render:
       "34 Title M" is the MOD render of the title theme and its pool file is
@@ -74,7 +84,7 @@ silently overwritten, because a hand edit is a human decision about a published
 title and the derivation is a guess about a filename. Hand-authored `_unverified`
 provenance notes are preserved the same way (see unverified_notes()).
 
-FOUR CONFLICTS ARE EXPECTED AND NONE OF THEM IS A BUG. A CONFLICT line is the
+NINE CONFLICTS ARE EXPECTED AND NONE OF THEM IS A BUG. A CONFLICT line is the
 designed signal that a human settled something about a published title that a
 filename cannot tell the derivation; it is not drift:
   * `13_flossiesfrolic.dsp` derives "Flossies Frolic" from its TxK rip filename
@@ -92,8 +102,32 @@ filename cannot tell the derivation; it is not drift:
     hand-titled "Title <Mod>" so it carries the MOD-render suffix that marker means.
   * `34_t2km.dsp` derives "T2KM" (no space before the M, so the rule never sees the
     marker) and is hand-titled "T2K <Mod>" -- "T2KM" was "T2K Mod" written as one word.
-All four were settled by the user on a real console, 2026-10-11. None of them can
-be silently reverted by a future `--write`: hand edits win in merge(), and each one
+  * `24_b2.dsp` derives "B2" from its TxK rip filename `TxK/B2.flac` and is hand-titled
+    "Limaverse": "B2" is the rip's side label, not a title. The published name is OST
+    track 12, "Coupler - Limaverse" (09:04 = 544 s; our file is 544.252 s).
+  * `25_b3.dsp` derives "B3" from `TxK/B3.flac` and is hand-titled "Limaworld": OST
+    track 11, "Coupler - Limaworld" (06:30 = 390 s; our file is 390.000 s exactly).
+    The two are DISTINCT adjacent tracks by one artist and the rip order is REVERSED
+    against the OST order, so a future reader must not read the pairing off the stems.
+  * `12_consciousness.dsp` derives "Consciousness" (from `TxK/Consciousness Final.flac`, once
+    the " Final" artifact is dropped) and is hand-titled "Consciousness Is Feedback": OST track
+    8, "Spydabee - Consciousness Is Feedback" (04:01 = 241 s; our file is 240.739 s, delta
+    -0.261 s, a clean duration match).
+  * `20_ginswigger.dsp` derives "Ginswigger" via TXK_TITLES and is hand-titled "Gin Swigger":
+    OST track 6, "Barry Island - Gin Swigger" (03:17 = 197 s; our file is 166.139 s, delta
+    -30.861 s). The one-word spelling is the Tempest 4000 rip's ("22 Ginswigger.flac", cited in
+    the TXK_TITLES comment below); the TxK OST publishes two words and was chosen by user
+    decision on 2026-10-12. No OST track lies within +/-3 s of 166.139 s, so no better-fitting
+    alternative identity exists -- the gap is a game-edit-vs-album-master length difference.
+  * `32_wanderinghalls.dsp` derives "Wandering Halls" via TXK_TITLES and is hand-titled
+    "Wandering The Halls": OST track 18, "Governmentyard - Wandering The Halls" (04:09 = 249 s;
+    our file is 354.482 s, delta +105.482 s). That is the largest game-vs-OST gap in the tree, no
+    OST track lies within +/-3 s of it, and no repo metadata explains it: the rename rests on NAME
+    evidence plus the absence of any better candidate, NOT on duration agreement, and only audio
+    cross-correlation against the album master would confirm the identity outright.
+The first four were settled by the user on a real console, 2026-10-11; the B2/B3 pair and the
+three TxK OST corrections were settled from the official OST release page on 2026-10-12. None of
+them can be silently reverted by a future `--write`: hand edits win in merge(), and each one
 carries an `_unverified` note saying why.
 
 usage:  python3 soundtracks/gen_track_titles.py [--write] [--prune-orphans] [--check]
@@ -181,6 +215,15 @@ UNVERIFIED_NOTE = (
 # ships "31 Space Is Everything", "27 Music Arena" and "22 Ginswigger", which is
 # what fixes the spacing/casing of the TxK rip's "Spaceis Everything",
 # "musicarena" and "ginswigger".
+# TWO OF THESE VALUES ARE NOW OVERRIDDEN BY HAND, and that is deliberate, not drift:
+# the TxK OST publishes "Gin Swigger" (two words) and "Wandering The Halls", and the
+# committed titles carry the OST spelling (user decision 2026-10-12). This table keeps
+# the RIP spellings because it records what the rip says, and a hand value the
+# derivation cannot produce is exactly what a CONFLICT line exists to report -- so do
+# NOT "fix" this table to match the committed titles. That would erase the divergence
+# the CONFLICT is there to keep visible, and it would make a future --write silently
+# overwrite a human decision about a published name. See the expected CONFLICT list in
+# the module docstring and the matching `_unverified` note.
 TXK_TITLES = {
     "ginswigger": "Ginswigger",
     "musicarena": "Music Arena",
