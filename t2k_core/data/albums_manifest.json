@@ -17,8 +17,7 @@
   ],
   "Tempest 3000": [
    "40_tem_01.dsp",
-   "41_tem_02.dsp",
-   "42_tem_03.dsp",
+   "00_thermalresolution.dsp",
    "09_ultrayak.dsp",
    "04_constructivedemolition.dsp",
    "07_hyperprism.dsp",

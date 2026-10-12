@@ -70,8 +70,8 @@ order and durations are still correct). `build.sh` branches on that difference.
 
 They are gitignored copyrighted audio, and the fetch is **2,334,945,863 bytes
 (2.17 GiB) across 200 files** — budget disk for that, not for the
-229,702,488-byte (219 MiB) *encoded* pool quoted elsewhere in this file. The 45
-FLACs this map actually pins are 1,246,670,728 bytes (1.16 GiB) of that total.
+225,386,473-byte (215 MiB) *encoded* pool quoted elsewhere in this file. The 43
+FLACs this map actually pins are 1,223,761,383 bytes (1.14 GiB) of that total.
 Most clones do not have them, and steps that encode cannot run. `--regen`
 reports **every** missing folder at once (one run, not one per folder), says
 what the consequence is, and exits 1 — it never does a partial job and calls it
@@ -106,17 +106,18 @@ SHA-256 and sample count, then encodes candidate source FLACs (duration-prefilte
 and matches on hash. Every entry in the current map matched byte-exactly:
 
 ```
-mapped 45/45 shipped .dsp + 7/7 .mod -> track_map.json
+mapped 43/43 shipped .dsp + 7/7 .mod -> track_map.json
 ```
 
-(59 `.dsp` before the 2026-10-11 dedupe retired the duplicate recordings; the map
-is re-derived from the pool whenever the pool is re-cut, so this number is a
-snapshot, not a constant.)
+(59 `.dsp` before the 2026-10-11 dedupe retired the duplicate recordings, and 45
+before the 2026-10-12 retirement of the two Tempest 3000 gamerip files that were
+re-rips of a Tempest 2000 track; the map is re-derived from the pool whenever the
+pool is re-cut, so this number is a snapshot, not a constant.)
 
 That is why the pool can stay out of git: the map plus the vendored encoder
 reproduce it exactly, and `--verify-only` proves it. Current totals, recomputed
-from the committed files: **6 albums, 89 references, 52 distinct files
-(45 `.dsp` + 7 `.mod`), 229,702,488 bytes (219 MiB)** of pool.
+from the committed files: **6 albums, 88 references, 50 distinct files
+(43 `.dsp` + 7 `.mod`), 225,386,473 bytes (215 MiB)** of pool.
 
 ## The legacy path: content dedupe
 
@@ -199,8 +200,8 @@ short one warns — and the declarations must be **exactly the live set**, so a
 stale, duplicated, moved-slot or not-actually-cross-album declaration fails too and
 the allowlist cannot rot. The slot index is part of a declaration's identity for
 the same reason order is gameplay. It reads committed JSON only (no pool, no
-FLACs, no ffmpeg) and runs in `tools/check.sh`; the live set is 37 declarations
-over 6 albums / 89 slots.
+FLACs, no ffmpeg) and runs in `tools/check.sh`; the live set is 38 declarations
+over 6 albums / 88 slots.
 
 ## Deduping a recording that ships twice
 

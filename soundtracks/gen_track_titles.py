@@ -23,13 +23,26 @@ DERIVATION (all of it comes from `soundtracks/track_map.json`, whose
 under `soundtracks/`; nothing here is invented):
 
   tempest2000_soundtrack/  "NN. Name.flac"  -> strip "NN. " and the extension.
-      The typographic apostrophe U+2019 in "02. Mind's Eye.flac" is PRESERVED,
-      not folded to ASCII: it is the published spelling.
+      The typographic apostrophe U+2019 in "02. Mind's Eye.flac" is FOLDED to
+      ASCII U+0027 by fold_unglyphic() (see UNGLYPHIC below), NOT preserved. The
+      rip filename really does carry U+2019 -- track_map.json's source.path for
+      `01_mindseye.dsp` is `tempest2000_soundtrack/02. Mind's Eye.flac` with the
+      three-byte e2 80 99 in it -- so this is the one place the derivation had to
+      move to match a hand edit rather than the other way round. The text here used
+      to claim U+2019 was PRESERVED "because it is the published spelling", and that
+      was a defensible fidelity call that happened to be unrenderable: the shipped
+      vector font has no glyph for U+2019, so the pen advanced three character cells
+      and drew nothing, which is the gap the user saw on hardware on 2026-10-12. The
+      font DOES have a glyph for U+0027. This is a RENDERING fix, not a rename of the
+      composition, and because the fold makes the derived value equal the committed
+      one, `01_mindseye.dsp` and `01_mindseye.mod` are NOT CONFLICTs -- do not expect
+      them in the list below.
   TxK/                       "Name.flac"     -> strip the extension, then:
       - drop the trailing " Final" rip artifact ("Consciousness Final" ->
         "Consciousness", "Fridgean Final" -> "Fridgean", "Nebula Lost Final" ->
-        "Nebula Lost"). The derived "Consciousness" is NOT the committed title: that file is
-        hand-titled from the OST (see the CONFLICT list below);
+        "Nebula Lost"). The derived "Consciousness" IS the committed title: the file's
+        display was shortened back to it on 2026-10-12 (the OST publishes the longer "Consciousness
+        Is Feedback", kept in its `_unverified` note), so it is no longer a CONFLICT;
 
       - repair the lowercase/unspaced rip names via TXK_TITLES below.
       - the two bare side-label names "B2.flac" / "B3.flac" derive the bare "B2" /
@@ -84,7 +97,7 @@ silently overwritten, because a hand edit is a human decision about a published
 title and the derivation is a guess about a filename. Hand-authored `_unverified`
 provenance notes are preserved the same way (see unverified_notes()).
 
-NINE CONFLICTS ARE EXPECTED AND NONE OF THEM IS A BUG. A CONFLICT line is the
+ELEVEN CONFLICTS ARE EXPECTED AND NONE OF THEM IS A BUG. A CONFLICT line is the
 designed signal that a human settled something about a published title that a
 filename cannot tell the derivation; it is not drift:
   * `13_flossiesfrolic.dsp` derives "Flossies Frolic" from its TxK rip filename
@@ -109,10 +122,6 @@ filename cannot tell the derivation; it is not drift:
     track 11, "Coupler - Limaworld" (06:30 = 390 s; our file is 390.000 s exactly).
     The two are DISTINCT adjacent tracks by one artist and the rip order is REVERSED
     against the OST order, so a future reader must not read the pairing off the stems.
-  * `12_consciousness.dsp` derives "Consciousness" (from `TxK/Consciousness Final.flac`, once
-    the " Final" artifact is dropped) and is hand-titled "Consciousness Is Feedback": OST track
-    8, "Spydabee - Consciousness Is Feedback" (04:01 = 241 s; our file is 240.739 s, delta
-    -0.261 s, a clean duration match).
   * `20_ginswigger.dsp` derives "Ginswigger" via TXK_TITLES and is hand-titled "Gin Swigger":
     OST track 6, "Barry Island - Gin Swigger" (03:17 = 197 s; our file is 166.139 s, delta
     -30.861 s). The one-word spelling is the Tempest 4000 rip's ("22 Ginswigger.flac", cited in
@@ -125,10 +134,37 @@ filename cannot tell the derivation; it is not drift:
     OST track lies within +/-3 s of it, and no repo metadata explains it: the rename rests on NAME
     evidence plus the absence of any better candidate, NOT on duration agreement, and only audio
     cross-correlation against the album master would confirm the identity outright.
-The first four were settled by the user on a real console, 2026-10-11; the B2/B3 pair and the
-three TxK OST corrections were settled from the official OST release page on 2026-10-12. None of
-them can be silently reverted by a future `--write`: hand edits win in merge(), and each one
-carries an `_unverified` note saying why.
+  * `04_constructivedemolition.dsp` derives "Constructive Demolition" from its Tempest 2000 rip
+    filename and is hand-titled "Constructive": a DELIBERATE DISPLAY SHORTENING for on-screen fit,
+    NOT a re-identification. The published Tempest 2000 name IS "Constructive Demolition" and that
+    identification is not in doubt; the long form (23 bytes) clipped the touch panel's album rows,
+    which hard-cap a "NN " + title string at 25 bytes (ui/touch_panel.cpp). Decided by the user on
+    2026-10-12 after observing the clipping on real hardware; it is NOT a licence to restore the
+    long form as a fidelity fix. See the matching `_unverified` note.
+  * `00_thermalresolution.mod` derives "Thermal Resolution <Mod>" by borrowing its .dsp twin's derived
+    title and is hand-titled "Thermal <Mod>": the same display shortening on the MOD render -- the long
+    form is 24 bytes and "NN " + it is 27, which clipped the touch panel's album rows at their 25-byte
+    cap. It was the LAST title clipping anywhere. Its .dsp twin KEEPS the full "Thermal Resolution"
+    (18 bytes, 3 + 18 = 21) because it fits and there was no fit problem to solve there. The published
+    Tempest 2000 name is unchanged and is recorded in the matching `_unverified` note; this is NOT a
+    licence to restore the long form as a fidelity fix.
+  * `03_constructivedemolition.mod` derives "Constructive Demolition <Mod>" by borrowing its .dsp
+    twin's derived title and is hand-titled "Constructive <Mod>": the same display shortening on the
+    MOD render -- the long form is 29 bytes and clipped the menu Soundtrack row too, which caps at 27
+    at the 3DS tile scale (ts 0.024, ui/menu.cpp). Its identification is corroborated by the Tempest
+    4000 gamerip's "16 Constructive Demolition M.flac" render. This is the file that IS a Constructive
+    Demolition MOD render, UNLIKE `06_constructivedemolition.mod` above, whose similar stem is a
+    historical mislabel (it stays "2000 Dub <Mod>"); do not rename either one by pattern-matching the
+    stem.
+The first four were settled by the user on a real console, 2026-10-11; the B2/B3 pair and the two
+remaining TxK OST spelling corrections (ginswigger, wanderinghalls) were settled from the official
+OST release page on 2026-10-12; the two Constructive Demolition display shortenings were a user fit
+decision on 2026-10-12, as was the Thermal Resolution MOD shortening. (`12_consciousness.dsp` is NO LONGER a conflict: its display was shortened
+back to the derived "Consciousness", so committed and derived now agree -- see its `_unverified`
+note. `01_mindseye.dsp` and `01_mindseye.mod` are NOT conflicts either, and for the opposite reason: the
+derivation now FOLDS the rip's U+2019 to ASCII U+0027 (see UNGLYPHIC), so the derived and committed
+strings are identical and there is no divergence left to report.) None of them can be silently reverted by a future `--write`: hand edits win in merge(), and
+each one carries an `_unverified` note saying why.
 
 usage:  python3 soundtracks/gen_track_titles.py [--write] [--prune-orphans] [--check]
         (no flag)   print the derived titles and the derived gaps
@@ -234,6 +270,81 @@ TXK_TITLES = {
     "Spaceis Everything": "Space Is Everything",
 }
 
+# Codepoints the shipped vector font CANNOT draw, and the ASCII character to use
+# instead. This is a RENDERING fold, not a rename: the composition is unchanged,
+# only the bytes the font is able to mark.
+#
+# THE EVIDENCE IS THE FONT ITSELF. t2k_core/src/rendering/font_data.cpp is a
+# 51-glyph procedural vector font whose whole coverage surface is charToIndex():
+#
+#     int charToIndex(char ch) {
+#         int c = (int)(unsigned char)ch;
+#         if (c >= 65 && c <= 90) return c - 65;        // A-Z
+#         ...
+#         if (c >= 39 && c <= 47) return c;             // '()*+,-./ -> direct
+#         return -1;                                    // Space or unknown
+#     }
+#
+# It takes ONE BYTE and returns -1 for anything outside those ASCII ranges. Both
+# writeAfont() implementations (t2k_3ds/src/rendering/text_c3d.cpp and
+# t2k_pc/src/rendering/vk_font.cpp) then do:
+#
+#     if (fi < 0 || fi >= FONT_CHAR_COUNT) continue;    // space/unknown
+#     const float hOff = charWidth * ci;
+#
+# THAT is the gap mechanism. The advance is `charWidth * ci`, computed from the
+# BYTE INDEX and not from a drawn-glyph counter, so an unmapped byte still moves
+# the pen a full character cell while drawing nothing. U+2019 is three bytes
+# (e2 80 99) and all three are unmapped, so the Tempest 2000 rip's typographic
+# apostrophe drew "Mind" + three blank cells + "s Eye" -- the visible extra
+# whitespace reported on hardware on 2026-10-12, on the .dsp row AND the .mod row,
+# because the .mod borrows the .dsp title.
+#
+# U+0027 DOES have a real glyph: the `c >= 39 && c <= 47` arm returns index 39,
+# and FONT_SEG_COUNT[39] == 1 with FONT_DATA[39] == {{1,2,1,1}, {-1,...}} -- a
+# one-stroke top tick. charToIndex also folds " ^ ` onto 39. So the ASCII
+# apostrophe renders and the typographic one does not; that is the entire basis of
+# this table, not a house spelling preference. The tree already knew this in one
+# place: 13_flossiesfrolic.dsp is committed as "Flossie's Frolic" with U+0027.
+#
+# Every key below is a character a music rip plausibly carries and every value has
+# an exact single-glyph equivalent in the font (U+0027 -> 39, U+0022 -> 39,
+# U+002D -> 45, U+002A -> 42). The fold runs on EVERY derived title whatever the
+# rip folder, because the font constraint does not care which rip a name came from.
+UNGLYPHIC = {
+    "\u2018": "'",    # LEFT SINGLE QUOTATION MARK  -> apostrophe (glyph 39)
+    "\u2019": "'",    # RIGHT SINGLE QUOTATION MARK -> apostrophe (glyph 39)
+    "\u201a": "'",    # SINGLE LOW-9 QUOTATION MARK -> apostrophe (glyph 39)
+    "\u201b": "'",    # SINGLE HIGH-REVERSED-9      -> apostrophe (glyph 39)
+    "\u201c": '"',    # LEFT DOUBLE QUOTATION MARK  -> " (glyph 39, per charToIndex)
+    "\u201d": '"',    # RIGHT DOUBLE QUOTATION MARK -> " (glyph 39, per charToIndex)
+    "\u2013": "-",    # EN DASH                     -> hyphen-minus (glyph 45)
+    "\u2014": "-",    # EM DASH                     -> hyphen-minus (glyph 45)
+    "\u2212": "-",    # MINUS SIGN                  -> hyphen-minus (glyph 45)
+    "\u00b7": "*",    # MIDDLE DOT                  -> bullet dot (glyph 42)
+    "\u00d7": "x",    # MULTIPLICATION SIGN         -> x (A-Z arm)
+    "\u00b0": "o",    # DEGREE SIGN                 -> o (A-Z arm)
+}
+
+
+def fold_unglyphic(title):
+    """Replace codepoints the vector font has no glyph for with ASCII equivalents.
+
+    Returns (folded, list_of_substitutions). See UNGLYPHIC for why each one is a
+    rendering fix and not a rename.
+    """
+    hits = []
+    out = []
+    for ch in title:
+        rep = UNGLYPHIC.get(ch)
+        if rep is None:
+            out.append(ch)
+        else:
+            hits.append((ch, rep))
+            out.append(rep)
+    return "".join(out), hits
+
+
 # Rips whose filenames are bare numbers and therefore carry no title.
 UNTITLED_FOLDERS = ("tempest3000_soundtrack", "Space_Giraffe")
 
@@ -279,9 +390,14 @@ def source_number(source_path):
 
 
 def derive(track_map):
-    """Return (titles, missing) derived from track_map.json. Never invents."""
+    """Return (titles, missing, mod_collisions, glyph_folds) from track_map.json.
+
+    Never invents. `glyph_folds` lists (pool_file, codepoint, replacement) for every
+    typographic character the vector font cannot draw -- see UNGLYPHIC.
+    """
     titles = collections.OrderedDict()
     missing = []
+    glyph_folds = []
     for track in track_map["tracks"]:
         dsp = track["dsp"]
         source = track.get("source") or {}
@@ -289,12 +405,12 @@ def derive(track_map):
         path = source.get("path", "")
         base = os.path.splitext(os.path.basename(path))[0]
         if folder == "tempest2000_soundtrack":
-            titles[dsp] = NUM_PREFIX.sub("", base)
+            raw = NUM_PREFIX.sub("", base)
         elif folder == "TxK":
             base = FINAL_ARTIFACT.sub("", base)
-            titles[dsp] = TXK_TITLES.get(base, base)
+            raw = TXK_TITLES.get(base, base)
         elif folder == "tempest4000_soundtrack":
-            titles[dsp] = MOD_RENDER.sub("", NUM_PREFIX.sub("", base))
+            raw = MOD_RENDER.sub("", NUM_PREFIX.sub("", base))
         elif folder in UNTITLED_FOLDERS:
             missing.append({
                 "file": dsp,
@@ -302,11 +418,16 @@ def derive(track_map):
                 "source": path,
                 "sourceTrackNumber": source_number(path),
             })
+            continue
         else:
             raise SystemExit(
                 "gen_track_titles: %s has source folder %r, which has no "
                 "derivation rule. Add one deliberately; do not let a new rip "
                 "folder fall through to a guessed title." % (dsp, folder))
+        # Fold AFTER the per-folder rules and BEFORE a MOD borrows its .dsp twin,
+        # so the borrowed MOD title is folded too and the two can never disagree.
+        titles[dsp], hits = fold_unglyphic(raw)
+        glyph_folds.extend((dsp, ch, rep) for ch, rep in hits)
 
     by_name = collections.defaultdict(list)
     for dsp, title in titles.items():
@@ -330,7 +451,7 @@ def derive(track_map):
     # is a human call about a published title, so a collision is REPORTED here and
     # fixed by a hand title; the derivation will never paper over one with a number.
     collisions = sorted(t + MOD_SUFFIX for t, n in borrowed.items() if n > 1)
-    return titles, missing, collisions
+    return titles, missing, collisions, glyph_folds
 
 
 def collision_notes(collisions, committed):
@@ -351,6 +472,23 @@ def collision_notes(collisions, committed):
         else:
             notes.append("resolved: %r is derived for more than one MOD file; the "
                          "committed hand titles already tell them apart." % derived)
+    return notes
+
+
+def glyph_fold_notes(glyph_folds):
+    """Lines about typographic characters the vector font cannot draw.
+
+    Informational only -- it never changes an exit code and never edits a title. A
+    fold is a RENDERING fix and not a rename (see UNGLYPHIC), and it is reported so a
+    future reader can see that a derived title is deliberately NOT byte-identical to
+    its rip filename and knows which side moved.
+    """
+    notes = []
+    for name, ch, rep in glyph_folds:
+        notes.append("GLYPH-FOLD %s: the rip name carries U+%04X, which charToIndex() "
+                     "maps to no glyph, so the pen advances and nothing draws; the "
+                     "derived title uses ASCII %r instead. Rendering fix, not a rename."
+                     % (name, ord(ch), rep))
     return notes
 
 
@@ -452,7 +590,7 @@ def main():
     args = parser.parse_args()
 
     track_map = load(TRACK_MAP)
-    derived, missing, mod_collisions = derive(track_map)
+    derived, missing, mod_collisions, glyph_folds = derive(track_map)
 
     if args.check:
         if not os.path.exists(OUT):
@@ -501,6 +639,8 @@ def main():
             print("OK: every pool file has a title.")
         for note in collision_notes(mod_collisions, committed.get("titles") or {}):
             print(note)
+        for note in glyph_fold_notes(glyph_folds):
+            print(note)
         return 0
 
     if args.write or args.prune_orphans:
@@ -539,6 +679,8 @@ def main():
             print("CONFLICT %s: derived %r, committed hand value %r wins"
                   % (name, was, kept))
         for note in collision_notes(mod_collisions, titles):
+            print(note)
+        for note in glyph_fold_notes(glyph_folds):
             print(note)
         print("wrote %s: %d titles, %d listed missing%s"
               % (OUT, len(titles), len(still_missing),

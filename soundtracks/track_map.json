@@ -574,39 +574,9 @@
       }
     },
     {
-      "dsp": "41_tem_02.dsp",
-      "album": "Tempest 3000",
-      "album_order": 1,
-      "sha256": "eb655a1d78debbff8d2f3826209a858f79cb90105dad4d58c9480eb7cd643ca1",
-      "bytes": 2432357,
-      "samples": 4256456,
-      "duration": 133.014,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/02.flac",
-        "sha256": "c454fe1027cd8e2b662ce929bb069bec686c4fa978e23dcce7e9376ab602e53f",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
-      "dsp": "42_tem_03.dsp",
-      "album": "Tempest 3000",
-      "album_order": 2,
-      "sha256": "ae84a53bf507ca1937a4a42de7ae20f819e22b42c62dc68dd258ab381f94927c",
-      "bytes": 1883658,
-      "samples": 3296232,
-      "duration": 103.007,
-      "source": {
-        "folder": "tempest3000_soundtrack",
-        "path": "tempest3000_soundtrack/03.flac",
-        "sha256": "c470025fa0b964fbcaf0d976ac2f8ea2e9069a361728f80eb0211b0fdd0ad9ea",
-        "slug": "tempest-3000-nuon-gamerip-2000"
-      }
-    },
-    {
       "dsp": "46_tem_07.dsp",
       "album": "Tempest 3000",
-      "album_order": 6,
+      "album_order": 5,
       "sha256": "3a3a45ad1977afc1a37cd3e27fd51d8466853ea172b7fb518954149a708cbcdc",
       "bytes": 5195952,
       "samples": 9092747,
@@ -621,7 +591,7 @@
     {
       "dsp": "47_tem_08.dsp",
       "album": "Tempest 3000",
-      "album_order": 7,
+      "album_order": 6,
       "sha256": "97c085290edf10eb2825f7b8976202cb858b580ec9e9c526c140a5a95a750dbd",
       "bytes": 5191997,
       "samples": 9085825,
@@ -636,7 +606,7 @@
     {
       "dsp": "52_tem_13.dsp",
       "album": "Tempest 3000",
-      "album_order": 12,
+      "album_order": 11,
       "sha256": "3a0ce20ce456b7d6971aebdd5457ef7118a0f7e30fe28b2f741400eadf806d40",
       "bytes": 5782634,
       "samples": 10119439,
@@ -651,7 +621,7 @@
     {
       "dsp": "54_tem_15.dsp",
       "album": "Tempest 3000",
-      "album_order": 14,
+      "album_order": 13,
       "sha256": "7da7063633421d3dfafa257aa5f34a891a1054fc54ebca3b06f5bdc821a308b6",
       "bytes": 6105560,
       "samples": 10684561,
@@ -666,7 +636,7 @@
     {
       "dsp": "56_tem_17.dsp",
       "album": "Tempest 3000",
-      "album_order": 16,
+      "album_order": 15,
       "sha256": "7717db0a55ccb5d9e383980cabcc5e09a3c0d6ef68f3bbd2bd3508eeafee0d2f",
       "bytes": 7372910,
       "samples": 12902424,
@@ -754,8 +724,7 @@
     ],
     "Tempest 3000": [
       "40_tem_01.dsp",
-      "41_tem_02.dsp",
-      "42_tem_03.dsp",
+      "00_thermalresolution.dsp",
       "09_ultrayak.dsp",
       "04_constructivedemolition.dsp",
       "07_hyperprism.dsp",

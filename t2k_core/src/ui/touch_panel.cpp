@@ -145,9 +145,14 @@ void neonLine(float x0, float y0, float x1, float y1,
 //   album row  avail 0.925 -> 25 bytes (was 23)
 //   flat list  avail 1.100 -> 30 bytes (was 28)
 //   header     avail 1.225 -> 33 bytes (was 31)
-// Going lower is still not on the table. The strings that clip even now are 26-34
-// bytes and the longest needs sx 0.0188 -- 5.7 px -- which is not text, and no
-// amount of floor-moving reaches it; only shorter titles or a wider column do.
+// Going lower is still not on the table. Since the 2026-10-12 title shortenings and
+// the U+2019 -> U+0027 apostrophe fold, no title in t2k_core/data/track_titles.json
+// clips any of these surfaces -- the longest is 20 bytes -- so the only strings the
+// floor can still be asked to fit whole are stem fallbacks, and the longest pool
+// stem is 25: "NN " + 25 = 28 on the album row needs sx 0.0228 -- 7.4 px -- which
+// is under the floor and still not text, and no amount of floor-moving reaches it;
+// only shorter stems or a wider column do. That fallback case is why the truncation
+// guard stays.
 constexpr float NAME_SX_MIN = SMALL_SY * ROW_SX / ROW_SY;
 
 // Fit a name into `avail`; returns the scale to DRAW it at.
@@ -396,14 +401,17 @@ void TouchPanel::render(int paletteLevel, int timeMs, const AudioFeatures& audio
                                                : (CAPTION_X - CAPTION_PAD - ROW_X);
         // Worst case a row label ever holds, across every view:
         //   top view    -- the longest track-list name, "Album: Tempest 2000 MOD"
-        //                  (23) or a 30-byte title (see below);
-        //   album view  -- "NN " + the longest title in
-        //                  t2k_core/data/track_titles.json, "Thermal Resolution
-        //                  (T3 edit 2)" = 30 bytes -> 3 + 30 = 33, +NUL = 34.
-        //                  An untitled file falls back to its stem (<= 25)
-        //                  through the display accessor, so the number still
-        //                  prints and the row does not read as broken.
-        // 40 covers both with 6 bytes of headroom over today's data -- titles
+        //                  (23), a title, or a stem fallback (see below);
+        //   album view  -- "NN " + the longest string the display accessor can
+        //                  return. The longest title in
+        //                  t2k_core/data/track_titles.json is now 20 bytes
+        //                  ("Gardening By Numbers" / "Digital Terror <Mod>",
+        //                  tied) -> 3 + 20 = 23, +NUL = 24;
+        //                  an untitled file falls back to its stem (<= 25) ->
+        //                  3 + 25 = 28, +NUL = 29, now the worst case because the
+        //                  longest stem (25) exceeds the longest title (20). The
+        //                  number still prints either way and the row reads whole.
+        // 40 covers both with 11 bytes of headroom over today's data -- titles
         // are hand-authored and can grow, so this is the worst case, not this
         // month's longest. fitName caps at cap-1 regardless, so a longer title
         // truncates rather than overflows.

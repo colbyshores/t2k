@@ -118,11 +118,13 @@ constexpr int TOTAL_LEVELS = 100;   // levels(), and the level counter's cap
 // identity — saved selection persists config.soundtrack_name, which is written
 // from track_name(), NOT from here.
 //
-// 64 bytes is ample: the longest title in t2k_core/data/track_titles.json is 30
-// bytes ("Thermal Resolution (T3 edit 2)"), the runner-up is 29 ("Constructive
-// Demolition <Mod>"), and the longest stem is 25 -- 33 bytes of headroom over
-// today's data, kept because titles are hand-authored and can grow. The snprintf
-// can only truncate a hand-authored title over 63 chars.
+// 64 bytes is ample: the longest title in t2k_core/data/track_titles.json is 20
+// bytes ("Gardening By Numbers" / "Digital Terror <Mod>", tied), the runner-up is
+// 19 ("Space Is Everything" / "Wandering The Halls" / "Glide Control <Mod>"), and
+// the longest stem is 25 -- so the worst display string this buffer holds is still
+// a 25-byte stem, 38 bytes of headroom over today's data (snprintf caps at 63
+// chars before the NUL, 63 - 25 = 38), kept because titles are hand-authored and
+// can grow. The snprintf can only truncate a hand-authored title over 63 chars.
 char s_nowPlaying[64] = "";
 
 // ---- Async request slots -------------------------------------------------

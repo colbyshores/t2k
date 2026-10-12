@@ -73,12 +73,18 @@ constexpr const char* BIND_NONE   = "<unbound>";
 // Widest a row may be is the SCREEN itself. Rows are centred at cx and the
 // full-screen path has no box to grow -- the pause overlay measures and grows its
 // own (see renderOverlay / pauseBoxHalfWidth) -- so anything wider simply runs
-// off both edges. Track titles made that reachable: the longest is 30 bytes
-// ("Thermal Resolution (T3 edit 2)"), so "Soundtrack  " + it is 42 characters,
-// and the Album row's ordinal pushes "Album  " + that title + " 19/19" to 43,
-// where a row carries 39 at ts 0.024 and only 33 at the 0.028 the desktop options
-// screen uses (fewer rows -> bigger text). It was already reachable with a bare
-// 25-char stem at 0.028; titles just made it the common case.
+// off both edges. Track titles made that reachable: the longest is now 20 bytes
+// ("Gardening By Numbers" / "Digital Terror <Mod>", tied), so "Soundtrack  " + it
+// is 32 characters, and the Album row's ordinal pushes "Album  " + that title +
+// " 27/27" to 33 (the widest ordinal in the tree is 5 characters -- Tempest 4000
+// reaches "27/27" -- so the total is the same whichever album is the worst), where
+// a row carries 39 at ts 0.024 and only 33 at the 0.028 the desktop options screen
+// uses (fewer rows -> bigger text). At 0.024 the longest title fits both rows (32
+// and 33 under 39), and at 0.028 it now fits them too (32 and 33 against 33 -- the
+// Album row exactly). What still overflows at 0.028 is a bare 25-char stem, which
+// is what the cap is for now: the Soundtrack row leaves a value 21 and the Album
+// row 26 once the label and the ordinal have taken their room, and 25 beats both.
+// The cap stays, and titles are hand-authored data that can grow back past 39.
 //
 // Truncate the VALUE (never the label -- the label is what the row IS) to what
 // the label leaves, and mark the cut with two dots so it reads as truncation and
@@ -96,9 +102,11 @@ void capRowValue(char* val, const char* label, float adv) {
     const int room = maxRow - (int)std::strlen(label) - 2;    // the "  " between
     if ((int)std::strlen(val) <= room) return;
     if (room < 3) { val[0] = '\0'; return; }                  // label alone fills the row
-    // Cut on a CHARACTER boundary: a title can carry a multi-byte UTF-8 sequence
-    // ("Mind\u2019s Eye"), and splitting one mid-sequence draws mojibake where a
-    // truncation was meant.
+    // Cut on a CHARACTER boundary: a title CAN carry a multi-byte UTF-8 sequence,
+    // and splitting one mid-sequence draws mojibake where a truncation was meant.
+    // No committed title does today -- the one that did ("Mind's Eye", U+2019) was
+    // folded to ASCII on 2026-10-12 because the vector font has no glyph for it --
+    // but titles are hand-authored data, so the guard is not hypothetical.
     int cut = room - 2;
     while (cut > 0 && (((unsigned char)val[cut]) & 0xC0) == 0x80) --cut;
     val[cut] = '.'; val[cut + 1] = '.'; val[cut + 2] = '\0';
@@ -645,8 +653,8 @@ void Menu::drawRows(TsRenderer, int frame, int scr, float cx, float rowsY,
     int sel = sel_[depth_ - 1];
     int cnt = counts_[scr];
     float y = rowsY;
-    // 48: the longest value is a 30-byte title plus its " t/N" ordinal
-    // ("Thermal Resolution (T3 edit 2) 19/19" = 36, +NUL = 37). The 11 bytes
+    // 48: the longest value is a 20-byte title plus its " t/N" ordinal
+    // ("Gardening By Numbers 27/27" = 26, +NUL = 27). The 21 bytes
     // left over are headroom, not slack to reclaim: titles are hand-authored
     // data that can grow, and this is sized for the worst case, not today's.
     char val[48], line[96];
