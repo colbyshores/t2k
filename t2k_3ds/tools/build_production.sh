@@ -13,9 +13,14 @@
 # What "deterministic" means here, precisely: same commit + same music pool ->
 # byte-identical inputs to makerom/bannertool every time, because this script
 # ALWAYS starts from `make -C t2k_3ds clean` (DOCTRINE.md already warns that a
-# stale .o can link green after a rename) and refuses to run on a dirty tree
-# or a detached-unclear HEAD, so the resulting .cia can always be traced back
-# to one exact commit. It does NOT claim reproducible-builds-project bit
+# stale .o can link green after a rename) and refuses to run on a dirty tree --
+# any tracked change, or any untracked file inside a build root (step 1 gives
+# the exact, path-scoped definition) -- so the resulting .cia can always be
+# traced back to one exact commit. A detached HEAD is NOT refused: the build
+# proceeds and the log records branch=HEAD, which is the operator's cue to
+# resolve the ref before a handoff (there is no detached-HEAD check here, and
+# adding one would block legitimate detached-checkout builds). It does NOT
+# claim reproducible-builds-project bit
 # reproducibility (timestamps, embedded paths and makerom's own nonces are not
 # pinned) -- it claims traceability and a fixed procedure, which is what a
 # handoff actually needs.
@@ -35,9 +40,102 @@ fail() { printf '[build-production] FAIL: %s\n' "$1" >&2; exit 1; }
 # deterministic, whatever the bytes look like. This is the same discipline
 # the boot-log build stamp exists for (DOCTRINE.md "Which build is the
 # console running?") -- pushed one step earlier, before the build even starts.
-if [[ -n "$(git status --porcelain)" ]]; then
+#
+# "Dirty" is defined in TWO parts and is deliberately NARROWER than a plain
+# `git status --porcelain`, which counted every untracked scratch file as dirty
+# and so blocked every release build on a local note or a QR png:
+#
+#   (a) TRACKED changes, staged or unstaged, are a hard fail -- a modified
+#       tracked file means the artifact corresponds to no commit. This is the
+#       ONLY use of --untracked-files=no, and only for this tracked-only
+#       question.
+#
+#   (b) UNTRACKED files are path-scoped, NOT blanket-ignored. The Makefile
+#       collects sources with $(wildcard) over $(CORESRC) and $(SRCDIR)
+#       (t2k_3ds/Makefile:64-69) and stage_romfs.sh stages a raw directory glob
+#       of the music pool (t2k_3ds/tools/stage_romfs.sh), so an untracked .cpp
+#       under a source root is COMPILED INTO t2k.elf and an untracked pool file
+#       ships as romfs bytes -- a green, sha256'd, logged CIA that cannot be
+#       traced to a commit. So untracked files INSIDE a build root are a hard
+#       fail; untracked files OUTSIDE them are a warning the operator still sees.
+#
+# NB this "dirty" is intentionally NOT the same definition as
+# t2k_core/tools/gen_build_rev.py:14, which stamps the running binary with
+# `git status --porcelain --untracked-files=no` (tracked-only). The two disagree
+# on untracked files ON PURPOSE and the disagreement is silent by design: the
+# in-binary stamp is a provenance hint that must not flip on local scratch,
+# while this gate is a release precondition that must not let untracked BUILD
+# INPUTS ship. Do not "unify" them -- unifying toward the stamp would reopen the
+# exact hole this gate exists to close.
+
+# (a) tracked changes -- staged or unstaged -- are fatal.
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
     fail "working tree is dirty -- commit or stash before a production build.
 $(git status --short)"
+fi
+
+# (b) untracked files -- path-scoped. BUILD_ROOTS are directories whose contents
+# are globbed into t2k.elf or staged into the romfs, expressed repo-root-relative
+# (we cd "$ROOT" above) and matched as PATH PREFIXES, not substrings. They mirror
+# the Makefile's source globs (t2k_3ds/Makefile:64-69: $(CORESRC)=../t2k_core/src,
+# $(SRCDIR)=./src) and stage_romfs.sh's pool glob; t2k_3ds/cia/ holds the
+# packaged banner, icon, rsf and default_config.json.
+BUILD_ROOTS=(
+    "t2k_core/src/"
+    "t2k_3ds/src/"
+    "t2k_3ds/cia/"
+)
+# The music pool is a build input too (stage_romfs.sh copies "$POOL"/*.dsp,
+# *.mod, albums.json). Its DEFAULT location data/music/ is gitignored, so git
+# never reports files there and this git-based scan cannot see it -- that pool is
+# guarded by gen_albums.py --require-named (step 3b), not by this gate. We still
+# add the pool as a prefix so a pool pointed at a location git CAN see (a
+# non-ignored path inside the repo) is covered.
+POOL="${T2K_MUSIC_POOL:-$ROOT/data/music}"
+if [[ "$POOL" != "none" ]]; then
+    case "$POOL" in
+        "$ROOT"/*) BUILD_ROOTS+=("${POOL#"$ROOT"/}/") ;;  # absolute pool inside the repo
+        ./*)       BUILD_ROOTS+=("${POOL#./}/") ;;        # already repo-relative
+        /*)        : ;;                                   # absolute pool outside the repo: invisible to git
+        *)         BUILD_ROOTS+=("$POOL/") ;;             # bare relative pool
+    esac
+fi
+
+# git ls-files respects .gitignore (--exclude-standard), so ignored files stay
+# invisible -- the repo's existing convention (see the .nfs* note in .gitignore,
+# which names this script). --full-name pins paths to repo-root-relative
+# regardless of cwd; mapfile keeps a path with a space (e.g. "todo bug fixes")
+# in a single element.
+mapfile -t UNTRACKED < <(git ls-files --others --exclude-standard --full-name)
+DANGEROUS=()
+SCRATCH=()
+if (( ${#UNTRACKED[@]} )); then
+    for path in "${UNTRACKED[@]}"; do
+        hit=0
+        for root in "${BUILD_ROOTS[@]}"; do
+            if [[ "$path" == "$root"* ]]; then hit=1; break; fi
+        done
+        if (( hit )); then DANGEROUS+=("$path"); else SCRATCH+=("$path"); fi
+    done
+fi
+
+if (( ${#DANGEROUS[@]} )); then
+    printf '[build-production] FAIL: untracked files sit inside a build root. These are globbed\n' >&2
+    printf '[build-production]        into t2k.elf (Makefile $(wildcard) over src/) or staged into\n' >&2
+    printf '[build-production]        the romfs (stage_romfs.sh pool glob), so they would ship in a\n' >&2
+    printf '[build-production]        verified, hashed CIA that cannot be traced to a commit:\n' >&2
+    for path in "${DANGEROUS[@]}"; do printf '[build-production]   %s\n' "$path" >&2; done
+    printf '[build-production]        commit them, or move them out of t2k_core/src, t2k_3ds/src,\n' >&2
+    printf '[build-production]        t2k_3ds/cia, or the music pool.\n' >&2
+    exit 1
+fi
+
+if (( ${#SCRATCH[@]} )); then
+    log "untracked files present but OUTSIDE the build inputs -- checked and found not"
+    log "        compiled or packaged, so they do not block the build:"
+    for path in "${SCRATCH[@]}"; do log "  $path"; done
+    log "  (note: data/music/ is gitignored and guarded by gen_albums.py --require-named,"
+    log "         not by this gate -- see step 3b)"
 fi
 GIT_REV="$(git rev-parse --short HEAD)"
 GIT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
