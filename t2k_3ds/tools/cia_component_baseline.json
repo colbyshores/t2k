@@ -28,7 +28,7 @@
       "bytes": 3697012,
       "kind": "file",
       "path": "/mnt/nas/Development/t2k/t2k_3ds/t2k.elf",
-      "sha256": "b8feb753064fb00c2599f5e4c9a3121c18097a97a4b03725c6c89ad792e99c22"
+      "sha256": "728481f2f667b146386baaae9f8298a4c9d6f1ab2d9ffa170f248b7990396c79"
     },
     "t2k.smdh": {
       "bytes": 14016,
@@ -39,17 +39,17 @@
   },
   "informational": {
     "cia_bytes": 233702336,
-    "cia_sha256": "bc59f455c9112812088faec6eceb304de3784eab746e9db330f992def071010c",
+    "cia_sha256": "a699bc0cd91e299d8301e129989937d69adc238fed48f0e7789178519862f769",
     "note": "INFORMATIONAL ONLY -- NOT AN EQUALITY TARGET. makerom seeds rand() from time(0) (utils.c:160 -> ticket ID cia.c:191, content IDs cia.c:217/416/580) and fills the romfs from an unsorted readdir() (romfs_fs.c:64,73), so two correct builds of identical inputs get different .cia bytes. Compare the components and the canonical romfs hash instead."
   },
   "metadata": {
-    "built_from": "working tree at the git_head commit PLUS uncommitted changes: t2k_3ds/Makefile (-ffile-prefix-map=$(REPO_ROOT)=/build), root Makefile (comment fix), t2k_3ds/tools/get_cia_tools.sh (pin self-heal), soundtracks/download.py + soundtracks/README.md (fetch verification work). No commit was made for this build; the production dirty-tree gate was satisfied by temporarily suppressing git status output (assume-unchanged + status.showUntrackedFiles), both reverted immediately after.",
-    "built_utc": "2026-10-12T00:40:12Z",
+    "built_from": "29a309253d572de8f3d8a0ef35299292507dc4cd (29a30925) on master, working tree clean: `git status --porcelain` was empty before the build and `t2k_3ds/tools/build_production.sh` passed its own dirty-tree check without suppression of any kind. This record replaces an earlier one that claimed built_from 81797eb3 while uncommitted changes were present; that claim was false and this one is not.",
+    "built_utc": "2026-10-12T00:51:45Z",
     "components_note": "t2k.3dsx is recorded MISSING on purpose: `make production` builds the cia target, which never produces the .3dsx. A build that also runs `make 3ds` will report it and MISMATCH against this baseline until the baseline is regenerated from a tree that built it.",
-    "elf_note": "THE t2k.elf HASH DIFFERS FROM ANY PREVIOUSLY SHIPPED BUILD: the uncommitted -ffile-prefix-map=$(REPO_ROOT)=/build flag rewrites the __FILE__ path baked into the binary by nlohmann's JSON_ASSERT (t2k_core/third_party/nlohmann/json.hpp), which is exactly what makes the .elf path-neutral across clones. Regenerate this baseline whenever that flag or the toolchain changes; do not 'fix' a mismatch by dropping the flag.",
+    "elf_note": "t2k.elf embeds TWO things that make its hash move: the -ffile-prefix-map=$(REPO_ROOT)=/build flag (t2k_3ds/Makefile), which rewrote the __FILE__ path baked in by nlohmann's JSON_ASSERT and is what makes the .elf path-neutral across clones, and T2K_BUILD_REV / T2K_BUILD_DATE from build/build_rev.h, which stamp the git rev into the binary by design (t2k_3ds/Makefile:313-322). The second means the .elf component of a baseline is only equal for builds made AT THIS COMMIT; every other component (banner.cgfx, banner.bnr, t2k.smdh, the canonical romfs) is commit-independent and must match across commits. Do not 'fix' an .elf mismatch by dropping the prefix-map flag.",
     "equality": "Components are the equality target. The .cia sha256 under informational is NOT one: makerom seeds rand() from time(0) (ticket/content IDs) and walks the romfs with an unsorted readdir(), so correct builds of identical inputs get different .cia bytes by design.",
     "git_branch": "master",
-    "git_head": "81797eb3ae4c994fcaad88ba05a60ea210c65c81",
+    "git_head": "29a309253d572de8f3d8a0ef35299292507dc4cd",
     "toolchain": {
       "arm-none-eabi-gcc": "15.2.0",
       "banner-venv": "gltflib 1.0.13, pillow 12.3.0, numpy 2.5.3",
@@ -61,7 +61,7 @@
       "ffmpeg": "6.1.1-3ubuntu5",
       "glibc": "2.39",
       "host-gcc": "13.3.0",
-      "libctru": "2.7.0",
+      "libctru": "2.7.0-1",
       "libswresample": "4.12.100",
       "make": "4.3",
       "makerom": "0.19.0 @ d52c2b0e788c2d085763d7c5dcc4b2edd9ffb7d8",
@@ -69,7 +69,8 @@
       "os": "Pop!_OS 24.04 x86_64",
       "pycgfx": "1f78850086f3a77c41e07162e842f97a5bf3c18a",
       "python": "3.13.2"
-    }
+    },
+    "written_by": "python3 t2k_3ds/tools/cia_component_hashes.py --manifest, then this metadata block"
   },
   "schema": "t2k-cia-components/1"
 }
