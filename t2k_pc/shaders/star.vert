@@ -42,7 +42,9 @@ void main() {
 
     const int v = gl_ViewIndex;
     const vec3 wp = vec3(inStar.xy * pc.a.x, inStar.z + pc.a.y);
-    const vec4 cp = u.viewProj[v] * vec4(wp, 1.0);
+    // starViewProj, not viewProj: the starfield is projected through a view with no
+    // death spiral, so losing a life pulls the web away and leaves the backdrop alone.
+    const vec4 cp = u.starViewProj[v] * vec4(wp, 1.0);
     if (cp.w < 1e-4) { cull(); return; }
     const vec3 nd = cp.xyz / cp.w;
     if (abs(nd.x) > 1.25 || abs(nd.y) > 1.25) { cull(); return; }

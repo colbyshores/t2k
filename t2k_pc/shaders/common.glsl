@@ -26,6 +26,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock {
     mat4 proj[2];
     mat4 view[2];
     mat4 viewProj[2];
+    mat4 starViewProj[2]; // viewProj without the death spiral (star.vert only)
     mat4 uiProj[2];
     vec4 viewport;    // x = width px, y = height px, z = 1/w, w = 1/h
     vec4 fog;         // x = FOG_START, y = 1/(FOG_END-FOG_START), z,w unused

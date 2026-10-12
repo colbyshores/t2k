@@ -98,7 +98,15 @@ static glm::mat4 uiPlaneMatrix() {
 
 // The game's VIEW law, identical on both existing backends (GL translateWorld
 // / C3D buildView): multiplier wobble, game-over spiral, then the eye.
-static glm::mat4 viewMatrix(const GameEngine& e) {
+//
+// includeSpiral == false is the starfield's copy of the law: the same wobble and
+// the same eye with the death spiral left out, so a life loss pulls the web away
+// under a backdrop that stays put (the 3DS twin is buildView's `starView` out-param
+// in renderer_c3d's 04_setup.inc). NB the spiral here has NO `lives >= 0` gate,
+// unlike the 3DS one -- a pre-existing divergence in the PLAYFIELD spiral that this
+// does not touch. For the stars it no longer matters: they never take the spiral on
+// either target now, which is the parity the 3DS already had.
+static glm::mat4 viewMatrix(const GameEngine& e, bool includeSpiral = true) {
     glm::mat4 v(1.0f);
     const float PI = 3.14159265358979f;
     if (e.player.multiplier < 1.125f) {
@@ -112,7 +120,7 @@ static glm::mat4 viewMatrix(const GameEngine& e) {
                         * amp * amp * 60.0f;
         v = glm::rotate(v, glm::radians(ang), glm::vec3(0.1f, 0.1f, 1.0f));
     }
-    if (e.player.gameover_animation > 10) {
+    if (includeSpiral && e.player.gameover_animation > 10) {
         const float g = (e.player.gameover_animation - 10) * 0.01f;
         const float s = g * g;
         v = glm::scale(v, glm::vec3(1.0f - s * 0.25f, 1.0f - s * 0.25f, 1.0f + s));
@@ -466,10 +474,11 @@ void fillUbo(Renderer& r, const GameEngine* e) {
     FrameUBO& u = r.ubo;
     const float aspect = (float)r.width / (float)(r.height > 0 ? r.height : 1);
     float fov = tscam::FOV_Y_DEG;
-    glm::mat4 view(1.0f);
+    glm::mat4 view(1.0f), starView(1.0f);
     if (e) {
         if (e->fov_deg > 1.0f) fov = e->fov_deg;
         view = viewMatrix(*e);
+        starView = viewMatrix(*e, false);   // spiral-free: the starfield's view
     }
     const glm::mat4 proj = perspectiveVk(fov, aspect, 1.0f, 50.0f);
     const glm::mat4 ui = orthoUiVk();
@@ -492,11 +501,13 @@ void fillUbo(Renderer& r, const GameEngine* e) {
             u.proj[v] = r.rigs[v].proj;
             u.view[v] = r.rigs[v].pose * view;
             u.viewProj[v] = u.proj[v] * u.view[v];
+            u.starViewProj[v] = u.proj[v] * (r.rigs[v].pose * starView);
             u.uiProj[v] = r.rigs[v].proj * r.rigs[v].pose * plane;
         } else {
             u.proj[v] = proj;
             u.view[v] = view;
             u.viewProj[v] = proj * view;
+            u.starViewProj[v] = proj * starView;
             u.uiProj[v] = ui;
         }
     }

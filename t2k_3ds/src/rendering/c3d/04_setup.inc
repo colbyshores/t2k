@@ -540,7 +540,11 @@ static void buildGridStatic(ts::GameEngine& engine, GridStaticVert* out) {
 // Rebuild the view matrix from engine camera state — a C3D_Mtx port of
 // RendererGL46::translateWorld. Right-multiply (bRight=true) matches glm's
 // post-multiply accumulation, so the transform order is identical.
-void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view) {
+// `starView` (optional) receives the SAME view with the death spiral left out;
+// see the starfield note where the spiral is applied. Null for every caller that
+// has no starfield to keep still.
+void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view,
+               C3D_Mtx* starView = nullptr) {
     auto& p = engine.player;
 
     // EXE-VERIFIED (FUN_0040dbb0 = TranslateWorld). All three
@@ -566,6 +570,13 @@ void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view) {
                   * (amp * amp) * 60.0f;
         Mtx_Rotate(view, FVec3_New(0.1f, 0.1f, 1.0f), deg * ((float)M_PI / 180.0f), true);
     }
+
+    // THE STARFIELD VIEW. Snapshot BEFORE the spiral, so the starfield can be
+    // projected through a view that never had it (08_frame.inc derives the star
+    // MVPs from this). The spiral is a punishment on the PLAYFIELD, not on the
+    // room the playfield sits in. With the gate below closed the two matrices are
+    // byte-identical, so nothing about an ordinary frame changes at all.
+    if (starView) *starView = *view;
 
     // Gameover spiral (ref build:1682-1686): gate >10, s=sqr((ga-10)*0.01),
     // scale(1-s*0.25, 1-s*0.25, 1+s), rotate sin((ga-10)*pi*0.0075)*120 about (0.1,0.1,1).
@@ -604,6 +615,9 @@ void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view) {
     // were finally deleted from 01_constants.inc on 2026-09-09.
     const ts::Vec3 eye = ts::camera_eye(engine);
     Mtx_Translate(view, -eye.x, -eye.y, -eye.z, true);
+    // The spiral-free twin rides the same eye: it differs from `view` by the
+    // spiral and by nothing else.
+    if (starView) Mtx_Translate(starView, -eye.x, -eye.y, -eye.z, true);
 
     // Level-entry zoom (ref build:1692-1701, reference binary FUN_0040dbb0): starts as a distant point
     // and GROWS. ia = init_animation-50 runs 200 -> 0 as the counter decays 250 -> 50.

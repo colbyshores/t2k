@@ -51,8 +51,12 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
 
     // View matrix first — needed for fog (CPU path per-vertex, or the vrow uniform
     // on the wave path) and by the entity/line passes below.
-    C3D_Mtx view, mvp;
-    buildView(r, engine, &view);
+    // `starView` is `view` without the death spiral (see buildView): the playfield
+    // pulls away on a life loss, the starfield stays put. Identical to `view`
+    // whenever the spiral is not firing, i.e. every frame that is not a survivable
+    // death dive -- including the whole GAME OVER screen.
+    C3D_Mtx view, starView, mvp;
+    buildView(r, engine, &view, &starView);
 
     if (r->gridWaveReady) {
         // WAVE PATH: the base mesh is static (rebuilt only on a level/ring change);
@@ -375,6 +379,16 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
     float slider = osGet3DSliderState();
     bool stereo = (r->targetR != nullptr) && (slider > 0.001f);
     C3D_Mtx gridMvpL = mvp, gridMvpR = mvp;
+    // The starfield's own pair: the SAME projections over the spiral-free view, so
+    // the stars keep their place while the web recedes. These are byte-identical to
+    // gridMvpL/gridMvpR except during a survivable death dive (the spiral's gate is
+    // `gameover_animation > 10 && lives >= 0`), and they recouple on their own: the
+    // new life's init_level zeroes gameover_animation, the spiral stops, and the two
+    // pairs are the same matrix again. No timer, no state, no extra frame work --
+    // three matrix multiplies outside the star emit loop.
+    C3D_Mtx starMvpL, starMvpR;
+    Mtx_Multiply(&starMvpL, &r->projection, &starView);
+    starMvpR = starMvpL;
     if (stereo) {
         C3D_Mtx pL, pR;
         const float iod = slider * STEREO_MAX_IOD;
@@ -385,6 +399,8 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
                             1.0f, 50.0f,  iod, STEREO_SCREEN, false);
         Mtx_Multiply(&gridMvpL, &pL, &view);
         Mtx_Multiply(&gridMvpR, &pR, &view);
+        Mtx_Multiply(&starMvpL, &pL, &starView);
+        Mtx_Multiply(&starMvpR, &pR, &starView);
     }
 
     // ---- Entity pass BUILD (player + enemies): the already-batched per-face
@@ -926,7 +942,7 @@ void ts_render_frame(TsRenderer rr, ts::GameEngine& engine) {
     const u64 _perf_fxBonus = perfTick();   // fx split: after build_Bonus
 
     // ---- Background BUILD (behind the grid): the starfield. ----------------
-    build_Stars(r, engine, gridMvpL, gridMvpR, stereo, p);
+    build_Stars(r, engine, starMvpL, starMvpR, stereo, p);
     const u64 _perf_fxStars = perfTick();   // fx split: after build_Stars
 
     // ---- GAME OVER wordmark BUILD (the spiral is gone -- the screen is the

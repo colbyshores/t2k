@@ -101,8 +101,15 @@ namespace {
 // so the background had zero parallax and sat pinned at screen depth while the
 // tube had full depth; with the 3D slider up that reads as a flat backdrop
 // behind a deep tube. Same fix, and same shape, as the line entities.
+// starMvpL / starMvpR are the frame's projections over a view WITHOUT the
+// death spiral (04_setup.inc buildView), which is the whole point: the web and
+// everything on it pull away when a life is lost and the starfield does not.
+// They are the same matrices the rest of the frame uses on every other frame,
+// so this is a no-op swap outside the emit loop -- no per-star predicate, no
+// extra work per star, and nothing here changes at GAME OVER, where the spiral
+// is already suppressed.
 void build_Stars(RendererC3D* r, ts::GameEngine& engine,
-                 const C3D_Mtx& gridMvpL, const C3D_Mtx& gridMvpR,
+                 const C3D_Mtx& starMvpL, const C3D_Mtx& starMvpR,
                  bool stereo, int p) {
     r->starCount[p][0] = r->starCount[p][1] = 0;
     r->starChamberCount[p][0] = r->starChamberCount[p][1] = 0;
@@ -570,7 +577,7 @@ void build_Stars(RendererC3D* r, ts::GameEngine& engine,
     const int nEyes = stereo ? 2 : 1;
     /* @vfp-exempt R3 — Eye loop. measured n/a. Verified 2026-09-06. */
     for (int eye = 0; eye < nEyes; ++eye) {
-        const glm::mat4 PV = c3dToGlm(eye ? gridMvpR : gridMvpL);
+        const glm::mat4 PV = c3dToGlm(eye ? starMvpR : starMvpL);
         const int vbase = eye * STAR_EYE_REGION;
         int vtop = 0;
         if (blendingThisFrame) {

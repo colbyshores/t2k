@@ -117,6 +117,10 @@ struct FrameUBO {
     glm::mat4 proj[MAX_VIEWS];
     glm::mat4 view[MAX_VIEWS];
     glm::mat4 viewProj[MAX_VIEWS];
+    // The starfield's view-projection, built from a view WITHOUT the death spiral,
+    // so the stars hold their place while the web pulls away on a life loss. Equal to
+    // viewProj whenever the spiral is not firing. star.vert is its only reader.
+    glm::mat4 starViewProj[MAX_VIEWS];
     glm::mat4 uiProj[MAX_VIEWS];
     glm::vec4 viewport;
     glm::vec4 fog;
