@@ -36,23 +36,39 @@ inline uint32_t course_seed(int roundType, int playCount) {
 
 // ---- tuning constants (documented per the stage-1 contract) -----------------
 // GATES flight. Horizontal is the player's axis (left/right seam input):
-// accel 0.14/frame², friction 0.95 on velocity, cap ±2.0 units/frame — at the
+// accel 0.14/frame², friction 0.93 on velocity, cap ±2.0 units/frame — at the
 // reference-pace 8-tick gate spacing (256 z-units / 1.333 z-per-frame = 192
 // frames) that reaches well past the ±64 gate lattice between gates, which is
 // the reference FEEL: always reachable, never trivial (the course generator
 // tightens late-course gaps to keep it honest). Vertical authority is
 // ±1.0 unit/frame (half the horizontal, "vertical stronger than horizontal"
 // refers to the reference's impulses, which overshoot the stick clamp while
-// coasting: an impulse sets |vel| above the cap and friction 0.985 lets it
-// carry ~100+ units before control resumes).
+// coasting: an impulse sets |vel| above the cap and friction 0.975 lets a
+// ceiling kick carry ~175 units before control resumes).
 constexpr float H_ACC  = 0.14f;
-constexpr float H_FRIC = 0.95f;
+// Lateral friction, tightened 2026-10-12 (user: the GATES movement is too
+// slippery; BOTH axes, ALL GATES rounds — the shared model was chosen over a
+// round-1 seam, round 1 is not special). Measured coast from a full-stick
+// release at v0 = H_CAP: 0.95 carried 38.0 units and took 0.72 s to fall to 10%
+// of v0; 0.93 carries 26.6 units in 0.51 s — a 30.1% cut. H_ACC and H_CAP are
+// untouched: less slide was asked for, not a slower round. NB the stick terminal
+// velocity H_ACC*H_FRIC/(1-H_FRIC) is now 1.86, below the ±2.0 cap, so H_CAP is
+// no longer reached by stick input alone; it stays as the clamp it is.
+constexpr float H_FRIC = 0.93f;
 constexpr float H_CAP  = 2.0f;
 constexpr float H_POS_MAX = 96.0f;   // soft wall past the ±64 gate lattice
 
 constexpr float V_CAP     = 1.0f;
 constexpr float V_ACC     = 0.12f;   // stick slew per frame
-constexpr float V_FRIC    = 0.985f;  // coast decay while impulse-overshooting
+// Vertical friction, tightened with H_FRIC on the same 2026-10-12 decision and
+// for the same reason — this is the axis that actually read as slippery. Measured
+// coast from a full-stick release at v0 = V_CAP: 0.985 carried 65.7 units and
+// took 2.44 s to 10% of v0; 0.975 carries 39.0 units in 1.46 s — a 40.6% cut.
+// V_CAP / V_ACC / the impulse bounds are untouched. coast_sum() is the closed
+// form of THIS decay and re-derives itself; h_reach()/v_reach() are empirical
+// fits and were re-fitted by hand (see them). Winnability of every generated
+// course is proven by t2k_core/tools/warp_winnability_check.sh.
+constexpr float V_FRIC    = 0.975f;  // coast decay while impulse-overshooting
 // Impulse-gate vertical kick: solved from the altitude delta the course
 // actually asks for and the frames available before the next gate (measured:
 // a fixed kick either flew 60+ units past small clusters or fell short of big
@@ -73,16 +89,29 @@ inline float coast_sum(float n) {
 
 // Horizontal distance reachable from a STANDING START in n frames with the
 // real H_ACC/H_FRIC/H_CAP kinematics (arriving hot — the catch box tests
-// position only). Fitted against the exact per-frame integration: quadratic
-// through the accel ramp, linear once the cap is reached (~28 frames).
+// position only). Fitted against the exact per-frame integration, and RE-DERIVED
+// by hand for H_FRIC = 0.93 (2026-10-12): the ramp no longer reaches the cap
+// (stick terminal is 1.86), so the tail is a saturating approach to it rather
+// than the old linear capped run. Verified by integrating the shipped loop frame
+// by frame: the fit stays UNDER the integration for every n in 1..200 (worst
+// ratio 0.99), and is within 0.92 of it across n = 20..70 — the range where the
+// caller's lattice step count still changes — and 0.88 out to n = 192, past
+// which the caller's 4-step cap makes the exact value irrelevant. The caller's
+// steps = floor(h_reach * 0.75 / 16) never increments earlier than the exact
+// integration would allow (steps>=1 at n=23 both, >=2 at 36 both, >=3 at 50 vs
+// 48, >=4 at 63 vs 59), so the generator can only place gates CLOSER than the
+// physics permits, never further.
 inline float h_reach(float n) {
-    return (n <= 20.0f) ? 0.05f * n * n : 20.0f + 1.9f * (n - 20.0f);
+    return (n <= 20.0f) ? 0.045f * n * n : 17.5f + 1.6f * (n - 20.0f);
 }
 
-// Vertical stick reach over n frames: V_ACC slew to the ±1 cap (~9 frames),
-// then capped — approximately (n - 4) units for n ≥ 9.
+// Vertical stick reach over n frames: V_ACC slew to the ±1 cap (~11 frames at
+// V_FRIC 0.975), then capped — (n - 4.1) units for n >= 10. Re-derived with
+// V_FRIC on the same 2026-10-12 change: the exact integration is n - 4.071 for
+// n >= 10, so the fit stays under it, with the same ~0.1 slack the old
+// (n - 4.0) had against the old friction's n - 3.89.
 inline float v_reach(float n) {
-    float d = n - 4.0f;
+    float d = n - 4.1f;
     return d > 0.0f ? d : 0.0f;
 }
 
