@@ -7,8 +7,27 @@
 #
 #   make check                  (top-level Makefile delegates here)
 #   tools/check.sh              (run directly)
+#   tools/check.sh --strict     (release-gate mode: an INCOMPLETE gate -- one
+#                               that could not run its full check -- is a
+#                               FAILURE instead of a loud warning)
+#   tools/check.sh --help       (this header)
 #   tools/check.sh --bless-r11  (regenerate the r11 candidate baseline after
 #                               a legitimate fix or line-number shift)
+#
+# INCOMPLETE is a third answer, and it is not a pass. A gate that could not run
+# part of its check prints what it could not check and why, the run records it
+# in the summary, and the final line says NOT A FULL PASS. Exit 0 without
+# --strict (nothing was found wrong), 1 with --strict.
+#
+# ENVIRONMENT
+#   T2K_TYPHOON_WEBS   Path to the Typhoon extraction's webs/all_webs.json.
+#                      The level verifier (t2k_core/tools/verify.sh ->
+#                      verify_levels.cpp) re-derives the Tempest/Tubes
+#                      provenance rows from that file. It lives in a SIBLING
+#                      REPO, not in this clone, so a bare clone cannot find it
+#                      and the verifier exits 2 (INCOMPLETE) for those rows.
+#                      Set this for a complete run:
+#                        export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json
 #
 # Baselines: tools/runner/contracts/r11_candidates_baseline.txt
 # A change to any expected number needs an explanation -- bless deliberately.
@@ -21,6 +40,19 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 R11_BASELINE=tools/runner/contracts/r11_candidates_baseline.txt
 PIN_MIN=227  # @vfp-exempt pins: AGENTS.md -- "that count must never drop"
+
+STRICT=0
+if [ "${1:-}" = "--strict" ]; then STRICT=1; shift; fi
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+    sed -n '2,/^set -uo pipefail/p' "${BASH_SOURCE[0]}" \
+        | sed -e '/^set -uo pipefail/d' -e 's/^# \{0,1\}//'
+    exit 0
+fi
+
+# Gates that could not run their full check. Counted, named in the summary, and
+# fatal under --strict. Never silently folded into a pass.
+INCOMPLETE=0
+INCOMPLETE_LIST=""
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -93,7 +125,37 @@ bash t2k_core/tools/warp_window_check.sh > "$tmp/windows.log" 2>&1 || { tail -15
 tail -3 "$tmp/windows.log"
 
 gate "verify.sh (level data, real parser)"
-bash t2k_core/tools/verify.sh > "$tmp/verify.log" 2>&1 || { tail -15 "$tmp/verify.log"; fail "verify.sh"; }
+# THREE answers, not two. verify_levels.cpp exits:
+#   0  every row re-derived and matched
+#   1  a row is WRONG -- a data error, always fatal
+#   2  every checkable row passed, but N rows could not be re-derived because
+#      their source is absent. That source is the Typhoon extraction
+#      (webs/all_webs.json), a SIBLING repo that no clone of this repo
+#      contains -- T2K_TYPHOON_WEBS points at it. Collapsing 2 into `fail` made
+#      a bare clone unable to pass while the reference machine passed for a
+#      reason no clone could reproduce; collapsing it into a PASS would have
+#      been worse. It is INCOMPLETE: loud, named, recorded, fatal under --strict.
+bash t2k_core/tools/verify.sh > "$tmp/verify.log" 2>&1
+rc=$?
+if [ $rc -eq 2 ]; then
+    INCOMPLETE=$((INCOMPLETE + 1))
+    INCOMPLETE_LIST="$INCOMPLETE_LIST verify.sh"
+    {
+        echo "*** INCOMPLETE -- NOT A PASS ***"
+        grep -E 'typhoon source|NOT re-derived|^INCOMPLETE|Provenance bit-identity|RESULT' \
+            "$tmp/verify.log" | sed 's/^/    /'
+        echo "    what could NOT be verified: the Typhoon-provenance rows (from: tempest / tubes)"
+        echo "    why: their source, typhoon/webs/all_webs.json, is a sibling repo that is"
+        echo "         not part of this clone. Everything else in this gate DID run."
+        echo "    to make it a full pass: export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json"
+    } >&2
+    if [ "$STRICT" -eq 1 ]; then
+        fail "verify.sh reported INCOMPLETE and --strict was given"
+    fi
+elif [ $rc -ne 0 ]; then
+    tail -15 "$tmp/verify.log"
+    fail "verify.sh"
+fi
 tail -3 "$tmp/verify.log"
 
 gate "check_album_maps.py (one album map, three files -- pool-free)"
@@ -200,5 +262,13 @@ if [ $rc -ne 0 ]; then
     fail "pyflakes reported issues"
 fi
 echo "clean"
+
+if [ "$INCOMPLETE" -gt 0 ]; then
+    printf '\nCHECK: %d gate(s) INCOMPLETE: %s\n' "$INCOMPLETE" "${INCOMPLETE_LIST# }"
+    printf 'CHECK: nothing was found WRONG, but those gates did not run to completion.\n'
+    printf 'CHECK: NOT A FULL PASS (exit 0 here; --strict makes this a failure).\n'
+    printf 'CHECK: for a complete run set T2K_TYPHOON_WEBS -- see tools/check.sh --help.\n'
+    exit 0
+fi
 
 printf '\nCHECK: ALL GATES PASSED\n'

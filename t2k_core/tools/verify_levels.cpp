@@ -178,8 +178,18 @@ int main() {
     // 2 keeps the two answers distinguishable (1 = something IS wrong).
     const bool haveTyphoon = !typhoon.is_null();
     if (haveTyphoon) std::printf("typhoon source: %s\n", typhoonFrom.c_str());
-    else std::printf("typhoon source: NOT FOUND -- t2k/tubes rows will be "
-                     "SKIPPED (set T2K_TYPHOON_WEBS to re-enable)\n");
+    else {
+        // Name the remedy EXACTLY. A bare "set T2K_TYPHOON_WEBS" left every
+        // reader guessing at the variable's value, which is why the sibling-repo
+        // dependency stayed invisible: the reference machine had the file at a
+        // relative path that exists on no other clone.
+        std::printf("typhoon source: NOT FOUND -- t2k/tubes rows will be SKIPPED\n");
+        std::printf("  searched:");
+        for (const char* c : candidates)
+            if (c && *c) std::printf(" %s", c);
+        std::printf("\n  (relative paths resolve against t2k_core/, the cwd verify.sh uses)\n");
+        std::printf("  to re-enable them: export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json\n");
+    }
 
     int checkedTsunami = 0, checkedTyphoon = 0, checkedT2k = 0;
     int skippedTyphoon = 0;   // rows the missing source made uncheckable
@@ -331,9 +341,9 @@ int main() {
     //      because their source is absent. Not a pass; not a data error either.
     if (fail) return 1;
     if (skippedTyphoon) {
-        std::printf("INCOMPLETE: %d rows unverified (see above). "
-                    "Set T2K_TYPHOON_WEBS to make this a full pass.\n",
+        std::printf("INCOMPLETE: %d rows unverified (see above). NOT a pass, NOT a data error.\n",
                     skippedTyphoon);
+        std::printf("  export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json\n");
         return 2;
     }
     return 0;

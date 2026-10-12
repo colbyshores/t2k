@@ -37,6 +37,15 @@
 # is the contract there, not bytes). That is a loud WARNING with the affected
 # files listed -- not a silent pass, not a hard fail.
 #
+# The other deliberate non-fatal exit code is tools/check.sh's level verifier
+# returning 2: everything checkable passed, but some rows could not be
+# re-derived because their source is absent. check.sh prints that as INCOMPLETE
+# and exits 0; bootstrap downgrades the gates stage to WARN so the summary
+# cannot read as a clean pass. `bash tools/check.sh --strict` makes INCOMPLETE
+# fatal, which is what a release gate should use. The missing source is the
+# Typhoon extraction, a SIBLING repo no clone of this one contains; point
+# T2K_TYPHOON_WEBS at its webs/all_webs.json for a complete run.
+#
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -49,7 +58,10 @@ MANIFEST_OUT=""
 BASELINE="t2k_3ds/tools/cia_component_baseline.json"
 
 usage() {
-    sed -n '3,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    # Print the header block up to the shebang-adjacent code, not a fixed line
+    # range: a fixed range silently truncates or overshoots on every header edit.
+    sed -n '3,/^set -euo pipefail/p' "${BASH_SOURCE[0]}" \
+        | sed -e '/^set -euo pipefail/d' -e 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -90,16 +102,39 @@ fi
 declare -a RESULTS=()
 FAILED_STAGE=""
 WARNED=0
+PENDING_WARN=0   # set by a stage that passed-but-warned; consumed by run_stage
 
 run_stage() {   # run_stage <name> <fn>
     local name="$1" fn="$2" t0 rc=0 dur status
     t0=$(date +%s)
     banner "STAGE: $name"
     say "start $(date -u +%FT%TZ)"
-    "$fn" || rc=$?
+    PENDING_WARN=0
+    # WHY THIS IS NOT `"$fn" || rc=$?`.
+    #
+    # A command on the left of `||` has `set -e` switched off for its whole
+    # dynamic extent, and that includes every command inside the called
+    # function. The old form therefore did not merely hide the stage's exit
+    # code -- it made errexit inert inside the stage body, so the stage
+    # returned the status of whatever happened to run LAST. A
+    # `cia_component_hashes.py --compare` that exited 1 part-way through
+    # stage_verify was invisible: the stage ended on a successful `say`, the
+    # summary said PASS, and bootstrap exited 0 on a real component mismatch.
+    #
+    # The status is taken explicitly instead, and every stage `return`s its own
+    # status rather than relying on errexit to carry it out of the body.
+    set +e
+    "$fn"
+    rc=$?
+    set -e
     dur=$(( $(date +%s) - t0 ))
     if (( rc == 0 )); then
-        status="PASS"
+        if (( PENDING_WARN == 1 )); then
+            status="WARN"
+            WARNED=$((WARNED + 1))
+        else
+            status="PASS"
+        fi
     else
         status="FAIL"
     fi
@@ -112,11 +147,12 @@ run_stage() {   # run_stage <name> <fn>
     return 0
 }
 
-mark_warn() {   # the LAST result line was a PASS that deserves a WARN
-    local n=${#RESULTS[@]}
-    local last="${RESULTS[$((n-1))]}"
-    RESULTS[$((n-1))]="${last/|PASS|/|WARN|}"
-    WARNED=$((WARNED + 1))
+mark_warn() {   # the stage NOW RUNNING passed but deserves a WARN
+    # Must not rewrite RESULTS here: mark_warn is called from INSIDE a stage
+    # function, before run_stage has appended that stage's own row, so the old
+    # "patch the last row" form silently downgraded the PREVIOUS stage instead
+    # of the one that warned.
+    PENDING_WARN=1
 }
 
 summary() {
@@ -186,8 +222,14 @@ fingerprint() {
     mkver="$(make --version 2>/dev/null | head -1 | awk '{print $NF}')"
     cmver="$(cmake --version 2>/dev/null | head -1 | awk '{print $NF}')"
     local pydeps bannerdeps
-    pydeps="$(python3 -c 'import bs4,curl_cffi;print(f"bs4 {bs4.__version__} / curl_cffi {curl_cffi.__version__}")' 2>/dev/null || printf 'MISSING')"
-    bannerdeps="$("$ROOT/t2k_3ds/tools/.ciatools/pycgfx-venv/bin/pip" list 2>/dev/null | awk 'tolower($1)=="gltflib"{g=$2}tolower($1)=="pillow"{p=$2}tolower($1)=="numpy"{n=$2}END{if(g&&p&&n)printf "gltflib %s / pillow %s / numpy %s",g,p,n; else printf "not built yet"}' || printf 'not built yet')"
+    # Default the VALUE, never with a second `|| printf` on the pipeline. This
+    # script runs `set -o pipefail`, so a missing banner venv made the pipeline
+    # fail AND awk print its own placeholder -- the two concatenated into
+    # "not built yetnot built yet" in the table below.
+    pydeps="$(python3 -c 'import bs4,curl_cffi;print(f"bs4 {bs4.__version__} / curl_cffi {curl_cffi.__version__}")' 2>/dev/null || true)"
+    bannerdeps="$("$ROOT/t2k_3ds/tools/.ciatools/pycgfx-venv/bin/pip" list 2>/dev/null | awk 'tolower($1)=="gltflib"{g=$2}tolower($1)=="pillow"{p=$2}tolower($1)=="numpy"{n=$2}END{if(g&&p&&n)printf "gltflib %s / pillow %s / numpy %s",g,p,n}' || true)"
+    pydeps="${pydeps:-MISSING}"
+    bannerdeps="${bannerdeps:-not built yet}"
 
     banner "TOOLCHAIN FINGERPRINT (this machine vs the measured reference)"
     printf '%-18s %-34s %s\n' "TOOL" "THIS MACHINE" "REFERENCE (produced the baseline)"
@@ -263,15 +305,23 @@ stage_preflight() {
 # tools -- vendored DSP encoder, then the pinned CIA packaging tools
 # ---------------------------------------------------------------------------
 stage_tools() {
-    bash tools/build_dspadpcm.sh
-    local lines
+    local rc=0 lines
+    # Explicit status everywhere: run_stage cannot rely on errexit reaching a
+    # stage body (see the note in run_stage).
+    bash tools/build_dspadpcm.sh || return $?
     lines="$(bash t2k_3ds/tools/get_cia_tools.sh)"   # paths on stdout, noise on stderr
-    eval "$lines"
+    rc=$?
+    if (( rc != 0 )); then
+        warn "get_cia_tools.sh exited $rc -- the pinned packaging tools are not usable."
+        return "$rc"
+    fi
+    eval "$lines" || return 1
     export MAKEROM BANNERTOOL
     say "MAKEROM=$MAKEROM"
     say "BANNERTOOL=$BANNERTOOL"
     say "makerom:    $("$MAKEROM" 2>&1 | head -1)"
     say "bannertool: $("$BANNERTOOL" 2>&1 | head -1)"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -293,6 +343,7 @@ stage_fetch() {
     # byte-exact. A truncated FLAC here encodes to a wrong .dsp later, which
     # used to be survivable -- this gate is why it no longer is.
     python3 soundtracks/verify_sources.py
+    return $?
 }
 
 # ---------------------------------------------------------------------------
@@ -332,16 +383,43 @@ stage_audio() {
 }
 
 # ---------------------------------------------------------------------------
-# gates -- the repo suite, when this checkout has it
+# gates -- the repo suite. It IS tracked; see the skip condition below.
 # ---------------------------------------------------------------------------
 stage_gates() {
-    if [[ ! -d tools/runner ]]; then
-        warn "tools/runner/ is absent -- the gate suite is local-only (gitignored)."
-        warn "A bare clone has no gates to run; this is a skip, not a pass."
+    # The gate suite is TRACKED, not local-only: tools/runner/{gates_vfp,
+    # audit_arm11_math,audit_r11_idiv,audit_c_with_classes}.py plus
+    # tools/runner/contracts/ are in the index (9 files). Only the swarm
+    # scheduler, its live state and its logs under tools/runner/ are
+    # gitignored. So the old `[[ ! -d tools/runner ]]` skip could never fire on
+    # a real clone, and when it did fire it described the wrong thing. Key on
+    # the gate script itself: if THAT is absent this checkout really has no
+    # suite to run.
+    if [[ ! -f tools/runner/gates_vfp.py ]]; then
+        warn "tools/runner/gates_vfp.py is absent -- this checkout has no gate suite."
+        warn "tools/runner/ IS tracked (4 gate scripts + contracts/); only the"
+        warn "scheduler, live state and logs under it are gitignored, so a clone"
+        warn "without the gate scripts is a PARTIAL checkout. This is a skip,"
+        warn "not a pass."
         mark_warn
         return 0
     fi
-    bash tools/check.sh
+    local rc=0 marker
+    marker="$(mktemp)"
+    # tee rather than $(...) -- the suite is long and its output belongs in the
+    # log as it happens, not after it ends.
+    bash tools/check.sh 2>&1 | tee "$marker"
+    rc=${PIPESTATUS[0]}
+    if (( rc == 0 )) && grep -q 'NOT A FULL PASS' "$marker"; then
+        # check.sh exits 0 on INCOMPLETE: nothing was found wrong, but a gate
+        # did not run to completion. Loud here, and WARN in the summary -- it
+        # must never read as a clean pass.
+        warn "the gate suite exited 0 but reported INCOMPLETE -- its output above"
+        warn "names exactly what could not be verified and why."
+        warn "For a release gate that treats that as failure: bash tools/check.sh --strict"
+        mark_warn
+    fi
+    rm -f "$marker"
+    return "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -352,6 +430,7 @@ stage_cia() {
     say "16-bit stereo, the DSP-RAM exheader mapping and the SMDH identity from"
     say "the BUILT bytes, and appends to docs/validation/cia-production-builds.log."
     make production
+    return $?
 }
 
 # ---------------------------------------------------------------------------
@@ -359,7 +438,8 @@ stage_cia() {
 # ---------------------------------------------------------------------------
 stage_verify() {
     local manifest="${MANIFEST_OUT:-t2k_3ds/build/t2k.cia.components.json}"
-    python3 t2k_3ds/tools/cia_component_hashes.py --manifest "$manifest"
+    local rc=0 cout=""
+    python3 t2k_3ds/tools/cia_component_hashes.py --manifest "$manifest" || return $?
     echo
     say "The CIA sha256 above is INFORMATIONAL ONLY. makerom seeds rand() from"
     say "time(0) (ticket + content IDs) and walks the romfs with an unsorted"
@@ -367,8 +447,23 @@ stage_verify() {
     say "bytes BY DESIGN. Equality is the component table above."
     if [[ -f "$BASELINE" ]]; then
         banner "COMPONENT BASELINE COMPARISON"
-        python3 t2k_3ds/tools/cia_component_hashes.py --compare "$BASELINE"
-        say "every component matches the committed baseline"
+        # --compare's OWN exit code is the only thing that decides this stage,
+        # and it has to be taken explicitly. `set -e` does not reach a stage
+        # body (see run_stage), so the old form ran the comparison, ignored its
+        # status, and printed the success line UNCONDITIONALLY: a component
+        # mismatch printed "every component matches the committed baseline" and
+        # the run reported PASS with exit 0.
+        cout="$(python3 t2k_3ds/tools/cia_component_hashes.py --compare "$BASELINE" 2>&1)"
+        rc=$?
+        printf '%s\n' "$cout"
+        if (( rc == 0 )); then
+            say "every component matches the committed baseline"
+        else
+            warn "COMPONENT BASELINE COMPARISON FAILED (exit $rc) -- this artifact does"
+            warn "NOT match $BASELINE. Mismatched components:"
+            grep -E 'MISMATCH|mismatch\(es\)' <<<"$cout" | sed 's/^/    /'
+            warn "A component mismatch is a regression, not noise. Do not ship this CIA."
+        fi
     else
         warn "no committed baseline at $BASELINE -- nothing was compared."
         warn "On the reference machine: tools/bootstrap.sh --make-baseline"
@@ -407,6 +502,7 @@ with open(out, "w", encoding="utf-8") as f:
 print(f"baseline written: {out}")
 PY
     fi
+    return "$rc"
 }
 
 # ---------------------------------------------------------------------------
@@ -421,7 +517,7 @@ plan() {
             tools)     say "$i tools     -- tools/build_dspadpcm.sh, then t2k_3ds/tools/get_cia_tools.sh (pinned, self-healing)" ;;
             fetch)     say "$i fetch     -- soundtracks/download.py (2.17 GiB, resumable), then verify_sources.py HARD" ;;
             audio)     say "$i audio     -- soundtracks/build.py --stage, then --verify-only HARD (exit 2 = loud warning)" ;;
-            gates)     say "$i gates    -- tools/check.sh (skipped with a warning if tools/runner is absent)" ;;
+            gates)     say "$i gates    -- tools/check.sh (tracked in every clone; WARN -- not PASS -- if it reports INCOMPLETE)" ;;
             cia)       say "$i cia       -- make production (clean tree required; clean build always)" ;;
             verify)    say "$i verify   -- cia_component_hashes.py --manifest${MAKE_BASELINE:+ + --make-baseline}, --compare baseline if committed" ;;
         esac

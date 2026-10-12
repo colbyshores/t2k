@@ -211,7 +211,7 @@ Every stage is idempotent and resumable, because a run this long will outlast a 
 | tools | vendored DSP encoder; pinned makerom / bannertool (self-healing cache) | hard |
 | fetch | `soundtracks/download.py`, then `verify_sources.py` | hard — sources must hash to the pins |
 | audio | `soundtracks/build.py --stage`, then `--verify-only` | hard, except exit 2 (below) |
-| gates | `tools/check.sh` | hard where the suite exists (it is local-only) |
+| gates | `tools/check.sh` | hard; an INCOMPLETE gate is a WARN, never a pass (see [Gates](#gates)) |
 | cia | `make production` | hard |
 | verify | component manifest, compared against the committed baseline | hard on mismatch |
 
@@ -262,13 +262,25 @@ A different ffmpeg/libswresample is the usual reason `.dsp` hashes differ; that 
 tools/bootstrap.sh 2>&1 | tee bootstrap.log; echo "exit=$?"
 ```
 
-`bootstrap.sh` exit codes: `0` = verified (warnings possible — read the log), `1` = a named stage hard-failed, **do not ship**, `2` = bad usage. Inside the run, `soundtracks/build.py` exit `2` is a **warning by design** — every file was built but some hashes differ from the pin, which is what a different ffmpeg build legitimately produces — and bootstrap prints the affected files and continues; every other non-zero exit is fatal. `verify_sources.py` exit 1 means pinned sources are missing or corrupt: re-run the fetch, do not proceed. Stated plainly: the per-stage pieces are each verified on the reference machine, but the full bare-clone end-to-end run on a second machine is the **outstanding validation** — treat a first run elsewhere as evidence, not as a guarantee.
+`bootstrap.sh` exit codes: `0` = verified (warnings possible — read the log), `1` = a named stage hard-failed, **do not ship**, `2` = bad usage. Inside the run, `soundtracks/build.py` exit `2` is a **warning by design** — every file was built but some hashes differ from the pin, which is what a different ffmpeg build legitimately produces — and bootstrap prints the affected files and continues; `tools/check.sh` exit `2` from the level verifier means the same thing there — everything checkable passed but some rows could not be re-derived — and bootstrap downgrades the gates stage to WARN rather than PASS. Every other non-zero exit is fatal. `verify_sources.py` exit 1 means pinned sources are missing or corrupt: re-run the fetch, do not proceed. Stated plainly: the per-stage pieces are each verified on the reference machine, but the full bare-clone end-to-end run on a second machine is the **outstanding validation** — treat a first run elsewhere as evidence, not as a guarantee.
 
 ## Gates
 
 `./build.sh check` runs the repo's verification suite (both target builds, the VFP hot-path contract, the ARM11 math audit, the R11 integer-div screen, level + warp-window + demo audits, the `@vfp-exempt` pin floor, pyflakes).
 
-> The gate suite lives in `tools/runner/`, which is local-only (gitignored), as is `docs/`. A bare clone therefore has no gate suite and `./build.sh check` reports that it skipped rather than failing on a missing file. Everything needed to build the game is tracked; the gates and the docs tree are the working material of the primary checkout.
+> The gate suite **is tracked**. `tools/runner/` ships nine files in every clone — `gates_vfp.py`, `audit_arm11_math.py`, `audit_r11_idiv.py`, `audit_c_with_classes.py` and `tools/runner/contracts/` (the hot-path contract, the corpus and the blessed baselines) — so `./build.sh check` and `tools/bootstrap.sh` run the gates from a bare clone. What is gitignored under `tools/runner/` is only the swarm scheduler's own working material (`state.json`, `runner.lock`, `logs/`, `__pycache__/`); the `.gitignore` ignores `/tools/runner/*` and then un-ignores exactly those nine paths. `docs/` **is** gitignored and untracked (0 tracked files), so the validation logs and design notes are working material of the primary checkout, but nothing that builds or gates the game is.
+>
+> One gate has an input that is *not* in any clone: the level verifier re-derives the Tempest/Tubes provenance rows from the Typhoon extraction's `webs/all_webs.json`, a **sibling repo**. Without it `t2k_core/tools/verify.sh` exits `2` — every checkable row passed, those rows could not be re-derived — and `tools/check.sh` reports **INCOMPLETE**: a loud warning naming what went unverified, recorded in the summary, exit 0, and never printed as a pass. Point the verifier at the extraction for a complete run:
+>
+> ```
+> export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json
+> ```
+>
+> For release gating, where INCOMPLETE must not be survivable:
+>
+> ```
+> tools/check.sh --strict
+> ```
 
 ## Installing on hardware
 
