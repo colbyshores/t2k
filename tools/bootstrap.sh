@@ -7,6 +7,13 @@
 #   tools/bootstrap.sh --dry-run          print the stage plan + toolchain fingerprint, run nothing
 #   tools/bootstrap.sh --make-baseline    after a green run, write the component baseline
 #                                         (the reference machine regenerates it with this)
+#   tools/bootstrap.sh --strict           forward --strict to tools/check.sh, so an
+#                                         INCOMPLETE gate FAILS the run instead of
+#                                         warning. OPT-IN, not the default: a bare
+#                                         clone has no Typhoon extraction, so strict
+#                                         by default would make this script unusable
+#                                         on exactly the machine it is written for.
+#                                         Needs T2K_TYPHOON_WEBS to pass.
 #   tools/bootstrap.sh --bootstrap-manifest-out PATH
 #                                         where the component manifest is written
 #
@@ -41,9 +48,13 @@
 # returning 2: everything checkable passed, but some rows could not be
 # re-derived because their source is absent. check.sh prints that as INCOMPLETE
 # and exits 0; bootstrap downgrades the gates stage to WARN so the summary
-# cannot read as a clean pass. `bash tools/check.sh --strict` makes INCOMPLETE
-# fatal, which is what a release gate should use. The missing source is the
-# Typhoon extraction, a SIBLING repo no clone of this one contains; point
+# cannot read as a clean pass. That downgrade is the DEFAULT and it stays the
+# default: a bare clone has no Typhoon extraction, so making INCOMPLETE fatal
+# unconditionally would break the one-command path on exactly the machine it is
+# written for. Strictness is OPT-IN -- `tools/bootstrap.sh --strict` forwards
+# --strict to check.sh, which makes INCOMPLETE fatal; run that (or
+# `bash tools/check.sh --strict` directly) for a release gate. The missing source
+# is the Typhoon extraction, a SIBLING repo no clone of this one contains; point
 # T2K_TYPHOON_WEBS at its webs/all_webs.json for a complete run.
 #
 set -euo pipefail
@@ -54,6 +65,7 @@ cd "$ROOT"
 SKIP_MUSIC=0
 DRY_RUN=0
 MAKE_BASELINE=0
+STRICT=0
 MANIFEST_OUT=""
 BASELINE="t2k_3ds/tools/cia_component_baseline.json"
 
@@ -69,6 +81,7 @@ while [[ $# -gt 0 ]]; do
         --skip-music) SKIP_MUSIC=1 ;;
         --dry-run)    DRY_RUN=1 ;;
         --make-baseline) MAKE_BASELINE=1 ;;
+        --strict)     STRICT=1 ;;
         --bootstrap-manifest-out)
             [[ $# -ge 2 ]] || { echo "bootstrap: --bootstrap-manifest-out needs a path" >&2; exit 2; }
             MANIFEST_OUT="$2"; shift ;;
@@ -405,9 +418,17 @@ stage_gates() {
     fi
     local rc=0 marker
     marker="$(mktemp)"
+    # --strict is forwarded, never assumed. Without it check.sh answers INCOMPLETE
+    # with exit 0 and this stage downgrades to WARN, which is what lets a clone
+    # with no Typhoon data finish at all; with it INCOMPLETE is a FAIL.
+    local -a check_args=()
+    if (( STRICT == 1 )); then
+        check_args+=(--strict)
+        say "gates running in STRICT mode: an INCOMPLETE gate fails this run"
+    fi
     # tee rather than $(...) -- the suite is long and its output belongs in the
     # log as it happens, not after it ends.
-    bash tools/check.sh 2>&1 | tee "$marker"
+    bash tools/check.sh "${check_args[@]}" 2>&1 | tee "$marker"
     rc=${PIPESTATUS[0]}
     if (( rc == 0 )) && grep -q 'NOT A FULL PASS' "$marker"; then
         # check.sh exits 0 on INCOMPLETE: nothing was found wrong, but a gate
@@ -415,7 +436,7 @@ stage_gates() {
         # must never read as a clean pass.
         warn "the gate suite exited 0 but reported INCOMPLETE -- its output above"
         warn "names exactly what could not be verified and why."
-        warn "For a release gate that treats that as failure: bash tools/check.sh --strict"
+        warn "For a release gate that treats that as failure: tools/bootstrap.sh --strict"
         mark_warn
     fi
     rm -f "$marker"
@@ -438,7 +459,7 @@ stage_cia() {
 # ---------------------------------------------------------------------------
 stage_verify() {
     local manifest="${MANIFEST_OUT:-t2k_3ds/build/t2k.cia.components.json}"
-    local rc=0 cout=""
+    local rc=0 cout="" brc=0
     python3 t2k_3ds/tools/cia_component_hashes.py --manifest "$manifest" || return $?
     echo
     say "The CIA sha256 above is INFORMATIONAL ONLY. makerom seeds rand() from"
@@ -471,6 +492,13 @@ stage_verify() {
     fi
     if (( MAKE_BASELINE == 1 )); then
         banner "WRITING COMPONENT BASELINE"
+        # The writer's OWN status, taken explicitly, and it decides the stage.
+        # It used to be thrown away: the stage ended `return "$rc"` with the
+        # status of the --compare above, so a writer that died part-way (missing
+        # manifest, unwritable path, malformed JSON) still reported PASS with no
+        # baseline written -- and the next clone would then compare against the
+        # OLD file and call a real component change a regression. Reproduced
+        # 2026-10-12 with a replica harness: writer traceback, stage exit 0.
         python3 - "$manifest" "$BASELINE" <<'PY'
 import datetime, json, subprocess, sys
 
@@ -501,6 +529,18 @@ with open(out, "w", encoding="utf-8") as f:
     f.write("\n")
 print(f"baseline written: {out}")
 PY
+        brc=$?
+        if (( brc != 0 )); then
+            warn "the baseline writer exited $brc -- $BASELINE was NOT written (or was"
+            warn "written only part-way). This is a FAIL, not a warning: a run that"
+            warn "reports PASS with no new baseline is worse than one that fails, because"
+            warn "the stale file left behind looks current."
+            return "$brc"
+        fi
+        say "component baseline written: $BASELINE"
+        # A successful --make-baseline does NOT erase a failed --compare above:
+        # the stage still returns the comparison's status, so re-baselining cannot
+        # quietly turn a component mismatch into a PASS row.
     fi
     return "$rc"
 }
@@ -517,9 +557,17 @@ plan() {
             tools)     say "$i tools     -- tools/build_dspadpcm.sh, then t2k_3ds/tools/get_cia_tools.sh (pinned, self-healing)" ;;
             fetch)     say "$i fetch     -- soundtracks/download.py (2.17 GiB, resumable), then verify_sources.py HARD" ;;
             audio)     say "$i audio     -- soundtracks/build.py --stage, then --verify-only HARD (exit 2 = loud warning)" ;;
-            gates)     say "$i gates    -- tools/check.sh (tracked in every clone; WARN -- not PASS -- if it reports INCOMPLETE)" ;;
+            gates)     if (( STRICT == 1 )); then
+                           say "$i gates    -- tools/check.sh --strict (INCOMPLETE is FATAL, not a WARN)"
+                       else
+                           say "$i gates    -- tools/check.sh (tracked in every clone; WARN -- not PASS -- if it reports INCOMPLETE)"
+                       fi ;;
             cia)       say "$i cia       -- make production (clean tree required; clean build always)" ;;
-            verify)    say "$i verify   -- cia_component_hashes.py --manifest${MAKE_BASELINE:+ + --make-baseline}, --compare baseline if committed" ;;
+            verify)    if (( MAKE_BASELINE == 1 )); then
+                           say "$i verify   -- cia_component_hashes.py --manifest + --make-baseline, --compare baseline if committed"
+                       else
+                           say "$i verify   -- cia_component_hashes.py --manifest, --compare baseline if committed"
+                       fi ;;
         esac
         i=$((i + 1))
     done

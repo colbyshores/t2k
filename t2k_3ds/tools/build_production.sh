@@ -68,22 +68,56 @@ fail() { printf '[build-production] FAIL: %s\n' "$1" >&2; exit 1; }
 # INPUTS ship. Do not "unify" them -- unifying toward the stamp would reopen the
 # exact hole this gate exists to close.
 
+# BOTH git calls in this step take their OWN exit status explicitly. Neither one
+# may sit bare inside a [[ -n "$(…)" ]] test or a process substitution: errexit
+# does not apply there, so a git that FAILS (not a repo, GIT_DIR=/nonexistent, a
+# stale index.lock, an unreadable object) produces an EMPTY result, and an empty
+# result reads exactly like "clean" -- the gate would PASS on a tree it never
+# managed to look at. Empty has to mean "git ran and found nothing", which is only
+# knowable if git's status is checked. Verified 2026-10-12: with the old form,
+# GIT_DIR=/nonexistent printed nothing and exited 0.
+GIT_TMP="$(mktemp -d -t t2k-prod-gate.XXXXXX)"
+trap 'rm -rf "$GIT_TMP"' EXIT
+
 # (a) tracked changes -- staged or unstaged -- are fatal.
-if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+if ! TRACKED_STATUS="$(git status --porcelain --untracked-files=no 2>"$GIT_TMP/status.err")"; then
+    fail "git status failed -- cannot tell whether the tree is clean, so the build is refused:
+$(<"$GIT_TMP/status.err")"
+fi
+if [[ -n "$TRACKED_STATUS" ]]; then
     fail "working tree is dirty -- commit or stash before a production build.
 $(git status --short)"
 fi
 
 # (b) untracked files -- path-scoped. BUILD_ROOTS are directories whose contents
 # are globbed into t2k.elf or staged into the romfs, expressed repo-root-relative
-# (we cd "$ROOT" above) and matched as PATH PREFIXES, not substrings. They mirror
+# (we cd "$ROOT" above) and matched as PATH PREFIXES, not substrings. They cover
 # the Makefile's source globs (t2k_3ds/Makefile:64-69: $(CORESRC)=../t2k_core/src,
-# $(SRCDIR)=./src) and stage_romfs.sh's pool glob; t2k_3ds/cia/ holds the
-# packaged banner, icon, rsf and default_config.json.
+# $(SRCDIR)=./src), its compiled INCLUDE roots (t2k_3ds/Makefile:139-143) and
+# stage_romfs.sh's pool glob; t2k_3ds/cia/ holds the packaged banner, icon, rsf
+# and default_config.json.
+#
+# What is NOT here, and cannot be: the DEFAULT music pool data/music/ is
+# gitignored, so no git-based scan can see it -- that channel is guarded by
+# gen_albums.py --require-named (step 3b), not by this gate. Same for a pool
+# pointed outside the repo. The list below is the set of build-input directories
+# this mechanism CAN observe, which is not the same as the set of build inputs.
 BUILD_ROOTS=(
     "t2k_core/src/"
     "t2k_3ds/src/"
     "t2k_3ds/cia/"
+    # t2k_core/third_party/ is a COMPILED include root, not a vendored dumping
+    # ground: the Makefile passes -I$(CORE)/third_party and
+    # -I$(CORE)/third_party/glm (t2k_3ds/Makefile:142-143), so an untracked
+    # header dropped there is #included into t2k.elf exactly like an untracked
+    # .cpp under src/. It is TRACKED (432 files in the index) and NOT gitignored,
+    # so `git ls-files --others` can actually see it and this prefix does real
+    # work -- checked 2026-10-12 with `git check-ignore -v t2k_core/third_party`
+    # (exit 1, not ignored) and `git ls-files t2k_core/third_party | wc -l` (432).
+    # Had it been gitignored, adding it here would have been decoration: a
+    # git-based scan cannot see an ignored path, and the comment would have
+    # claimed coverage that does not exist.
+    "t2k_core/third_party/"
 )
 # The music pool is a build input too (stage_romfs.sh copies "$POOL"/*.dsp,
 # *.mod, albums.json). Its DEFAULT location data/music/ is gitignored, so git
@@ -104,9 +138,32 @@ fi
 # git ls-files respects .gitignore (--exclude-standard), so ignored files stay
 # invisible -- the repo's existing convention (see the .nfs* note in .gitignore,
 # which names this script). --full-name pins paths to repo-root-relative
-# regardless of cwd; mapfile keeps a path with a space (e.g. "todo bug fixes")
-# in a single element.
-mapfile -t UNTRACKED < <(git ls-files --others --exclude-standard --full-name)
+# regardless of cwd.
+#
+# -z is NOT cosmetic. With git's default core.quotePath=true, any path containing
+# a byte >= 0x80, a double quote, a backslash, a tab or a newline is C-style
+# QUOTED and wrapped in literal double quotes, e.g.
+#       "t2k_core/src/uni_caf\303\251.cpp"
+# That string starts with a literal `"`, so the prefix test below matches no root
+# and the file is filed as harmless SCRATCH -- an untracked non-ASCII .cpp inside
+# a source root gets COMPILED INTO t2k.elf and ships in a hashed CIA that cannot
+# be traced to a commit, which is the exact hole this gate exists to close. NUL
+# output disables quoting entirely, so every element is the real on-disk path and
+# the prefix test sees the real first byte. It also makes a name containing a
+# newline, a tab or a space (e.g. "todo bug fixes") exactly one element, which
+# line-delimited input cannot promise.
+#
+# The list goes through a temp file rather than a process substitution so git's
+# exit status is observable: `mapfile < <(git …)` throws it away and a failed git
+# yields an empty list, which reads as "nothing untracked" and lets the build
+# proceed. An EMPTY list after a SUCCESSFUL git run is still success -- "nothing
+# is untracked" and "git could not look" are different answers and are now
+# distinguished.
+if ! git ls-files -z --others --exclude-standard --full-name > "$GIT_TMP/untracked" 2>"$GIT_TMP/lsfiles.err"; then
+    fail "git ls-files failed -- cannot scan for untracked build inputs, so the build is refused:
+$(<"$GIT_TMP/lsfiles.err")"
+fi
+mapfile -d '' -t UNTRACKED < "$GIT_TMP/untracked"
 DANGEROUS=()
 SCRATCH=()
 if (( ${#UNTRACKED[@]} )); then
@@ -125,8 +182,11 @@ if (( ${#DANGEROUS[@]} )); then
     printf '[build-production]        the romfs (stage_romfs.sh pool glob), so they would ship in a\n' >&2
     printf '[build-production]        verified, hashed CIA that cannot be traced to a commit:\n' >&2
     for path in "${DANGEROUS[@]}"; do printf '[build-production]   %s\n' "$path" >&2; done
-    printf '[build-production]        commit them, or move them out of t2k_core/src, t2k_3ds/src,\n' >&2
-    printf '[build-production]        t2k_3ds/cia, or the music pool.\n' >&2
+    # Derived from BUILD_ROOTS, never hard-coded: a message that names a fixed
+    # list goes stale the moment a root is added, and a stale "move it out of X"
+    # tells the operator to do the wrong thing.
+    printf '[build-production]        commit them, or move them out of a build root: %s\n' \
+        "${BUILD_ROOTS[*]}" >&2
     exit 1
 fi
 
@@ -228,9 +288,9 @@ log "t2k.rsf verified: DSP RAM mapped"
 # SUPERSET of plain --check, so the two are run as ONE call rather than two:
 # scan_pool md5-hashes the whole ~300 MB pool, and doing it twice buys nothing.
 
-# This one is POOL-FREE, so it sits ABOVE the pool guard and runs on a pool-less
-# machine too: an album slot pointing at another album's recording is wrong whether
-# or not this machine has the audio. track_map.json already pins every .dsp sha256
+# The TWO gates below are POOL-FREE, so they sit ABOVE the pool guard and run on
+# a pool-less machine too: an album slot pointing at another album's recording is
+# wrong whether or not this machine has the audio. track_map.json already pins every .dsp sha256
 # to the source FLAC it was encoded from, so what this gate adds is a DECLARATION
 # requirement -- every cross-album slot binding must be written down with its
 # evidence in t2k_core/data/album_aliases.json, and the declarations must be exactly
@@ -241,13 +301,23 @@ log "checking every album slot is bound to a declared recording (pool-free)"
 python3 "$ROOT/tools/check_album_provenance.py" \
     || fail "album provenance undeclared or stale (tools/check_album_provenance.py)"
 
+# POOL-FREE too, and this is the one that was in the wrong place: it used to sit
+# INSIDE the guard below, so T2K_MUSIC_POOL=none -- or a machine that simply has
+# no data/music/ -- silently skipped the three-way album-map consistency check on
+# exactly the machines that ship a soundtrack-less CIA, while the equally
+# pool-free provenance gate above did run. It reads committed JSON only
+# (t2k_core/data/albums_manifest.json, soundtracks/track_map.json,
+# soundtracks/dsp/albums.json) and never touches pool bytes, so there was no
+# reason to skip it. Verified 2026-10-12 with T2K_MUSIC_POOL=none: exit 0.
+log "checking the album map is one map in three files (pool-free)"
+python3 "$ROOT/tools/check_album_maps.py" || fail "album map drift (tools/check_album_maps.py)"
+
 POOL="${T2K_MUSIC_POOL:-$ROOT/data/music}"
 if [[ "$POOL" == "none" || ! -d "$POOL" ]]; then
-    log "no music pool (T2K_MUSIC_POOL=${T2K_MUSIC_POOL:-unset}) -- skipping the pool checks;"
+    log "no music pool (T2K_MUSIC_POOL=${T2K_MUSIC_POOL:-unset}) -- skipping the POOL checks;"
     log "        this CIA will carry NO CD soundtrack (see DOCTRINE.md's CIA section)"
+    log "        (only the pool-walking checks are skipped; the pool-free gates above ran)"
 else
-    log "checking the album map is one map in three files (pool-free)"
-    python3 "$ROOT/tools/check_album_maps.py" || fail "album map drift (tools/check_album_maps.py)"
     log "checking the album manifest against the pool at $POOL"
     python3 "$ROOT/t2k_core/tools/gen_albums.py" --check --require-named --music "$POOL" \
         || fail "album manifest / music pool mismatch (gen_albums.py --check --require-named)"

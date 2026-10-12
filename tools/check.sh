@@ -14,6 +14,11 @@
 #   tools/check.sh --bless-r11  (regenerate the r11 candidate baseline after
 #                               a legitimate fix or line-number shift)
 #
+# Flags may be given in any order (--bless-r11 --strict means both). An
+# unrecognised option is an error (exit 2), never a silent ignore: a typo'd
+# --strict that quietly downgraded a release gate to a non-strict run is exactly
+# the fail-open this suite keeps having to stamp out.
+#
 # INCOMPLETE is a third answer, and it is not a pass. A gate that could not run
 # part of its check prints what it could not check and why, the run records it
 # in the summary, and the final line says NOT A FULL PASS. Exit 0 without
@@ -42,8 +47,23 @@ R11_BASELINE=tools/runner/contracts/r11_candidates_baseline.txt
 PIN_MIN=227  # @vfp-exempt pins: AGENTS.md -- "that count must never drop"
 
 STRICT=0
-if [ "${1:-}" = "--strict" ]; then STRICT=1; shift; fi
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+BLESS_R11=0
+SHOW_HELP=0
+# Parsed in a loop, so flags work in ANY order. The old form read "${1:-}" three
+# times with at most one shift, so `check.sh --bless-r11 --strict` silently
+# dropped --strict (verified 2026-10-12: STRICT stayed 0), and any unrecognised
+# first argument hid every flag behind it.
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --strict)    STRICT=1 ;;
+        --bless-r11) BLESS_R11=1 ;;
+        -h|--help)   SHOW_HELP=1 ;;
+        *) printf 'CHECK FAILED: unknown option %s (tools/check.sh --help)\n' "$1" >&2; exit 2 ;;
+    esac
+    shift
+done
+
+if [ "$SHOW_HELP" -eq 1 ]; then
     sed -n '2,/^set -uo pipefail/p' "${BASH_SOURCE[0]}" \
         | sed -e '/^set -uo pipefail/d' -e 's/^# \{0,1\}//'
     exit 0
@@ -62,7 +82,7 @@ gate() { printf '\n=== %s ===\n' "$1"; }
 
 r11_sigs() { grep -v '^#' "$1" | grep . | sort; }
 
-if [ "${1:-}" = "--bless-r11" ]; then
+if [ "$BLESS_R11" -eq 1 ]; then
     python3 tools/runner/audit_r11_idiv.py --sig > "$tmp/r11.txt" 2>&1 || true
     {
         echo "# R11 candidate baseline -- docs/PRISTINE-SPEC.md 3.5."
@@ -138,19 +158,33 @@ gate "verify.sh (level data, real parser)"
 bash t2k_core/tools/verify.sh > "$tmp/verify.log" 2>&1
 rc=$?
 if [ $rc -eq 2 ]; then
-    INCOMPLETE=$((INCOMPLETE + 1))
-    INCOMPLETE_LIST="$INCOMPLETE_LIST verify.sh"
-    {
-        echo "*** INCOMPLETE -- NOT A PASS ***"
-        grep -E 'typhoon source|NOT re-derived|^INCOMPLETE|Provenance bit-identity|RESULT' \
-            "$tmp/verify.log" | sed 's/^/    /'
-        echo "    what could NOT be verified: the Typhoon-provenance rows (from: tempest / tubes)"
-        echo "    why: their source, typhoon/webs/all_webs.json, is a sibling repo that is"
-        echo "         not part of this clone. Everything else in this gate DID run."
-        echo "    to make it a full pass: export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json"
-    } >&2
-    if [ "$STRICT" -eq 1 ]; then
-        fail "verify.sh reported INCOMPLETE and --strict was given"
+    # Exit 2 ALONE is not evidence of INCOMPLETE. verify.sh is a PIPELINE --
+    # bin2h.py, then g++, then the built binary -- and any tool in that chain is
+    # free to use exit 2 for its own usage error. Verified 2026-10-12 against a
+    # stub that printed "usage: ..." and exited 2: the old branch filed it as
+    # INCOMPLETE, printed the "everything checkable DID run" speech and exited 0,
+    # i.e. a hard build failure was reported as a pass-with-note. So the exit code
+    # must be CORROBORATED by the verifier's own INCOMPLETE line in the captured
+    # log (verify_levels.cpp prints it immediately before returning 2). A bare 2
+    # with no marker is a FAILURE.
+    if grep -qE '^INCOMPLETE: [0-9]+ rows unverified' "$tmp/verify.log"; then
+        INCOMPLETE=$((INCOMPLETE + 1))
+        INCOMPLETE_LIST="$INCOMPLETE_LIST verify.sh"
+        {
+            echo "*** INCOMPLETE -- NOT A PASS ***"
+            grep -E 'typhoon source|NOT re-derived|^INCOMPLETE|Provenance bit-identity|RESULT' \
+                "$tmp/verify.log" | sed 's/^/    /'
+            echo "    what could NOT be verified: the Typhoon-provenance rows (from: tempest / tubes)"
+            echo "    why: their source, typhoon/webs/all_webs.json, is a sibling repo that is"
+            echo "         not part of this clone. Everything else in this gate DID run."
+            echo "    to make it a full pass: export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json"
+        } >&2
+        if [ "$STRICT" -eq 1 ]; then
+            fail "verify.sh reported INCOMPLETE and --strict was given"
+        fi
+    else
+        tail -15 "$tmp/verify.log"
+        fail "verify.sh exited 2 with no INCOMPLETE marker in its output -- a bare exit 2 is a failure, not an INCOMPLETE"
     fi
 elif [ $rc -ne 0 ]; then
     tail -15 "$tmp/verify.log"
