@@ -195,6 +195,75 @@ KHINSIDER_COOKIE='cf_clearance=…' KHINSIDER_UA='<the UA that solved it>' ./bui
 
 `cf_clearance` is bound to the User-Agent that solved the challenge, so the two must match.
 
+### One command, bare clone to verified CIA
+
+`tools/bootstrap.sh` is the one command. From a bare clone it pulls in the music files, converts them to DSP-ADPCM, builds, and verifies the CIA **by component** — fetch 2.17 GiB of FLAC from KHInsider, encode the pinned pool, run the gates, run `make production`, hash the components. Budget **hours** on a slow link: the fetch alone is 2.17 GiB, then the encode, then a full clean rebuild.
+
+```
+tools/bootstrap.sh
+```
+
+Every stage is idempotent and resumable, because a run this long will outlast a network. An interruption — Cloudflare, a dropped link, a ctrl-C — is answered by **re-running the same command**, not by cleanup. `--dry-run` prints the stage plan and the toolchain fingerprint and runs nothing; `--skip-music` builds without third-party audio; `--make-baseline` regenerates the component baseline on the reference machine; every stage's start, end, and exit code is logged to `docs/validation/bootstrap-<stamp>.log`.
+
+| Stage | What runs | Gate |
+|---|---|---|
+| preflight | tools, devkitARM, python deps, disk floor, toolchain fingerprint | hard |
+| tools | vendored DSP encoder; pinned makerom / bannertool (self-healing cache) | hard |
+| fetch | `soundtracks/download.py`, then `verify_sources.py` | hard — sources must hash to the pins |
+| audio | `soundtracks/build.py --stage`, then `--verify-only` | hard, except exit 2 (below) |
+| gates | `tools/check.sh` | hard where the suite exists (it is local-only) |
+| cia | `make production` | hard |
+| verify | component manifest, compared against the committed baseline | hard on mismatch |
+
+Prerequisites:
+
+| Requirement | Detail |
+|---|---|
+| devkitARM | with libctru, citro3d, picasso — read from `$DEVKITPRO` / `$DEVKITARM` |
+| Python | `pip install beautifulsoup4 curl_cffi` (or `pip install -r requirements-build.txt`) |
+| System | `git`, `make`, `cmake`, `ffmpeg` / `ffprobe`, a C compiler |
+| Disk | ≥ 8 GB free — 2.17 GiB FLAC + ~219 MiB encoded pool (staged twice) + build tree + ~234 MB CIA |
+
+The fetch is **HTML scraping behind Cloudflare**, not an API. It is resumable and expected to be re-run on failure; if the site challenges hard, solve the challenge in a browser and pass `KHINSIDER_COOKIE` / `KHINSIDER_UA` as above. Do not expect one unattended run to be enough on a hostile day.
+
+**What "the same artifact" means here, stated honestly.** The `.cia` itself is **not** byte-reproducible, and we are not patching makerom to make it so: makerom seeds `rand()` from `time(0)` for its ticket and content IDs and fills the romfs from an unsorted `readdir()`, so two correct builds of identical inputs get different `.cia` bytes. Equality is defined **by component** — `t2k.elf`, `t2k.3dsx`, `banner.cgfx`, `banner.bnr`, `t2k.smdh`, and a canonical (readdir-order-independent) romfs hash — and those match **bit-for-bit** across machines when the toolchain matches. Verify with:
+
+```
+python3 t2k_3ds/tools/cia_component_hashes.py --compare t2k_3ds/tools/cia_component_baseline.json
+```
+
+A matching run prints `MATCH` on every component row, `0 mismatch(es)`, and exits 0; the `t2k.cia sha256` it also prints is informational and never compared. Do not chase a `.cia` hash mismatch — chase a component mismatch.
+
+The packaging tools are pinned by commit, and a stale cache re-fetches and rebuilds itself rather than failing:
+
+| Tool | Repo | Pinned rev |
+|---|---|---|
+| makerom | 3DSGuy/Project_CTR | `d52c2b0e788c2d085763d7c5dcc4b2edd9ffb7d8` (0.19.0) |
+| bannertool | carstene1ns/3ds-bannertool | `734d33be79fd3f8c29c6296158f06ac7c5ca9dcb` (v1.2.3) |
+| pycgfx | skyfloogle/pycgfx | `1f78850086f3a77c41e07162e842f97a5bf3c18a` |
+
+The committed baseline was produced on — and cross-machine component equality is claimed for — this measured toolchain:
+
+| Component | Version |
+|---|---|
+| OS / glibc | Pop!_OS 24.04 x86_64 / 2.39 |
+| devkitARM | r67.1-1 — arm-none-eabi gcc 15.2.0, binutils 2.45.1, newlib 4.6.0.20260123-4 |
+| libctru / citro3d | 2.7.0 / 1.7.1-2 |
+| Python | 3.13.2 — bs4 4.13.4, curl_cffi 0.15.0 |
+| ffmpeg / libswresample | 6.1.1-3ubuntu5 / 4.12.100 |
+| host gcc / GNU Make / cmake | 13.3.0 / 4.3 / 3.28.3 |
+| banner venv | gltflib 1.0.13, pillow 12.3.0, numpy 2.5.3 |
+
+A different ffmpeg/libswresample is the usual reason `.dsp` hashes differ; that is a warning, not a failure (duration is the contract). A different devkitARM or makerom changes the components themselves.
+
+**For an automated agent.** The non-interactive sequence is one command:
+
+```
+tools/bootstrap.sh 2>&1 | tee bootstrap.log; echo "exit=$?"
+```
+
+`bootstrap.sh` exit codes: `0` = verified (warnings possible — read the log), `1` = a named stage hard-failed, **do not ship**, `2` = bad usage. Inside the run, `soundtracks/build.py` exit `2` is a **warning by design** — every file was built but some hashes differ from the pin, which is what a different ffmpeg build legitimately produces — and bootstrap prints the affected files and continues; every other non-zero exit is fatal. `verify_sources.py` exit 1 means pinned sources are missing or corrupt: re-run the fetch, do not proceed. Stated plainly: the per-stage pieces are each verified on the reference machine, but the full bare-clone end-to-end run on a second machine is the **outstanding validation** — treat a first run elsewhere as evidence, not as a guarantee.
+
 ## Gates
 
 `./build.sh check` runs the repo's verification suite (both target builds, the VFP hot-path contract, the ARM11 math audit, the R11 integer-div screen, level + warp-window + demo audits, the `@vfp-exempt` pin floor, pyflakes).

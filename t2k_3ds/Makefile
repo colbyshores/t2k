@@ -81,6 +81,41 @@ VPATH := $(sort $(dir $(SRC_GLOBS)))
 #---------------------------------------------------------------------------------
 ARCH := -march=armv6k -mtpcs-leaf-frame -mfloat-abi=hard -mtune=mpcore -mfpu=vfp
 
+# ---- PATH-NEUTRAL COMPILES (reproducibility, not performance) -----------------
+# NDEBUG is NOT defined for this build, so nlohmann/json.hpp's JSON_ASSERT is
+# live (third_party/nlohmann/json.hpp:2552 pulls in <cassert>) and assert()
+# expands to a literal containing __FILE__. The absolute path of the checkout is
+# therefore baked into t2k.elf: `strings t2k.elf | grep '^/'` on a build made
+# here returns exactly one hit,
+#   <repo>/t2k_core/third_party/nlohmann/json.hpp
+# and that ASCII path was 60 of the 156 exefs byte differences between a
+# reference build and a fresh clone of the SAME commit. Without this, two clones
+# in two directories cannot produce the same .elf, and cross-machine component
+# verification (tools/cia_component_hashes.py) is impossible.
+#
+# -ffile-prefix-map rewrites the prefix GCC records for __FILE__ (it is
+# -fmacro-prefix-map + -fdebug-prefix-map), so the string becomes
+# /build/t2k_core/third_party/nlohmann/json.hpp wherever the tree lives. A clone
+# built anywhere now produces the same .elf bytes as a build made here.
+#
+# THE PREFIX IS THE REPO ROOT, NOT `$(abspath .)`, and that is deliberate: the
+# embedded path is in t2k_core, a SIBLING of this directory. Checked against
+# arm-none-eabi-g++ 15.2.0 -- mapping $(abspath .) leaves the json.hpp string
+# byte-for-byte unchanged; mapping the repo root rewrites it.
+#
+# THIS DOES CHANGE t2k.elf's HASH relative to any build made before it. That is
+# the point, and any stored component baseline predates it -- regenerate, do not
+# "fix" the mismatch by dropping the flag.
+#
+# It changes nothing else. ARCH above is untouched and still matches AGENTS.md
+# §3 R10 verbatim, -fno-math-errno stays, -ffast-math is NOT added, and the
+# per-object -fsingle-precision-constant scoping at the bottom of this file is
+# unaffected. The PICA path needs no equivalent: picasso emits no paths, and
+# neither the bin2s-generated .s nor the object assembled from it contains one
+# (checked: zero absolute paths in ts_c3d.shbin, ts_c3d_shbin.s, ts_c3d_shbin.o).
+REPO_ROOT := $(abspath $(CURDIR)/..)
+PATHMAP   := -ffile-prefix-map=$(REPO_ROOT)=/build
+
 
 # Which of these src/ ACTUALLY consumes, checked 2026-09-09 -- stated because
 # DOCTRINE.md's own build-flag trap cuts both ways: a macro renamed on one side
@@ -100,7 +135,7 @@ ifeq ($(DEBUG),1)
 DEFINES += -D__3DS_DEBUG__
 endif
 
-COMMONFLAGS := $(ARCH) -O2 -ffunction-sections -fdata-sections -fno-math-errno -fno-strict-aliasing $(DEFINES)
+COMMONFLAGS := $(ARCH) $(PATHMAP) -O2 -ffunction-sections -fdata-sections -fno-math-errno -fno-strict-aliasing $(DEFINES)
 INCLUDE := -I$(CORESRC) \
 	-I$(SRCDIR) \
 	-I$(BUILD) \

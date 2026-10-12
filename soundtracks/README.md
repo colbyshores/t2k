@@ -18,6 +18,9 @@ soundtracks/
   build_map.py          regenerate the map from a (re-cut) pool   [needs ffprobe]
   gen_track_titles.py   track_map.json -> t2k_core/data/track_titles.json
   download.py           fetch the source albums from KHInsider
+  verify_sources.py     hash-verify every pinned source (stdlib only); the
+                        gate a bootstrap script trusts: exit 0 only when
+                        every pin is present and byte-exact
   catalog_songs.py      fingerprint every FLAC   -> catalog.json   (legacy: the
   dedupe.py             collapse identical audio -> unique.json    pre-map way
   convert_dsp.py        FLAC -> dsp/*.dsp + albums.json            of finding
@@ -65,11 +68,14 @@ order and durations are still correct). `build.sh` branches on that difference.
 
 ### If you do not have the FLACs
 
-They are ~230 MB of copyrighted audio and are gitignored, so most clones do not
-have them, and steps that encode cannot run. `--regen` reports **every** missing
-folder at once (one run, not one per folder), says what the consequence is, and
-exits 1 — it never does a partial job and calls it success. What still works from
-committed files alone:
+They are gitignored copyrighted audio, and the fetch is **2,334,945,863 bytes
+(2.17 GiB) across 200 files** — budget disk for that, not for the
+229,702,488-byte (219 MiB) *encoded* pool quoted elsewhere in this file. The 45
+FLACs this map actually pins are 1,246,670,728 bytes (1.16 GiB) of that total.
+Most clones do not have them, and steps that encode cannot run. `--regen`
+reports **every** missing folder at once (one run, not one per folder), says
+what the consequence is, and exits 1 — it never does a partial job and calls it
+success. What still works from committed files alone:
 
 ```sh
 python3 gen_track_titles.py --write            # titles, from track_map.json

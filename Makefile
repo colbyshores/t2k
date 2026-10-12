@@ -58,10 +58,11 @@ pc:
 # The soundtrack pipeline in one command: vendored encoder -> display titles ->
 # pool (FLAC -> DSP-ADPCM, every file hash-checked against soundtracks/track_map.json)
 # -> album maps -> the music gates. Needs the gitignored source FLACs under
-# soundtracks/ (~230 MB, see soundtracks/download.py) and ffmpeg on PATH; without
+# soundtracks/ (2.17 GiB of FLAC across 200 files, see soundtracks/download.py;
+# the encoded pool is the smaller ~219 MiB) and ffmpeg on PATH; without
 # them it stops and prints what is still possible from committed files alone
 # (`make music` is then `python3 soundtracks/build.py --regen --titles-only`).
-# NOT a prerequisite of `all`: it writes 230 MB of copyrighted audio, and a build
+# NOT a prerequisite of `all`: it writes 2.17 GiB of copyrighted audio, and a build
 # of the game must not depend on having the right to ship it.
 music:
 	@python3 soundtracks/build.py --regen

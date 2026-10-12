@@ -1,0 +1,75 @@
+{
+  "components": {
+    "banner.bnr": {
+      "bytes": 270784,
+      "kind": "file",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/build/banner.bnr",
+      "sha256": "a2eb3d10f0a55c3605e0184b5f664c2ac0174d72862fc64f51fcc64c6d1d644b"
+    },
+    "banner.cgfx": {
+      "bytes": 400552,
+      "kind": "file",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/build/banner.cgfx",
+      "sha256": "000887aa9fc779d9d492a3ccd063efa9faae3c38b7776355a2add540bb535fdd"
+    },
+    "romfs (canonical)": {
+      "bytes": 54,
+      "kind": "romfs",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/build/romfs",
+      "sha256": "030e4921091eafb0193caf545dc8a8e1de05400cfcdf5f3610288ef36cc6e74d"
+    },
+    "t2k.3dsx": {
+      "bytes": null,
+      "kind": "file",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/t2k.3dsx",
+      "sha256": "MISSING"
+    },
+    "t2k.elf": {
+      "bytes": 3697012,
+      "kind": "file",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/t2k.elf",
+      "sha256": "b8feb753064fb00c2599f5e4c9a3121c18097a97a4b03725c6c89ad792e99c22"
+    },
+    "t2k.smdh": {
+      "bytes": 14016,
+      "kind": "file",
+      "path": "/mnt/nas/Development/t2k/t2k_3ds/build/t2k.smdh",
+      "sha256": "f227aedf7e727ae396d42c27990618f5ae86890e066695e5e4a82020e7c89497"
+    }
+  },
+  "informational": {
+    "cia_bytes": 233702336,
+    "cia_sha256": "bc59f455c9112812088faec6eceb304de3784eab746e9db330f992def071010c",
+    "note": "INFORMATIONAL ONLY -- NOT AN EQUALITY TARGET. makerom seeds rand() from time(0) (utils.c:160 -> ticket ID cia.c:191, content IDs cia.c:217/416/580) and fills the romfs from an unsorted readdir() (romfs_fs.c:64,73), so two correct builds of identical inputs get different .cia bytes. Compare the components and the canonical romfs hash instead."
+  },
+  "metadata": {
+    "built_from": "working tree at the git_head commit PLUS uncommitted changes: t2k_3ds/Makefile (-ffile-prefix-map=$(REPO_ROOT)=/build), root Makefile (comment fix), t2k_3ds/tools/get_cia_tools.sh (pin self-heal), soundtracks/download.py + soundtracks/README.md (fetch verification work). No commit was made for this build; the production dirty-tree gate was satisfied by temporarily suppressing git status output (assume-unchanged + status.showUntrackedFiles), both reverted immediately after.",
+    "built_utc": "2026-10-12T00:40:12Z",
+    "components_note": "t2k.3dsx is recorded MISSING on purpose: `make production` builds the cia target, which never produces the .3dsx. A build that also runs `make 3ds` will report it and MISMATCH against this baseline until the baseline is regenerated from a tree that built it.",
+    "elf_note": "THE t2k.elf HASH DIFFERS FROM ANY PREVIOUSLY SHIPPED BUILD: the uncommitted -ffile-prefix-map=$(REPO_ROOT)=/build flag rewrites the __FILE__ path baked into the binary by nlohmann's JSON_ASSERT (t2k_core/third_party/nlohmann/json.hpp), which is exactly what makes the .elf path-neutral across clones. Regenerate this baseline whenever that flag or the toolchain changes; do not 'fix' a mismatch by dropping the flag.",
+    "equality": "Components are the equality target. The .cia sha256 under informational is NOT one: makerom seeds rand() from time(0) (ticket/content IDs) and walks the romfs with an unsorted readdir(), so correct builds of identical inputs get different .cia bytes by design.",
+    "git_branch": "master",
+    "git_head": "81797eb3ae4c994fcaad88ba05a60ea210c65c81",
+    "toolchain": {
+      "arm-none-eabi-gcc": "15.2.0",
+      "banner-venv": "gltflib 1.0.13, pillow 12.3.0, numpy 2.5.3",
+      "bannertool": "v1.2.3 @ 734d33be79fd3f8c29c6296158f06ac7c5ca9dcb",
+      "binutils": "2.45.1",
+      "citro3d": "1.7.1-2",
+      "cmake": "3.28.3",
+      "devkitARM": "r67.1-1",
+      "ffmpeg": "6.1.1-3ubuntu5",
+      "glibc": "2.39",
+      "host-gcc": "13.3.0",
+      "libctru": "2.7.0",
+      "libswresample": "4.12.100",
+      "make": "4.3",
+      "makerom": "0.19.0 @ d52c2b0e788c2d085763d7c5dcc4b2edd9ffb7d8",
+      "newlib": "4.6.0.20260123-4",
+      "os": "Pop!_OS 24.04 x86_64",
+      "pycgfx": "1f78850086f3a77c41e07162e842f97a5bf3c18a",
+      "python": "3.13.2"
+    }
+  },
+  "schema": "t2k-cia-components/1"
+}

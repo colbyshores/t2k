@@ -24,17 +24,31 @@ Usage:
     python3 download.py                      # every album (fetch + organize only)
     python3 download.py TxK Space_Giraffe    # subset (folder / display / slug)
     python3 download.py --convert            # ...then run the SUPERSEDED chain
-    python3 download.py --status             # what is present / missing
+    python3 download.py --status             # what is present / missing / hash-bad
     python3 download.py -f mp3               # prefer mp3 over flac
     python3 download.py --url URL --into DIR # ad-hoc extra album
+
+Every fetched and cached file that `track_map.json` pins is checked by SHA-256,
+not by size. A cached file that does not match its pin (truncated download, HTML
+error page saved as `.flac`, re-rip) is re-fetched; a freshly fetched file that
+does not match is deleted so the next run retries instead of leaving poison
+behind. Files with no pin are accepted but warned about. `verify_sources.py` is
+the standalone, stdlib-only gate over the same pins.
+
+Exit codes: 0 = every album fetched and every pinned file hash-exact. 1 = an
+album failed, a track failed, or a hash mismatched — a bootstrap script must
+treat non-zero as "do not ship". `--status` exits 1 when a pinned source is
+missing or mismatched.
 
 The shipped pool is built by build_map.py + build.py, which pin each .dsp to its
 source FLAC byte-exactly. See soundtracks/README.md before reaching for
 --convert.
 
-Re-runnable: existing audio files are skipped, so an interrupted run resumes.
-Audio is gitignored (see the `soundtracks/` block in the root .gitignore); only
-the scripts and the generated `dsp/albums.json` mapping are versioned.
+Re-runnable: existing audio files are skipped, so an interrupted run resumes —
+"skipped" now means "hash matches the pin", so a truncated file is repaired
+rather than kept forever. Audio is gitignored (see the `soundtracks/` block in
+the root .gitignore); only the scripts and the generated `dsp/albums.json`
+mapping are versioned.
 
 Deps: pip install curl_cffi beautifulsoup4  (+ ffmpeg, librosa for conversion).
 """
@@ -59,6 +73,11 @@ except ImportError:
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = "https://downloads.khinsider.com"
 
+# Same directory, stdlib only — one implementation of the pins for both scripts.
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import verify_sources  # noqa: E402  (local sibling module, must follow HERE)
+
 # folder -> (albums.json display name, KHInsider album slug)
 ALBUM_SOURCES = [
     ("tempest2000_soundtrack", "Tempest 2000", "tempest-2000-the-soundtrack-1995"),
@@ -73,6 +92,48 @@ AUDIO_EXTS = (".flac", ".mp3", ".ogg", ".wav")
 
 IMPERSONATE = "chrome120"
 RETRIES = 10
+
+_PINS = None
+
+
+def source_pins():
+    """relpath -> pinned sha256 from track_map.json ({} if the map is unusable).
+
+    A missing map must not stop a fetch: it degrades to the old size-based skip
+    plus a warning, and verify_sources.py is the script that fails loudly.
+    """
+    global _PINS
+    if _PINS is None:
+        try:
+            _PINS = verify_sources.pin_map(HERE)
+        except Exception as e:  # noqa: BLE001 - no map must not break a fetch
+            print(f"[warn] no usable track_map.json ({e}) — sources cannot be "
+                  "hash-verified; run verify_sources.py to gate on hashes")
+            _PINS = {}
+    return _PINS
+
+
+def pin_for(path, pins):
+    """The sha256 pinned for a path under HERE, or None when it is unpinned."""
+    return pins.get(os.path.relpath(path, HERE))
+
+
+def cached_is_good(path, expected):
+    """True when a cached file is byte-exact (pinned) or merely non-empty (not).
+
+    The old test was `getsize() > 0`, which kept a truncated file forever: the
+    next run saw a non-empty file, called it cached, and never repaired it.
+    """
+    if not os.path.exists(path):
+        return False
+    if not expected:
+        return os.path.getsize(path) > 0
+    got = verify_sources.sha256_file(path)
+    if got == expected:
+        return True
+    print(f"    [stale] {os.path.basename(path)} does not match its pin — "
+          f"{os.path.getsize(path)} bytes, {got[:12]}… != {expected[:12]}…; re-fetching")
+    return False
 
 
 class Client:
@@ -151,8 +212,13 @@ def album_tracks(session, slug):
     return links
 
 
-def harvest(session, page_url, out_dir, audio_format):
-    """Download the audio file behind one track page. Returns (filename, status)."""
+def harvest(session, page_url, out_dir, audio_format, pins=None):
+    """Download the audio file behind one track page. Returns (filename, status).
+
+    status is "exists" (cached and hash-exact), "downloaded", "fallback", or
+    "hash-mismatch" (fetched bytes rejected by the pin and deleted so a re-run
+    retries). None filename means the page had no audio link.
+    """
     page = BeautifulSoup(session.get(page_url).text, "html.parser")
     target_ext = f".{audio_format.lower()}"
 
@@ -171,7 +237,9 @@ def harvest(session, page_url, out_dir, audio_format):
 
     filename = unquote(download_url.split("/")[-1])
     path = os.path.join(out_dir, filename)
-    if os.path.exists(path) and os.path.getsize(path) > 0:
+    pins = source_pins() if pins is None else pins
+    expected = pin_for(path, pins)
+    if cached_is_good(path, expected):
         return filename, "exists"
 
     tmp = path + ".part"
@@ -181,10 +249,25 @@ def harvest(session, page_url, out_dir, audio_format):
             if chunk:
                 f.write(chunk)
     os.replace(tmp, path)
+
+    # Verify what we just wrote. A truncated transfer or a Cloudflare HTML error
+    # page saved as `.flac` is not audio, and leaving it on disk means the next
+    # run calls it cached and build.py encodes a wrong .dsp from it.
+    size = os.path.getsize(path)
+    if expected:
+        got = verify_sources.sha256_file(path)
+        if got != expected:
+            os.remove(path)
+            print(f"    [hash mismatch] {filename}: expected {expected[:12]}… "
+                  f"got {got[:12]}… ({size} bytes) — deleted, re-run to retry")
+            return filename, "hash-mismatch"
+    else:
+        print(f"    [warn] {filename}: no sha256 pin in track_map.json — "
+              "accepted unverified")
     return filename, "fallback" if not direct else "downloaded"
 
 
-def fetch_album(session, folder, slug, audio_format):
+def fetch_album(session, folder, slug, audio_format, pins=None):
     out_dir = os.path.join(HERE, folder)
     os.makedirs(out_dir, exist_ok=True)
     try:
@@ -200,7 +283,7 @@ def fetch_album(session, folder, slug, audio_format):
     got = skipped = failed = 0
     for i, page_url in enumerate(links, 1):
         try:
-            name, status = harvest(session, page_url, out_dir, audio_format)
+            name, status = harvest(session, page_url, out_dir, audio_format, pins)
         except Exception as e:  # noqa: BLE001
             print(f"    [{i}/{len(links)}] ERROR {e}")
             failed += 1
@@ -209,6 +292,8 @@ def fetch_album(session, folder, slug, audio_format):
             skipped += 1
         elif name is None:
             print(f"    [{i}/{len(links)}] no audio link")
+            failed += 1
+        elif status == "hash-mismatch":
             failed += 1
         else:
             note = " (fallback format)" if status == "fallback" else ""
@@ -248,6 +333,11 @@ def run_stage(script):
 
 
 def status():
+    """Report presence AND hash state. Returns True when every pin verifies.
+
+    Counting files by extension is not a check: a truncated FLAC and a complete
+    one both count as one file, which is how a corrupt source reached a CIA.
+    """
     print("album sources (KHInsider) -> local folders")
     for folder, display, slug in ALBUM_SOURCES:
         n = audio_count(folder)
@@ -258,14 +348,30 @@ def status():
     print(f"  {'present' if mods else 'EMPTY  '}  Tempest 2000 MOD  mod/  ({mods})"
           "  (not on KHInsider — keep local)")
     for name, rel in (("catalog.json", "catalog.json"),
-                     ("unique.json", "unique.json"),
-                     ("dsp/albums.json", "dsp/albums.json")):
+                      ("unique.json", "unique.json"),
+                      ("dsp/albums.json", "dsp/albums.json")):
         p = os.path.join(HERE, rel)
         print(f"  {'present' if os.path.exists(p) else 'missing'}  {name}")
     dsp = os.path.join(HERE, "dsp")
     n_dsp = len([f for f in os.listdir(dsp) if f.endswith(".dsp")]) \
         if os.path.isdir(dsp) else 0
     print(f"  {n_dsp} .dsp in dsp/")
+
+    print("\npinned sources (sha256 from track_map.json)")
+    try:
+        summary, results = verify_sources.verify(HERE)
+    except Exception as e:  # noqa: BLE001 - report, do not crash a status call
+        print(f"  [error] {e}")
+        return False
+    for name, key in (("sources", "sources"), ("mods", "mods"), ("total", "total")):
+        print("  " + verify_sources.counts_line(name, summary[key]))
+    for r in results:
+        if r["status"] == "match":
+            continue
+        print(f"    {r['status']:9s} {r['path']}  ({r['label']})  "
+              f"expected {(r['expected'] or 'none')[:12]}…  "
+              f"actual {(r['actual'] or 'absent')[:12]}…  size {r['size']}")
+    return all(r["status"] == "match" for r in results)
 
 
 def main():
@@ -282,7 +388,8 @@ def main():
                       help="opt in to the SUPERSEDED catalog/dedupe/convert chain "
                            "(the shipped pool is built by build_map.py + build.py)")
     parser.add_argument("--status", action="store_true",
-                      help="report what is present/missing and exit")
+                      help="report what is present/missing, hash-verify every pinned "
+                           "source, and exit (1 if any pin fails)")
     parser.add_argument("--url", action="append", default=[],
                       help="extra ad-hoc album URL (repeatable)")
     parser.add_argument("--into", action="append", default=[],
@@ -299,8 +406,7 @@ def main():
     sys.stdout.reconfigure(line_buffering=True)
 
     if args.status:
-        status()
-        return
+        sys.exit(0 if status() else 1)
 
     sources = resolve(args.albums) if args.albums else list(ALBUM_SOURCES)
     if args.url:
@@ -309,18 +415,39 @@ def main():
         for url, folder in zip(args.url, args.into):
             sources.append((folder, folder, url))
 
+    pins = source_pins()
+    pinned_bytes = sum(os.path.getsize(os.path.join(HERE, rel))
+                       for rel in pins if os.path.isfile(os.path.join(HERE, rel)))
+    print(f"fetching {len(sources)} album(s) into {HERE}")
+    print(f"cached files are verified by SHA-256 against track_map.json "
+          f"({len(pins)} pinned sources, {pinned_bytes:,} bytes on disk) — "
+          f"hashing takes seconds, not minutes\n")
+
     session = new_session(args.cookie or os.environ.get("KHINSIDER_COOKIE"),
-                        args.user_agent or os.environ.get("KHINSIDER_UA"))
-    print(f"fetching {len(sources)} album(s) into {HERE}\n")
+                          args.user_agent or os.environ.get("KHINSIDER_UA"))
     results = {}
+    album_errors = []
     for folder, display, slug in sources:
-        r = fetch_album(session, folder, slug, args.format)
-        if r is not None:
+        r = fetch_album(session, folder, slug, args.format, pins)
+        if r is None:
+            album_errors.append(folder)
+        else:
             results[folder] = r
 
     total_new = sum(r[0] for r in results.values())
     total_fail = sum(r[2] for r in results.values())
     print(f"\ndownloads: {total_new} new across {len(results)} album(s), {total_fail} failed")
+    if album_errors:
+        print(f"album errors: {len(album_errors)} — {', '.join(album_errors)}")
+
+    # An incomplete or hash-bad source set must not look like success: build.py
+    # treats a hash mismatch as non-fatal (exit 2) and build.sh turns that into
+    # a warning, so a silent exit 0 here is what let corrupt audio ship.
+    if album_errors or total_fail:
+        print(f"\nFAILED: {len(album_errors)} album error(s), {total_fail} track "
+              "failure(s) — sources are incomplete or not hash-exact. Fix and "
+              "re-run (it resumes); verify with verify_sources.py.")
+        sys.exit(1)
 
     if not args.convert:
         # Default changed: the catalog/dedupe/convert chain is SUPERSEDED for the

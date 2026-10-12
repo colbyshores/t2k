@@ -15,6 +15,38 @@
 #
 # Like get_cia_tools.sh, everything it needs is fetched into tools/.ciatools/
 # (gitignored) on first use. Set PYCGFX= to point at your own checkout.
+#
+#---------------------------------------------------------------------------------
+# PINNED REVISIONS AND PACKAGE VERSIONS
+#
+# pycgfx used to be cloned `--depth 1` off the default branch and its three PyPI
+# deps were installed unpinned, so the banner -- a build artefact that ships in
+# the CIA -- depended on whatever GitHub and PyPI were serving that day. Both are
+# pinned now (2026-10-11), to the state measured on the machine that produced the
+# banner currently on the console, so this freezes behaviour rather than changing
+# it.
+#
+#   pycgfx  skyfloogle/pycgfx  1f78850086f3a77c41e07162e842f97a5bf3c18a
+#           main HEAD as read with `git ls-remote` on 2026-10-11 ("mention the
+#           much more easily googleable bcres", 2025-06-02). The repo publishes
+#           NO tags at all, so the commit SHA is the only pin available.
+#
+#   venv    gltflib==1.0.13  pillow==12.3.0  numpy==2.5.3
+#           The versions installed in tools/.ciatools/pycgfx-venv when the
+#           shipped banner.cgfx was produced. pillow is the one that matters
+#           most: gen_banner_level.py rasterises the level's texture through it
+#           and pycgfx encodes it, so a resampler or PNG-encoder change moves
+#           bytes in banner.cgfx -> banner.bnr -> the CIA. That is a banner BYTE
+#           change, not a cosmetic one.
+#           gltflib's own closure (dataclasses-json 0.6.7, marshmallow 3.26.2,
+#           typing_extensions 4.16.0, typing_inspect 0.9.0, mypy_extensions
+#           1.1.0) is recorded here unpinned; if a banner byte ever moves with
+#           all three pins held, that closure is the next thing to freeze.
+#
+# Bump deliberately: PYCGFX_REV=<sha> tools/build_banner.sh out.cgfx
+# A checkout or venv that does not match its pin is a hard error -- see
+# get_cia_tools.sh, which uses the same rule for makerom and bannertool.
+#---------------------------------------------------------------------------------
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,11 +61,29 @@ WORK="$(dirname "$OUT")/banner-model"
 say() { echo "$@" >&2; }
 
 PYCGFX="${PYCGFX:-$CACHE/pycgfx}"
-if [ ! -d "$PYCGFX" ]; then
-    say "==> fetching pycgfx (skyfloogle/pycgfx) into $CACHE"
+PYCGFX_REV="${PYCGFX_REV:-1f78850086f3a77c41e07162e842f97a5bf3c18a}"
+
+# Same rule as get_cia_tools.sh: fetch the COMMIT, not a branch tip, and refuse
+# to continue if the checkout does not report the pinned SHA. A stale cache
+# directory is checked too -- "the directory exists" is not evidence it is the
+# revision the banner was built with.
+if [ -d "$PYCGFX/.git" ]; then
+    say "==> reusing $PYCGFX"
+else
+    say "==> fetching pycgfx (skyfloogle/pycgfx) @ $PYCGFX_REV into $CACHE"
     mkdir -p "$CACHE"
-    git clone --depth 1 https://github.com/skyfloogle/pycgfx.git "$PYCGFX" >&2
+    git init -q "$PYCGFX" >&2
+    git -C "$PYCGFX" remote add origin https://github.com/skyfloogle/pycgfx.git >&2
+    git -C "$PYCGFX" fetch -q --depth 1 origin "$PYCGFX_REV" >&2
+    git -C "$PYCGFX" checkout -q FETCH_HEAD >&2
 fi
+PYCGFX_GOT="$(git -C "$PYCGFX" rev-parse HEAD 2>/dev/null || echo none)"
+if [ "$PYCGFX_GOT" != "$PYCGFX_REV" ]; then
+    say "PIN VIOLATION: $PYCGFX is at $PYCGFX_GOT but this script pins $PYCGFX_REV"
+    say "  Bump it deliberately (PYCGFX_REV=<sha>) or remove the directory."
+    exit 1
+fi
+say "     $PYCGFX @ $PYCGFX_GOT (pinned)"
 
 # The one local change the converter needs: honour glTF emissiveFactor, or
 # every surface angled away from the scene's single light renders black and the
@@ -41,11 +91,25 @@ fi
 python3 "$HERE/patch_pycgfx.py" "$PYCGFX/main.py" >&2
 
 VENV="$CACHE/pycgfx-venv"
+PYCGFX_PKGS=("gltflib==1.0.13" "pillow==12.3.0" "numpy==2.5.3")
 if [ ! -x "$VENV/bin/python" ]; then
-    say "==> creating $VENV (gltflib, pillow, numpy)"
+    say "==> creating $VENV (${PYCGFX_PKGS[*]})"
     python3 -m venv "$VENV" >&2
-    "$VENV/bin/pip" install -q --disable-pip-version-check gltflib pillow numpy >&2
+    "$VENV/bin/pip" install -q --disable-pip-version-check "${PYCGFX_PKGS[@]}" >&2
 fi
+# An existing venv predates the pins, and its existence is not evidence it
+# matches them. Check every pin and refuse rather than emit a banner whose bytes
+# came from a different pillow than the manifest claims.
+for spec in "${PYCGFX_PKGS[@]}"; do
+    pkg="${spec%%==*}"; want="${spec##*==}"
+    have="$("$VENV/bin/python" -c "import importlib.metadata as m; print(m.version('${pkg}'))" 2>/dev/null || echo none)"
+    if [ "$have" != "$want" ]; then
+        say "PIN VIOLATION: $VENV has $pkg $have, this script pins $want"
+        say "  rm -rf $VENV and re-run to rebuild it at the pinned versions."
+        exit 1
+    fi
+done
+say "     venv ok: ${PYCGFX_PKGS[*]}"
 
 # WHICH BANNER. `gen_banner_level.py` is the one that ships: one LEVEL'S tube,
 # wearing that level's own procedural skin, turning the way the level-select
