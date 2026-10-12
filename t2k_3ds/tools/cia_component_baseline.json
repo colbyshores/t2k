@@ -22,13 +22,16 @@
       "bytes": null,
       "kind": "file",
       "path": "/mnt/nas/Development/t2k/t2k_3ds/t2k.3dsx",
-      "sha256": "MISSING"
+      "sha256": "MISSING",
+      "skipped_reason": "not built by `make production`"
     },
     "t2k.elf": {
+      "build_date": "2026-10-11",
+      "build_rev": "29682335+",
       "bytes": 3697012,
       "kind": "file",
       "path": "/mnt/nas/Development/t2k/t2k_3ds/t2k.elf",
-      "sha256": "09935507004339c193a4d026c2802dbeba1aacd6d7d88d271dc1728402c6dd34"
+      "sha256": "d9ebd7a6c09fdc8c8f8a868442f221fff53db4829ad53a3697fa6c0e927b91b6"
     },
     "t2k.smdh": {
       "bytes": 14016,
@@ -40,14 +43,17 @@
   "informational": {
     "cia_bytes": 233702336,
     "cia_sha256": "6a2a663d678a38f3849e33b948b8678605ae6fa64f05c249f0a987243d3fa532",
+    "elf_note": "INFORMATIONAL -- the raw elf hash is only an equality target at the rev the baseline was stamped with; see metadata.elf_note.",
+    "elf_sha256": "d9ebd7a6c09fdc8c8f8a868442f221fff53db4829ad53a3697fa6c0e927b91b6",
     "note": "INFORMATIONAL ONLY -- NOT AN EQUALITY TARGET. makerom seeds rand() from time(0) (utils.c:160 -> ticket ID cia.c:191, content IDs cia.c:217/416/580) and fills the romfs from an unsorted readdir() (romfs_fs.c:64,73), so two correct builds of identical inputs get different .cia bytes. Compare the components and the canonical romfs hash instead."
   },
   "metadata": {
     "built_from": "813f728fdfcbfbd2a546f0450b97fc86e92c50c5 (813f728f) on master. Tracked tree clean. Four untracked scratch assets (banner/QR.png, banner/t2k-cia-qr.png, banner/tempest-tube-shooter.md, and the file literally named \"todo bug fixes\") sit OUTSIDE the build roots, so the path-scoped dirty-tree gate in t2k_3ds/tools/build_production.sh listed them as warnings and proceeded -- they are neither compiled into t2k.elf nor staged into the romfs. No suppression of any kind.",
     "built_utc": "2026-10-12T04:06:15Z",
-    "components_note": "t2k.3dsx is recorded MISSING on purpose: `make production` builds the cia target, which never produces the .3dsx. A build that also runs `make 3ds` will report it and MISMATCH against this baseline until the baseline is regenerated from a tree that built it.",
-    "elf_note": "t2k.elf embeds TWO things that make its hash move: the -ffile-prefix-map=$(REPO_ROOT)=/build flag (t2k_3ds/Makefile), which rewrote the __FILE__ path baked in by nlohmann's JSON_ASSERT and is what makes the .elf path-neutral across clones, and T2K_BUILD_REV / T2K_BUILD_DATE from build/build_rev.h, which stamp the git rev into the binary by design (t2k_3ds/Makefile:313-322). The second means the .elf component of a baseline is only equal for builds made AT THIS COMMIT; every other component (banner.cgfx, banner.bnr, t2k.smdh, the canonical romfs) is commit-independent and must match across commits. Do not 'fix' an .elf mismatch by dropping the prefix-map flag.",
-    "equality": "Components are the equality target. The .cia sha256 under informational is NOT one: makerom seeds rand() from time(0) (ticket/content IDs) and walks the romfs with an unsorted readdir(), so correct builds of identical inputs get different .cia bytes by design.",
+    "components_note": "t2k.3dsx is recorded MISSING on purpose and MISSING now means SKIPPED, not mismatch: `make production` builds the cia target, which never emits the .3dsx. Running tools/check.sh runs `make 3ds`, which DOES emit t2k_3ds/t2k.3dsx, so the file existing on disk after the documented gate suite is EXPECTED, not drift. The row is kept in the table so the asymmetry between the production path and the gate path stays visible. banner.cgfx, banner.bnr, t2k.smdh and the canonical romfs are commit-independent byte-equality targets and are always compared.",
+    "components_provenance": "Component rows last refreshed 2026-10-12T05:26:25Z from an artifact whose embedded T2K_BUILD_REV is 29682335+. The human-authored keys (built_from, built_utc, git_head, toolchain) still describe the production build they were written for; only t2k.elf is rev-dependent, and its row is the rev read out of that artifact, not a git query. No value in this file was hand-merged.",
+    "elf_note": "t2k.elf is a REV-STAMP CHECK, not a byte-equality target, and it never was one. t2k_core/tools/gen_build_rev.py writes T2K_BUILD_REV (git short rev + a `+` when the tracked tree is dirty) into build/build_rev.h, and t2k_3ds/src/rendering/c3d/*.inc stamps it into the binary via texLog/perfLog (t2k_3ds/Makefile:313-322). The bytes therefore move on EVERY commit -- including the commit that carries the baseline -- so whole-file byte equality is unsatisfiable across commits: the baseline's elf hash was stamped at the commit BEFORE the one that ships it. --compare instead reads the rev out of the on-disk elf. Same rev as the baseline -> the byte hashes MUST match (strong check). Different rev -> REV-DRIFT, both revs named, NOT a failure, because the elf is designed to differ per commit. The raw elf sha256 is printed as INFORMATIONAL, exactly like the .cia hash. The other thing that moves the elf hash is -ffile-prefix-map=$(REPO_ROOT)=/build, which is what makes the .elf path-neutral across clones; do not 'fix' an elf mismatch by dropping that flag.",
+    "equality": "Components are the equality target, in three kinds: BYTE (commit-independent byte equality: banner.cgfx, banner.bnr, t2k.smdh, romfs canonical), REV (t2k.elf: the embedded T2K_BUILD_REV is the target; bytes are a strong check only at the stamped rev), and SKIP (t2k.3dsx: not built by `make production`, never compared). The .cia sha256 under informational is NOT an equality target: makerom seeds rand() from time(0) (ticket/content IDs) and walks the romfs with an unsorted readdir(), so correct builds of identical inputs get different .cia bytes by design.",
     "git_branch": "master",
     "git_head": "813f728fdfcbfbd2a546f0450b97fc86e92c50c5",
     "toolchain": {
@@ -70,7 +76,9 @@
       "pycgfx": "1f78850086f3a77c41e07162e842f97a5bf3c18a",
       "python": "3.13.2"
     },
-    "written_by": "python3 t2k_3ds/tools/cia_component_hashes.py --manifest (component hashes), merged into the committed structure to preserve this metadata block, which the tool's writer does not emit."
+    "updated_from_rev": "29682335+",
+    "updated_utc": "2026-10-12T05:26:25Z",
+    "written_by": "python3 t2k_3ds/tools/cia_component_hashes.py --update"
   },
   "schema": "t2k-cia-components/1"
 }
