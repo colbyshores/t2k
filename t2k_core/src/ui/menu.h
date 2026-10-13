@@ -188,6 +188,10 @@ private:
                   float step, float ts, float alphaMul);
 
     int      boxLastMs_ = -1;   // wall clock of the last frost-box width step
+    // The stretch stage that keeps the rows inside the glass while it grows
+    // (ui/pause_fx.h BOX_STRETCH_MS). 1 = the glass has finished stretching.
+    float    boxStretch_  = 1.0f;
+    float    boxTargetHW_ = -1.0f;  // last width target; -1 = never measured
 
     unsigned repeatMask_ = 0;   // direction bits held, for auto-repeat
     int      repeatTick_ = 0;   // frames they have been held

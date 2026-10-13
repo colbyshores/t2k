@@ -106,6 +106,65 @@ constexpr float BOX_ROW0_GAP   = 0.085f;
 constexpr float BOX_ROW_DY     = 0.052f;
 constexpr float BOX_BOTTOM_PAD = 0.045f;
 
+// ---- the STRETCH STAGE: the text waits for the glass -------------------------
+// Entering Options is a ~40% width jump and the glass reaches it by the
+// asymptotic glide in ui/menu.cpp (hw += (target - hw) * dt/BOX_GLIDE_MS). The
+// rows swap instantly, so for the first frames of the transition the widest row
+// sticks out past the glass.
+//
+// THE NUMBERS ARE MEASURED, NOT TASTED. Instrumented on the PC build
+// (2026-10-12, P -> Options with the shipped soundtrack): the glass glided
+// 0.400 -> 0.586 while the widest row's half-width was already 0.541, and
+// TWELVE FRAMES (186 ms) went by before the edge passed the text -- 48 px per
+// side at 400x240, 175 px at 1080p. The same arithmetic for the widest row the
+// box ever has to hold (a scanned soundtrack title: half-width 0.558 against a
+// target of 0.603) gives FOURTEEN FRAMES, 233 ms.
+//
+// The glide is DISCRETE, so the frame on which the text is finally inside is the
+// first n with
+//     hw(n) = T - (T - M) * (1 - k)^n  >=  W,    k = dt/BOX_GLIDE_MS = 0.104 @60
+// i.e. n >= ln((T-W)/(T-M)) / ln(1-k): 12.9 for the shipped row (twelve
+// measured, the first Options frame having already applied one glide step) and
+// 13.7 for the worst case. That is what the hold is derived from, and it is why
+// the hold is a FRACTION of a stage rather than a millisecond literal -- it has
+// to sit just under the worst case, and the worst case is a function of
+// BOX_GLIDE_MS, so a literal would drift the moment the glide is retuned.
+//
+// The stage itself is LINEAR in the wall clock and clamped -- not a loop and not
+// a search for the frame on which hw passes the text (AGENTS.md 3b T1/T2: solve
+// it, and keep a float comparison out of a loop condition). There is nothing to
+// iterate: the stage is a duration and the threshold is derived above.
+//
+// 320 ms is not a taste number either: it is the pause ramp's OWN duration
+// (pauseFxStep's 1/320), so the glass finishes stretching on exactly the budget
+// the frost box takes to fade in, and the stage is measured against a duration
+// this header already owns.
+constexpr float BOX_STRETCH_MS = 320.0f;
+// Hold until 0.70 of the stage = 224 ms. Against the two measured cases that is
+// 38 ms of slack on the shipped row (186 ms) and 9 ms short of the worst case
+// (233 ms) -- and the 9 ms is paid for by the smoothstep's zero-velocity start:
+// on that frame the ramp below is only at ease(9/64) = 0.055, so what is still
+// outside the glass is 5% alpha for one frame, not text.
+constexpr float BOX_TEXT_HOLD = 0.70f;
+// ...and be fully lit by 0.90 of the stage = 288 ms, INSIDE the stage, so the
+// fade has no tail past the glass. By then the glide has closed 85% of the width
+// jump and the edge sits ~0.015 UI past the widest row (~6 px at 400x240, ~16 px
+// at 1080p) -- the text is unambiguously inside before it is fully bright.
+constexpr float BOX_TEXT_FADE = 0.20f;
+static_assert(BOX_TEXT_HOLD > 0.0f && BOX_TEXT_HOLD < 1.0f,
+              "the hold must be a fraction of the stretch stage");
+static_assert(BOX_TEXT_HOLD + BOX_TEXT_FADE <= 1.0f,
+              "the text must be fully lit before the stretch stage ends");
+
+// A change of measured target this small is float noise, not a screen change.
+// The smallest REAL change is one character of row text: afontWidth advances
+// 0.034 UI per character at the row size, so half of that (0.017, referred to a
+// half-width) is 8x this epsilon, while float reassociation in the measurement
+// is ~1e-7. It sits between the two by design.
+constexpr float BOX_TARGET_EPS = 0.002f;
+
+inline float pauseClamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+
 // Fit the box to the number of rows it must hold.
 inline float pauseBoxHalfHeight(int rows) {
     if (rows < 1) rows = 1;
@@ -138,6 +197,13 @@ inline float pauseBoxHW(float measured) {
 inline float pauseBoxHH(float measured) {
     return measured > BOX_HH_MIN ? (measured < BOX_HH_MAX ? measured : BOX_HH_MAX)
                                  : BOX_HH_MIN;
+}
+
+// The rows' alpha multiplier for a stretch-stage value: hidden until the glass
+// has stretched past them, then smoothstep in. A consumer passes the stage and
+// never hardcodes a boundary -- the gameoverTextT idiom (game/constants.h).
+inline float pauseBoxTextIn(float stretch) {
+    return pauseFxEase(pauseClamp01((stretch - BOX_TEXT_HOLD) / BOX_TEXT_FADE));
 }
 
 // Where the title and the first row sit for a box of half-height `hh`. At

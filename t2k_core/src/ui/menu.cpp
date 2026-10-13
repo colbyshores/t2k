@@ -695,6 +695,9 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
     // "soundtrack  13_flossiesfrolic" ran straight out through the border.
     // Measured with the font's own advance law (font.h afontWidth) at the exact
     // size and thickness drawRows will use, so what is measured is what is drawn.
+    // 1.0 until a screen change actually starts a stretch, so a menu with no
+    // engine (no measurement possible) draws exactly as it always did.
+    float textIn = 1.0f;
     if (eng_) {
         const int cnt = counts_[scr];
         const float rowSx = 0.024f, rowTh = MENU_ROW_TH;
@@ -733,6 +736,7 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
         const int   now = eng_->time;
         const int   dt  = (boxLastMs_ < 0) ? 0 : (now - boxLastMs_);
         boxLastMs_ = now;
+        const int   dtMs = dt < 0 ? 0 : (dt > 50 ? 50 : dt);
         constexpr float BOX_GLIDE_MS = 160.0f;
         // Snap when there is nothing to glide FROM: the first frame of a pause,
         // or either half never having been measured.
@@ -740,16 +744,88 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
                       || eng_->pause_fx < 0.995f;
         float k = 1.0f;
         if (!snap) {
-            k = (float)(dt < 0 ? 0 : (dt > 50 ? 50 : dt)) / BOX_GLIDE_MS;
+            k = (float)dtMs / BOX_GLIDE_MS;
             if (k > 1.0f) k = 1.0f;
         }
+        const float prevHW = eng_->pause_box_hw;
         eng_->pause_box_hw += (targetHW - eng_->pause_box_hw) * k;
         eng_->pause_box_hh += (targetHH - eng_->pause_box_hh) * k;
+
+        // THE TEXT WAITS FOR THE GLASS (ui/pause_fx.h, the stretch stage). The
+        // rows swap at once but the glass eases to its new width, so for the
+        // ~190 ms this build takes to close the Options width step the widest row
+        // hung outside the box -- measured 48 px per side at 400x240, 175 px at
+        // 1080p. The rows now hold at zero alpha until the glass has stretched
+        // past them and then fade in over the rest of the stage; the fractions and
+        // their derivations are in pause_fx.h next to the box constants, not here.
+        //
+        // RE-TRIGGER ON WIDTH GROWTH ONLY, deliberately:
+        //  * snap (the first frames of a pause, or a pause that has not finished
+        //    ramping in) FORCES the stage to 1. On that path k == 1, so the glass
+        //    jumps straight to its target and there is nothing to wait for -- a
+        //    fast pause -> Options costs no extra delay at all.
+        //  * A screen change that makes the glass SMALLER does not re-hold. The
+        //    text is already inside a smaller box's target, and re-holding on
+        //    every page turn (Options -> Controls -> Options) would read as lag
+        //    on a transition where nothing ever sticks out.
+        //  * Height is NOT a re-trigger, unlike width. The rows are laid out
+        //    from the CURRENT hh (boxRowY(hh)), so the layout rides the glass as
+        //    it grows and the last row can only ever lose its BOX_BOTTOM_PAD of
+        //    clearance -- 0.01 UI (~2 px at 240p) for the pause -> Controls
+        //    height step, against the 48 px the width step was throwing outside.
+        //    Holding 224 ms on every turn to Controls to hide 2 px is the trade
+        //    the bullet above exists to refuse.
+        //
+        // ...AND THE HOLD ENDS WHEN THE GLASS STOPS GROWING. The hold has one
+        // job: cover the frames on which the widest row sticks out past a glass
+        // that is still easing outward. Once the glass is not moving outward
+        // there is nothing left to wait for, and paying the rest of the hold is
+        // actively wrong, because the staged batch is what fades out with the
+        // box -- the pool is deliberately never cleared on close (see the pause
+        // block in t2k_3ds/src/platform_3ds/main_3ds.cpp and flushPauseText in
+        // t2k_pc/src/rendering/vk_scene.cpp), so a batch staged while the rows
+        // are still held leaves the glass fading out with NO text in it, the
+        // symptom those notes record as previously fixed. Pausing, entering
+        // Options and resuming inside the hold did exactly that: measured on the
+        // PC build 2026-10-12, the last staged batch had textIn 0.0000 and the
+        // whole 240 ms ramp-out flushed a textless batch.
+        //
+        // The glass's own motion is the signal, not the pause ramp. The Menu
+        // cannot see the ramp fall: both front-ends stop calling renderOverlay
+        // the frame the menu closes -- the pause block re-tests menu.active()
+        // after menu.update() precisely so the batch is NOT wiped -- so every
+        // overlay frame of a held stretch runs with pause_fx already pinned at
+        // 1.0000 (same measurement). A remembered previous pause_fx would never
+        // fire; the glass is what this function can actually observe, and it is
+        // the thing the hold is about.
+        //
+        // A glass easing DOWN cannot strand text outside it: the target is
+        // pauseBoxHalfWidth(widest), which is widest/2 + BOX_PAD_X unless it is
+        // clamped, so shrinking toward it stays past the widest row the whole
+        // way. A frame that advanced no wall time moved nothing and must not
+        // end the hold, so dtMs == 0 counts as growth. One scalar compare, no
+        // loop (AGENTS.md 3b T1/T2).
+        const bool glassGrew = eng_->pause_box_hw > prevHW || dtMs == 0;
+        if (snap) {
+            boxStretch_ = 1.0f;
+        } else if (targetHW > boxTargetHW_ + BOX_TARGET_EPS) {
+            boxStretch_ = 0.0f;
+        } else if (!glassGrew) {
+            boxStretch_ = 1.0f;
+        }
+        boxTargetHW_ = targetHW;
+        boxStretch_ += (float)dtMs / BOX_STRETCH_MS;
+        if (boxStretch_ > 1.0f) boxStretch_ = 1.0f;
+        textIn = pauseBoxTextIn(boxStretch_);
     }
-    // Emitted at FULL alpha: the pause ramp is applied once, by the backend,
-    // when it flushes the staged batch (ui/pause_fx.h). Doing it here as well
-    // would square the ramp -- and, worse, would make the ramp-OUT impossible,
-    // since nothing re-emits these rows once the menu has closed.
+    // Emitted at FULL alpha AS FAR AS THE PAUSE RAMP IS CONCERNED: that ramp is
+    // applied once, by the backend, when it flushes the staged batch
+    // (ui/pause_fx.h). Multiplying it here as well would square it -- and, worse,
+    // would make the ramp-OUT impossible, since nothing re-emits these rows once
+    // the menu has closed. `textIn` is a SECOND, independent factor and does not
+    // square anything: it is a stage of the box's own stretch, it reaches 1 well
+    // before the box settles, and it is only ever below 1 while the menu is open
+    // and re-emitting every frame, so the ramp-out is untouched.
     //
     // The rows are laid out at the SAME half-height the backends build the
     // glass from, so the last row cannot sit outside it. With no engine (no
@@ -757,8 +833,8 @@ void Menu::renderOverlay(TsRenderer r, int frame) {
     // layout this box has always had.
     const float hh = pauseBoxHH(eng_ ? eng_->pause_box_hh : 0.0f);
     writeAfont(TITLES[scr], BOX_CX, boxTitleY(hh), 0.042f, 0.052f, 0.0f, MENU_TITLE_TH,
-               0.5f, 0.7f, 1.0f, 0.9f, true, false, 0, 0, 1.0f);
-    drawRows(r, frame, scr, BOX_CX, boxRowY(hh), BOX_ROW_DY, 0.024f, 1.0f);
+               0.5f, 0.7f, 1.0f, 0.9f * textIn, true, false, 0, 0, 1.0f);
+    drawRows(r, frame, scr, BOX_CX, boxRowY(hh), BOX_ROW_DY, 0.024f, textIn);
 }
 
 } // namespace ts

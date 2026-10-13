@@ -44,7 +44,7 @@
 #include "data/save_load.h"
 #include "data/webs_runtime.h"
 #include "audio/music.h"            // soundtrack seam (ndsp sink on this target)
-#include "audio/sfx_3ds.h"         // SFX pool (ndsp channels 1-8, thunder ch.8)
+#include "audio/sfx_3ds.h"         // SFX pool (ndsp channels 1-11, thunder ch.9)
 #include "audio/audio_analysis.h"  // audio-reactive feature extraction (FFT)
 #include "ui/menu.h"
 #include "ui/screen_fade.h"   // the shared front-end fade (Phase 2.5)
