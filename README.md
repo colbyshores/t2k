@@ -144,13 +144,15 @@ The script runs these stages and reports the output path, size, and SHA-256 of `
 
 | # | Stage | What happens |
 |---|---|---|
-| 1 | **bootstrap** | checks `git` / `make` / `python3` / `ffmpeg` and devkitARM; installs the pinned Python build deps (`requirements-build.txt`) into the ambient interpreter if it already has them, otherwise into a project-local `.venv`; compiles the vendored DSP-ADPCM encoder into `tools/bin/dspadpcm` |
+| 1 | **bootstrap** | checks `git` / `make` / `python3` / `ffmpeg` — **not** devkitARM, which the `cia` and `production` stages check; installs the pinned Python build deps (`requirements-build.txt`) into the ambient interpreter if it already has them, otherwise into a project-local `.venv`; compiles the vendored DSP-ADPCM encoder into `tools/bin/dspadpcm` |
 | 2 | **fetch** | downloads the source FLACs from KHInsider into `soundtracks/<album>/` — resumable, existing files are skipped |
 | 3 | **audio** | `ffmpeg` → 32 kHz mono PCM → `dspadpcm` → `soundtracks/dsp/*.dsp`; copies the MOD album through unchanged; writes `dsp/albums.json`; hash-checks every output against `soundtracks/track_map.json`; stages the pool to `data/music/` |
 | 4 | **cia** | `make -C t2k_3ds cia` → `t2k_3ds/t2k.cia` |
 | 5 | **report** | artifact path, size, SHA-256 |
 
 If the music fetch fails, the build can still finish without the DSP album pool. The embedded MOD tracks and album manifest remain available.
+
+**The CIA banner is a network stage.** `make cia` defaults to `BANNER_MODE=model`, which fetches the pinned pycgfx checkout and creates a small venv to pip-install `gltflib` / `pillow` / `numpy` before converting the banner model (`t2k_3ds/tools/build_banner.sh`). So the `cia` stage reaches the network even when the music fetch is already done. For an offline build, set `BANNER_MODE=png` — `BANNER_MODE=png ./build.sh cia`, or `make -C t2k_3ds BANNER_MODE=png cia` — which packages the flat `t2k_3ds/cia/banner.png` kept in the tree for exactly that case.
 
 ### Targets
 
@@ -161,7 +163,7 @@ If the music fetch fails, the build can still finish without the DSP album pool.
 | `./build.sh fetch` | download the source FLACs only |
 | `./build.sh audio` | encode the DSP pool + MOD copy + `albums.json` + stage `data/music/` |
 | `./build.sh cia` | package the CIA from the current tree (dirty tree OK) |
-| `./build.sh production` | the strict, traceable CIA — refuses a dirty tree, always cleans, verifies banner / exheader / SMDH from the built bytes |
+| `./build.sh production` | the strict, traceable CIA — refuses a tree with **tracked** modifications (staged or unstaged); untracked files block only inside the declared build-input roots, so scratch elsewhere does not block. Always cleans, verifies banner / exheader / SMDH from the built bytes |
 | `./build.sh pc` | the desktop oracle (SDL2 + Vulkan 1.3) |
 | `./build.sh verify` | hash the built pool against `soundtracks/track_map.json` |
 | `./build.sh check` | the repo gate suite (VFP hot-path contract, ARM11 math audit, R11 screen, level/demo audits) |
@@ -180,10 +182,10 @@ If the music fetch fails, the build can still finish without the DSP album pool.
 
 ### Prerequisites
 
-- **System:** `git`, `make`, `python3` (3.10+), `ffmpeg`.
+- **System:** `git`, `make`, `python3` (3.10+), `ffmpeg`, `curl`. `curl` is a hard prerequisite of `tools/bootstrap.sh`, which refuses preflight without it (and `t2k_3ds/tools/3ds_push.sh` uses it to push a build to the console over FTP). On Debian/Ubuntu also install `python3-venv` — both `build.sh` and `build_banner.sh` create venvs with `python3 -m venv`, which fails without that package.
 - **3DS build:** devkitPro — `devkitARM`, `libctru`, `citro3d`, `picasso`. Read from `$DEVKITPRO` / `$DEVKITARM`, defaulting to `/opt/devkitpro`.
 - **Python:** `beautifulsoup4`, `curl_cffi`, `pyflakes` — installed automatically by the bootstrap stage from `requirements-build.txt`.
-- **Desktop build only:** CMake ≥ 3.16, SDL2 + SDL2_mixer dev packages, `glslang` on PATH (or `$VULKAN_SDK/bin`), and a Vulkan 1.3 driver at runtime.
+- **Desktop build — and the gate suite:** CMake ≥ 3.16, the SDL2 dev package, and `glslang` on PATH (or `$VULKAN_SDK/bin`). These are **not** optional if you only want a CIA: gate #1 of `tools/check.sh` is `make pc`, so `./build.sh check` and `tools/bootstrap.sh` both need the desktop toolchain. A Vulkan 1.3 driver is only needed to *run* the desktop build, not to build it. `SDL2_mixer` is genuinely optional — CMake drops to `WITH_AUDIO=OFF` when it is absent and the desktop build still configures and runs, just without sound.
 
 ## Audio sources and rights
 
@@ -201,7 +203,7 @@ The five source albums are fetched from KHInsider into `soundtracks/`:
 | TxK | `TxK/` | `txk-ps-vita-gamerip-2014` (21) |
 | Space Giraffe | `Space_Giraffe/` | `space-giraffe-windows-gamerip-2009` (4) |
 
-The Tempest 2000 MOD album is not fetched — `soundtracks/mod/*.mod` is tracked, streams natively, and is copied (renamed `t2k-N.mod` → `t2000-N.mod`) rather than re-encoded.
+The Tempest 2000 MOD album is not fetched — `soundtracks/mod/*.mod` is tracked, streams natively, and is copied into the pool rather than re-encoded. The deployable names come from the `mods[]` entries in `soundtracks/track_map.json`, which rename by title, not by index: `mod/t2k-1.mod` → `00_thermalresolution.mod`, `mod/t2k-5.mod` → `01_mindseye.mod`, and so on.
 
 If KHInsider challenges the automated fetch, solve the challenge in a browser and pass the matching clearance cookie and user agent to the fetch stage:
 
@@ -219,7 +221,7 @@ KHINSIDER_COOKIE='cf_clearance=…' KHINSIDER_UA='<the UA that solved it>' ./bui
 tools/bootstrap.sh
 ```
 
-Every stage is idempotent and resumable, because a run this long will outlast a network. An interruption — Cloudflare, a dropped link, a ctrl-C — is answered by **re-running the same command**, not by cleanup. `--dry-run` prints the stage plan and the toolchain fingerprint and runs nothing; `--skip-music` builds without third-party audio; `--make-baseline` regenerates the component baseline on the reference machine; every stage's start, end, and exit code is logged to `docs/validation/bootstrap-<stamp>.log`.
+Every stage is idempotent and resumable, because a run this long will outlast a network. An interruption — Cloudflare, a dropped link, a ctrl-C — is answered by **re-running the same command**, not by cleanup. `--dry-run` prints the stage plan and the toolchain fingerprint and runs nothing; `--skip-music` builds without third-party audio; `--strict` forwards `--strict` to `tools/check.sh` so an INCOMPLETE gate fails the run instead of warning (opt-in — see [Gates](#gates)); `--make-baseline` regenerates the component baseline on the reference machine; every stage's start, end, and exit code is logged to `docs/validation/bootstrap-<stamp>.log`.
 
 | Stage | What runs | Gate |
 |---|---|---|
@@ -236,19 +238,19 @@ Prerequisites:
 | Requirement | Detail |
 |---|---|
 | devkitARM | with libctru, citro3d, picasso — read from `$DEVKITPRO` / `$DEVKITARM` |
-| Python | `pip install beautifulsoup4 curl_cffi` (or `pip install -r requirements-build.txt`) |
-| System | `git`, `make`, `cmake`, `ffmpeg` / `ffprobe`, a C compiler |
+| Python | `beautifulsoup4` and `curl_cffi` importable from the **bare `python3` on PATH** — `tools/bootstrap.sh` calls `python3` directly and does *not* activate the `.venv` that `./build.sh` creates. On a PEP 668 distro (Debian 12 / Ubuntu 24.04 and its derivatives, including the reference Pop!_OS 24.04) a bare `pip install` is refused with `externally-managed-environment`, so either create and activate a venv first — `python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements-build.txt` — or install with `pip install --break-system-packages`. Needs the `python3-venv` package on Debian/Ubuntu. |
+| System | `git`, `make`, `cmake`, `ffmpeg` / `ffprobe`, `curl`, a C compiler, and `python3-venv` on Debian/Ubuntu |
 | Disk | ≥ 8 GB free — 2.17 GiB FLAC + ~214 MiB encoded pool (staged twice) + build tree + ~229 MB CIA |
 
 The fetch is **HTML scraping behind Cloudflare**, not an API. It is resumable and expected to be re-run on failure; if the site challenges hard, solve the challenge in a browser and pass `KHINSIDER_COOKIE` / `KHINSIDER_UA` as above. Do not expect one unattended run to be enough on a hostile day.
 
-**What "the same artifact" means here, stated honestly.** The `.cia` itself is **not** byte-reproducible, and we are not patching makerom to make it so: makerom seeds `rand()` from `time(0)` for its ticket and content IDs and fills the romfs from an unsorted `readdir()`, so two correct builds of identical inputs get different `.cia` bytes. Equality is defined **by component** — `t2k.elf`, `t2k.3dsx`, `banner.cgfx`, `banner.bnr`, `t2k.smdh`, and a canonical (readdir-order-independent) romfs hash — and those match **bit-for-bit** across machines when the toolchain matches. Verify with:
+**What "the same artifact" means here, stated honestly.** The `.cia` itself is **not** byte-reproducible, and we are not patching makerom to make it so: makerom seeds `rand()` from `time(0)` for its ticket and content IDs and fills the romfs from an unsorted `readdir()`, so two correct builds of identical inputs get different `.cia` bytes. Equality is defined **by component** — `t2k.elf`, `t2k.3dsx`, `banner.cgfx`, `banner.bnr`, `t2k.smdh`, and a canonical (readdir-order-independent) romfs hash — and those match **bit-for-bit** across machines when the toolchain matches *and the artifact is built at the rev the baseline was stamped at*. Verify with:
 
 ```
 python3 t2k_3ds/tools/cia_component_hashes.py --compare t2k_3ds/tools/cia_component_baseline.json
 ```
 
-A matching run prints `MATCH` on every component row, `0 mismatch(es)`, and exits 0; the `t2k.cia sha256` it also prints is informational and never compared. Do not chase a `.cia` hash mismatch — chase a component mismatch.
+The committed baseline is stamped at `207c22f6`, and the `t2k.elf` row is compared **by its embedded rev stamp**, not blindly by bytes: at the stamped rev a byte difference is a hard `MISMATCH`, and at any later commit the row prints `REV-DRIFT 207c22f6 -> <your rev>; bytes not compared` and the run still exits 0. So on any commit after the stamped one the expected output is `REV-DRIFT` on the `t2k.elf` row and `MATCH` on the rest (`t2k.3dsx`, `banner.cgfx`, `banner.bnr`, `t2k.smdh`, the canonical romfs hash), with `0 mismatch(es)`. `REV-DRIFT` is expected across commits and is **not** a mismatch; `MISMATCH` (same rev, different bytes) and `REV-UNEXTRACTED` are, and `--strict-rev` upgrades `REV-DRIFT` to a failure for release verification at a known commit. The `t2k.cia sha256` the run also prints is informational and never compared. Do not chase a `.cia` hash mismatch — chase a component `MISMATCH`.
 
 The packaging tools are pinned by commit, and a stale cache re-fetches and rebuilds itself rather than failing:
 
@@ -286,10 +288,11 @@ tools/bootstrap.sh 2>&1 | tee bootstrap.log; echo "exit=$?"
 
 > The gate suite **is tracked**. `tools/runner/` ships nine files in every clone — `gates_vfp.py`, `audit_arm11_math.py`, `audit_r11_idiv.py`, `audit_c_with_classes.py` and `tools/runner/contracts/` (the hot-path contract, the corpus and the blessed baselines) — so `./build.sh check` and `tools/bootstrap.sh` run the gates from a bare clone. What is gitignored under `tools/runner/` is only the swarm scheduler's own working material (`state.json`, `runner.lock`, `logs/`, `__pycache__/`); the `.gitignore` ignores `/tools/runner/*` and then un-ignores exactly those nine paths. `docs/` **is** gitignored and untracked (0 tracked files), so the validation logs and design notes are working material of the primary checkout, but nothing that builds or gates the game is.
 >
-> One gate has an input that is *not* in any clone: the level verifier re-derives the Tempest/Tubes provenance rows from the Typhoon extraction's `webs/all_webs.json`, a **sibling repo**. Without it `t2k_core/tools/verify.sh` exits `2` — every checkable row passed, those rows could not be re-derived — and `tools/check.sh` reports **INCOMPLETE**: a loud warning naming what went unverified, recorded in the summary, exit 0, and never printed as a pass. Point the verifier at the extraction for a complete run:
+> Two gates have inputs that are *not* in any clone, and both are reported the same way. The level verifier re-derives the Tempest/Tubes provenance rows from the Typhoon extraction's `webs/all_webs.json`, a **sibling repo**; without it `t2k_core/tools/verify.sh` exits `2` — every checkable row passed, those rows could not be re-derived. And `gen_albums.py --check` resolves the album manifest and the bonus-round reservation against the music pool in `data/music/`, which is gitignored because the recordings are copyrighted; with no pool every album resolves to zero playable files. Neither is a failure on a bare clone: `tools/check.sh` reports each as **INCOMPLETE** — a loud warning naming what went unverified, recorded in the summary, exit 0, and never printed as a pass. For a complete run, supply both inputs:
 >
 > ```
 > export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json
+> python3 soundtracks/build.py --stage
 > ```
 >
 > For release gating, where INCOMPLETE must not be survivable:
@@ -310,7 +313,7 @@ Three ways to get the published CIA onto a console, all using the file and hash 
 
 Any other CIA installer works the same way as route 3. Whichever route you took, the HOME-menu entry should read **T2K** / *Psychedelic Tube Shooter* / **TSEngine Devs**.
 
-Anything you build yourself should go through `./build.sh production`, not a bare `cia`: it refuses a dirty tree, always builds from clean, and re-reads the shipped bytes to verify the HOME-menu identity, the 16-bit stereo banner audio and the DSP-RAM exheader mapping — the three traps that build green and fail silently on a console.
+Anything you build yourself should go through `./build.sh production`, not a bare `cia`: it refuses a tree with tracked modifications (untracked scratch outside the build-input roots does not block it), always builds from clean, and re-reads the shipped bytes to verify the HOME-menu identity, the 16-bit stereo banner audio and the DSP-RAM exheader mapping — the three traps that build green and fail silently on a console.
 
 ## Desktop (correctness oracle)
 
