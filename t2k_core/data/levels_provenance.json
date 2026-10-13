@@ -28,6 +28,9 @@
   "t2k:22": "pinched star: outline-close to stylized cross but with concave curved edges at 12 lanes (user-curated import)",
   "t2k:3": "flat bowl: 4.9 deg from tempest's u, but a FLAT floor with straight walls vs u's continuous bowl -- same argument as the Octagon: flat faces read differently when you are falling down them (user-curated import)"
  },
+ "hand_curated_closure": {
+  "tubes:2": "skull (shipped level 48): its 15 step vectors sum to EXACTLY (0,0) -- dx -1-1-1+0+1+1+0.5+1+0.5+1+1+0-1-1-1 and dy 0-.5-.5-1.25-.5-.5-1.5+0+1.5+.5+.5+1.25+.5+.5+0 -- so the ring joins exactly, while the source's open flag made it the only open web between two closed ones (teardrop, fly) and put a wave-phase and colour crack on the one face that closes the tube; it therefore ships closed, unlike its Typhoon source row (user-curated 2026-10-13)"
+ },
  "count": 100,
  "levels": [
   {
@@ -364,7 +367,7 @@
    "from": "tubes",
    "from_index": 2,
    "lanes": 15,
-   "closed": false
+   "closed": true
   },
   {
    "name": "fly",

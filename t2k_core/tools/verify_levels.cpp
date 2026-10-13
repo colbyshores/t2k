@@ -98,6 +98,34 @@ static int deriveT2k(const LegacyT2kWeb& w, float* dx, float* dy) {
     return lanes;
 }
 
+// One shipped row is hand-curated CLOSED while its Typhoon source row flags it
+// open: tubes #2 "skull" (shipped level 48). Its 15 step vectors sum to EXACTLY
+// (0,0) -- dx -1-1-1+0+1+1+0.5+1+0.5+1+1+0-1-1-1, dy
+// 0-.5-.5-1.25-.5-.5-1.5+0+1.5+.5+.5+1.25+.5+.5+0 -- so the ring joins exactly,
+// and the source's open flag only cost it open-web semantics: no lane wrap, plus
+// a terminal ring column that duplicates column 0's POSITION but not its wave
+// phase or colour, putting a visible crack down the one face that closes the
+// tube. Its shipped neighbours (tubes #1 teardrop, #3 fly) are both closed.
+//
+// This is the C++ mirror of CURATED_CLOSURE in gen_webs.py and it is NARROW on
+// purpose: it waives the CLOSED-FLAG comparison for the listed (from,
+// from_index) row and nothing else. The lane dx/dy bit-comparison below still
+// runs for this row and still has to pass, so the waiver cannot hide moved
+// geometry -- it can only record a deliberate curation decision.
+struct CuratedClosure {
+    const char* from;
+    int from_index;
+};
+static const CuratedClosure CURATED_CLOSURE[] = {
+    {"tubes", 2},   // skull -- zero-sum step vectors, see gen_webs.py
+};
+
+static bool closureIsCurated(const std::string& from, int fromIndex) {
+    for (const CuratedClosure& c : CURATED_CLOSURE)
+        if (from == c.from && fromIndex == c.from_index) return true;
+    return false;
+}
+
 int main() {
     // ---- 1. Embedded path first: levels() before any file load ------------
     const WebSet& embedded0 = levels();
@@ -239,8 +267,12 @@ int main() {
             }
             const nlohmann::json& src = typhoon[key][fromIdx];
             const int lc = src.value("lane_count", -1);
+            // CURATED_CLOSURE (above) waives ONLY the closed-flag equality for
+            // the one curated row; lane_count and every dx/dy bit below are
+            // still required to match the source exactly.
             bool ok = (lc == shipped.lane_count) &&
-                      (src.value("closed", !shipped.go_round) == shipped.go_round);
+                      (closureIsCurated(from, fromIdx) ||
+                       src.value("closed", !shipped.go_round) == shipped.go_round);
             for (int k = 0; k < shipped.lane_count && ok; ++k) {
                 const float ex = src["lanes"][k]["dx"].get<float>();
                 const float ey = src["lanes"][k]["dy"].get<float>();

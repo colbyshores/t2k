@@ -88,6 +88,19 @@ KEEP_ANYWAY = {
         "them (user-curated import)",
 }
 
+CURATED_CLOSURE = {
+    ("tubes", 2): "skull: its 15 step vectors sum to EXACTLY (0,0) -- dx "
+        "-1-1-1+0+1+1+0.5+1+0.5+1+1+0-1-1-1, dy "
+        "0-.5-.5-1.25-.5-.5-1.5+0+1.5+.5+.5+1.25+.5+.5+0 -- so the ring joins "
+        "exactly and the source's open flag bought nothing but open-web "
+        "semantics: no lane wrap, and a terminal ring column duplicating column "
+        "0's POSITION but not its wave phase or colour, i.e. a visible crack "
+        "down the one face that closes the tube. Its shipped neighbours (tubes "
+        "#1 teardrop, #3 fly) are both closed. Ship it closed (user-curated "
+        "2026-10-13); verify_levels.cpp waives the closed-flag comparison for "
+        "this row only and still bit-compares every dx/dy.",
+}
+
 # Arcade-reference (t2k) shapes dropped by hand. The turning-angle dedup
 # below only compares same-lane-count webs, and the arcade tables run 8-18
 # lanes against the shipped set's mostly-16 -- so the same silhouette at a
@@ -186,8 +199,12 @@ def parse_typhoon():
         for i, w in enumerate(doc[key]):
             lc = int(w["lane_count"])
             lanes = w["lanes"][:lc]
+            # CURATED_CLOSURE (table above) overrides the source flag for the
+            # handful of rows we ship closed on purpose, so a regeneration on a
+            # machine that HAS the extraction cannot silently reopen them.
+            closed = (tag, i) in CURATED_CLOSURE or bool(w["closed"])
             out.append({"src": tag, "idx": i, "name": w["name"],
-                        "round": bool(w["closed"]), "lanes": lc,
+                        "round": closed, "lanes": lc,
                         "dirs": [(F32(l["dx"]), F32(l["dy"])) for l in lanes]})
         return out
 
