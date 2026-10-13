@@ -10,7 +10,7 @@
 #   ./build.sh production   the strict, traceable CIA (clean tree required)
 #   ./build.sh pc           the desktop oracle (SDL2 + Vulkan)
 #   ./build.sh verify       hash the built pool against soundtracks/track_map.json
-#   ./build.sh check        the repo gate suite (needs the local-only tools/runner/)
+#   ./build.sh check        the repo gate suite (two gates need inputs no clone carries)
 #   ./build.sh clean        generated pool + staging + build trees
 #
 # Flags:
@@ -205,14 +205,25 @@ build_pc() {
 }
 
 # --------------------------------------------------------------- check ----
-# tools/runner/ is local-only (gitignored), so a bare clone has no gate suite.
-# Say so instead of failing on a missing file.
+# tools/runner/ IS tracked: .gitignore ignores /tools/runner/* and then un-ignores
+# exactly the nine shipped paths (gates_vfp.py, the three audits, and
+# tools/runner/contracts/). Only the swarm scheduler's working material
+# (state.json, runner.lock, logs/, __pycache__/) is local. So the gate suite runs
+# from a bare clone and there is nothing to skip here.
+#
+# What a bare clone genuinely lacks is two GATE INPUTS, not the gates: the Typhoon
+# extraction the level verifier re-derives provenance rows from (point
+# T2K_TYPHOON_WEBS at its webs/all_webs.json) and the music pool under data/music/
+# that gen_albums.py --check resolves the album manifest against (build it with
+# `python3 soundtracks/build.py --stage`). tools/check.sh reports both as
+# INCOMPLETE — loud, named, exit 0, and fatal under --strict — never as a pass.
 run_check() {
   if [[ ! -d "$ROOT/tools/runner" ]]; then
     log "gate suite"
-    warn "tools/runner/ is not present in this checkout (it is local-only)."
-    warn "skipping the gate suite — see README.md 'Gates'."
-    return 0
+    bad "tools/runner" "MISSING — this checkout has no gate suite at all."
+    warn "tools/runner/ ships nine tracked files; if they are absent the tree is"
+    warn "broken or was pruned. Skipping the gates is NOT a pass, so this is a failure."
+    return 1
   fi
   bash "$ROOT/tools/check.sh"
 }

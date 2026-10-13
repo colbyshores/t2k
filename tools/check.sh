@@ -33,6 +33,13 @@
 #                      and the verifier exits 2 (INCOMPLETE) for those rows.
 #                      Set this for a complete run:
 #                        export T2K_TYPHOON_WEBS=/path/to/typhoon/webs/all_webs.json
+#   (no env var)       The album gate `gen_albums.py --check` reads the MUSIC POOL
+#                      (data/music/), which is gitignored because the recordings are
+#                      copyrighted. A bare clone has no pool, so that gate reports
+#                      INCOMPLETE too. Build the pool for a complete run:
+#                        python3 soundtracks/build.py --stage
+#                      T2K_MUSIC_POOL=none is the declared no-audio stance and skips
+#                      the pool gates outright (see the two pool gates below).
 #
 # Baselines: tools/runner/contracts/r11_candidates_baseline.txt
 # A change to any expected number needs an explanation -- bless deliberately.
@@ -253,12 +260,46 @@ gate "gen_albums.py --check (album manifest vs the music pool)"
 # supplies actually COVER the pool; this one proves the file exists at all. Use
 # --require-named for the shipping-pool stance; stage_romfs.sh and
 # t2k_3ds/tools/build_production.sh pass it. NB this gate reads the pool, unlike
-# the pool-free map check above: with no data/music/ at all the bonus-round
-# reservation cannot find its tracks and this fails.
-python3 t2k_core/tools/gen_albums.py --check > "$tmp/gen_albums.log" 2>&1
-rc=$?
-head -1 "$tmp/gen_albums.log"
-[ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/gen_albums.log"; fail "gen_albums.py --check"; }
+# the pool-free map checks above.
+#
+# A MISSING POOL IS INCOMPLETE -- the third answer, not a pass and not a failure.
+# data/music/ is gitignored (the recordings are copyrighted), so a bare clone has
+# no pool and --check exits 1 on the bonus-round reservation: every album resolves
+# to zero playable files and the reserved bonus tracks are "not in the pool". That
+# is an ABSENT INPUT, not a wrong manifest, and filing it as a failure made
+# `./build.sh check` impossible on a fresh clone while the reference machine passed
+# for a reason no clone could reproduce -- the same defect verify.sh documents
+# above. So it is handled the same way: loud, named, counted, fatal under --strict.
+# A PARTIAL pool still runs the gate, which is the point -- a pool that is present
+# but wrong is a real failure and stays one.
+#
+# T2K_MUSIC_POOL=none is NOT INCOMPLETE: it is the declared "this build ships no
+# third-party audio" stance, and the pool-hash gate above treats it the same way.
+if [ "${T2K_MUSIC_POOL:-}" = "none" ]; then
+    echo "skipped (T2K_MUSIC_POOL=none -- this build ships no third-party audio, so there is no pool to check)"
+elif [ ! -d data/music ] || [ -z "$(ls data/music/*.dsp data/music/*.mod 2>/dev/null)" ]; then
+    echo "skipped (no music pool -- run: python3 soundtracks/build.py --stage)"
+    INCOMPLETE=$((INCOMPLETE + 1))
+    INCOMPLETE_LIST="$INCOMPLETE_LIST gen_albums.py --check"
+    {
+        echo "*** INCOMPLETE -- NOT A PASS ***"
+        echo "    what could NOT be verified: the album manifest against the music pool --"
+        echo "         with no data/music/ every album resolves to zero playable files and"
+        echo "         the bonus-round reservation cannot find its reserved tracks."
+        echo "    why: data/music/ is gitignored (the recordings are copyrighted), so a"
+        echo "         bare clone has nothing to check. The manifest itself DID get checked:"
+        echo "         the pool-free map and provenance gates above both ran."
+        echo "    to make it a full pass: python3 soundtracks/build.py --stage"
+    } >&2
+    if [ "$STRICT" -eq 1 ]; then
+        fail "gen_albums.py --check could not run (no music pool) and --strict was given"
+    fi
+else
+    python3 t2k_core/tools/gen_albums.py --check > "$tmp/gen_albums.log" 2>&1
+    rc=$?
+    head -1 "$tmp/gen_albums.log"
+    [ $rc -eq 0 ] || { sed -n '1,25p' "$tmp/gen_albums.log"; fail "gen_albums.py --check"; }
+fi
 
 gate "gen_track_titles.py --check (every pool file has a display title)"
 # Titles are DISPLAY ONLY -- the pool filename stem stays the runtime identity
@@ -301,7 +342,8 @@ if [ "$INCOMPLETE" -gt 0 ]; then
     printf '\nCHECK: %d gate(s) INCOMPLETE: %s\n' "$INCOMPLETE" "${INCOMPLETE_LIST# }"
     printf 'CHECK: nothing was found WRONG, but those gates did not run to completion.\n'
     printf 'CHECK: NOT A FULL PASS (exit 0 here; --strict makes this a failure).\n'
-    printf 'CHECK: for a complete run set T2K_TYPHOON_WEBS -- see tools/check.sh --help.\n'
+    printf 'CHECK: for a complete run point T2K_TYPHOON_WEBS at the Typhoon extraction and\n'
+    printf 'CHECK: build the music pool (python3 soundtracks/build.py --stage) -- tools/check.sh --help.\n'
     exit 0
 fi
 
