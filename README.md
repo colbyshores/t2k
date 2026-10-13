@@ -1,22 +1,36 @@
 # T2K: Psychedelic Tube Shooter
 
-A Tempest 2000-inspired tube shooter built around the Nintendo 3DS's stereoscopic screen. The web recedes into the display, enemies race up its lanes, and the geometry, particles, and glow are rendered for two eyes from the start. The desktop code also includes a Vulkan renderer and an OpenXR stereo path.
+A stereoscopic-native reimagining of Tempest 2000 for the Nintendo 3DS, VR, and other stereoscopic displays.
+
+Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's glasses-free 3D screen. It was designed for stereoscopy from the beginning, so the geometry, particles, and effects all assume two eyes. The desktop tree carries a Vulkan renderer and an OpenXR stereo path, so the same simulation projects through a headset instead of being retrofitted.
 
 ![T2K banner](banner/t2k_composed.png)
 
 ## Download and play
 
-- **3DS:** Browse the [CIA download](https://archive.org/download/t2k-3ds), or open the [Reddit post](https://www.reddit.com/r/3dsqrcodes/comments/1ws451p/t2k_psychedelic_tube_shooter/) and swipe to its QR code for FBI.
-- **Performance in stereoscopic 3D:** approximately 25–30 fps on Old 3DS and 50–60 fps on New 3DS.
-- **Build from source:** see [Building from scratch](#building-from-scratch). The linked prebuilt download is for 3DS.
+The published build is a single Nintendo 3DS CIA, hosted on archive.org.
+
+| | |
+|---|---|
+| CIA (direct download) | <https://archive.org/download/t2k-3ds/t2k.cia> |
+| Item page | <https://archive.org/details/t2k-3ds> |
+| FBI QR code | <https://archive.org/download/t2k-3ds/t2k_cia_qr.png> |
+| Size | 229,352,384 bytes (218.7 MiB) |
+| SHA-256 | `447882f9b5335849244b4216196c895a2a6195ae61de6f9d2137e70f3adac1a7` |
+
+The size and hash above are for the **currently published build**, which traces to `5f5e4706` on `master` and was packaged by `t2k_3ds/tools/build_production.sh`. The archive.org item publishes the same hash in its own description, so you can confirm what you downloaded; re-check both figures against the item page after any new release. The announcement post, with screenshots and the QR code as a gallery image, is [on r/3dshomebrew](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
+
+**Performance in stereoscopic 3D:** approximately 25–30 fps on Old 3DS and 50–60 fps on New 3DS.
+
+To put the CIA on a console, see [Installing on hardware](#installing-on-hardware). To build it yourself instead, see [Building from scratch](#building-from-scratch) — the prebuilt download above is 3DS only.
 
 ## The game
 
-Tempest 2000 has always been about depth: a web opening away from you, lanes rushing up the tube, everything lit like neon. T2K rebuilds that feeling for the 3DS's 3D screen. Its visual direction draws on sacred geometry and psychedelia: symmetry, color, and motion pulse with the music.
+T2K draws on cyberdelic art: glowing geometry, vivid color, and motion that pulse with the music, on a visual direction built from symmetry, repetition, and sacred geometry — shapes that seem to unfold as you travel through them. The audio-reactive visuals tie the picture to what you hear — see [Sound that drives the picture](#sound-that-drives-the-picture) — and photosensitivity safeguards are in the options menu.
 
-The bottom screen is a jukebox, with albums from Tempest 2000, Tempest 3000, Tempest 4000, TxK, and Space Giraffe. Play an album or pick individual tracks; the music can also advance as you move through the levels. Tap the dark bottom screen to wake the deck.
+The bottom screen is not a static menu. It is a jukebox holding music from across the Tempest line and its tube-shooter kin: Tempest 2000, Tempest 3000, Tempest 4000, TxK, and Space Giraffe. Play an entire album, pick individual tracks, or let the music advance with the levels so the soundtrack moves with you through the game. Tap the dark bottom screen to wake the deck.
 
-The web, plasma, wireframe glow, explosions, particles, and feedback effects were tuned for stereoscopic 3D rather than converted from a 2D presentation.
+T2K was not built in 2D and converted afterwards. The web, plasma, wireframe glow, explosions, particles, and feedback effects were tuned for stereoscopic 3D from the start. Depth is per eye where it matters: the tube grid and every line-built entity are projected through each eye's own matrix, while flat layers — HUD, fog, bloom — deliberately sit on the screen plane.
 
 ## Sound that drives the picture
 
@@ -29,7 +43,7 @@ The web, plasma, wireframe glow, explosions, particles, and feedback effects wer
 - 100 unique levels
 - **The full arcade roster:** Flipper, Tanker and its variants, Spiker, Fuseball, Pulsar, Mirror, Adroid, and Reflector.
 - **Powerups and bonuses:** An eight-slot ladder covers laser, jump, tremor, droid, and superzapper, with a warp token and a few surprises. Warp bonus rounds are included.
-- **Camera:** Classic and auto-framing modes (SELECT), adjustable field of view, and C-Stick zoom on New 3DS.
+- **Camera:** four viewpoints — NEAR, MID (default), FAR, and a FIXED overview — cycled with SELECT, adjustable field of view, and C-Stick zoom on New 3DS.
 
 ## Controls
 
@@ -45,7 +59,7 @@ The web, plasma, wireframe glow, explosions, particles, and feedback effects wer
 | FOV zoom | C-Stick (New 3DS) |
 | Music / jukebox deck | Touch (bottom screen) |
 
-SELECT only changes the camera viewpoint. The bottom screen stays dark until you tap it to wake the jukebox.
+SELECT steps the camera viewpoint outward (NEAR → MID → FAR → FIXED overview) and wraps. The bottom screen stays dark until you tap it to wake the jukebox.
 
 Every button above except the touch deck is remappable in **Options → Controls**, including the viewpoint cycle, which used to be fixed to SELECT. Binding a button takes it from whatever action held it and leaves that row `<unbound>`, so no two actions ever share a key; **Reset to Defaults** puts the shipped layout back.
 
@@ -87,9 +101,11 @@ The 3DS GPU has no programmable pixel shader, only six fixed-function combiner s
 
 ### Camera & options
 
-- **Auto-framing camera.** Camera distance and offset are derived from the web's measured bounding box, so every playfield shape frames itself instead of inheriting constants tuned for one level. Both modes run through one eased smoother, so switching crossfades rather than snapping.
-- **Live Field-of-View control** — a graphics-menu slider (40–75°) and the New 3DS C-stick as a zoom, both applying in real time and persisted to the SD config.
-- Web glow, texture brightness, background, and audio album are all adjustable, and your settings are saved — on-SD JSON config under `sdmc:/3ds/t2k/`, with persisted high scores.
+- **Reference camera law.** The eye target is half the player's displacement from the tube axis plus a per-viewpoint offset, and it *approaches* that target at a constant step with a deadzone rather than a lerp. The camera deliberately cannot keep up during sustained movement; that lag is the effect. Switching viewpoints glides on the same spring instead of snapping.
+- **Four viewpoints** (`t2k_core/src/game/camera.h`): NEAR (the reference-exact standoff), MID (default), FAR, and FIXED, which drops the follow for a static overview. Vertical bias interpolates with distance, so the eye rises as it pulls back rather than jumping.
+- **Planar lift.** Flat and straight webs get a per-level lift derived from the web's own scatter matrix, so a line web reads as a receding sheet instead of edge-on. It is computed once per level — a property of the web, not a camera that chases geometry.
+- **Field of view** defaults to 53° (the reference frustum is 53.13°). The New 3DS C-stick zooms it live within 40–75°; `fov_deg` in the SD config sets it on any model.
+- **Options menu:** music, bonus-round music, the photosensitivity safeguard, and full control rebinding. Everything else — web opacity and brightness, glow strength, shot intensity, color cycle, soundtrack, FOV — lives in the on-SD JSON config under `sdmc:/3ds/t2k/`, which also holds persisted high scores.
 
 ## Desktop and VR code
 
@@ -114,7 +130,7 @@ The desktop build runs the same simulation as the 3DS and serves as a host-side 
 | `t2k_pc/` | The desktop target: `CMakeLists.txt`, `src/main.cpp` (SDL2), the Vulkan 1.3 renderer (`renderer_vk.cpp` + `vk_*.cpp`, GLSL in `shaders/`), SDL audio sinks |
 | `soundtracks/` | The soundtrack pipeline: fetch → decode → DSP-ADPCM encode → album map, pinned by `track_map.json` |
 | `docs/` | Local design notes and validation write-ups, including `DOCTRINE.md` (not in the public clone) |
-| `tools/` | Build tooling and the vendored DSP-ADPCM encoder (`tools/vendor/`); some gate scripts are local-only |
+| `tools/` | Build tooling and the vendored DSP-ADPCM encoder (`tools/vendor/`); the gate scripts under `tools/runner/` are tracked, the scheduler's own working material is not |
 
 ## Building from scratch
 
@@ -222,7 +238,7 @@ Prerequisites:
 | devkitARM | with libctru, citro3d, picasso — read from `$DEVKITPRO` / `$DEVKITARM` |
 | Python | `pip install beautifulsoup4 curl_cffi` (or `pip install -r requirements-build.txt`) |
 | System | `git`, `make`, `cmake`, `ffmpeg` / `ffprobe`, a C compiler |
-| Disk | ≥ 8 GB free — 2.17 GiB FLAC + ~219 MiB encoded pool (staged twice) + build tree + ~234 MB CIA |
+| Disk | ≥ 8 GB free — 2.17 GiB FLAC + ~214 MiB encoded pool (staged twice) + build tree + ~229 MB CIA |
 
 The fetch is **HTML scraping behind Cloudflare**, not an API. It is resumable and expected to be re-run on failure; if the site challenges hard, solve the challenge in a browser and pass `KHINSIDER_COOKIE` / `KHINSIDER_UA` as above. Do not expect one unattended run to be enough on a hostile day.
 
@@ -284,9 +300,17 @@ tools/bootstrap.sh 2>&1 | tee bootstrap.log; echo "exit=$?"
 
 ## Installing on hardware
 
-Copy `t2k_3ds/t2k.cia` to the SD card and install it with your installer of choice (FBI, DreamTool, …). The soundtrack lives in the CIA's romfs, read in place — nothing needs to be copied to `sdmc:` besides the CIA itself. The first boot seeds `sdmc:/3ds/t2k/t2k_config.json` from the bundled template; that file is yours to edit (controls, audio source, render toggles).
+A CIA has to be **installed**, not merely copied: getting the file onto the card is one step, and FBI installing it into the title database is a second. The soundtrack lives in the CIA's romfs and is read in place, so nothing needs to be copied to `sdmc:` besides the CIA itself. First boot seeds `sdmc:/3ds/t2k/t2k_config.json` from the template bundled in the CIA; that file is yours to edit (controls, audio source, render toggles).
 
-Anything leaving this machine should go through `./build.sh production`, not a bare `cia`: it refuses a dirty tree, always builds from clean, and re-reads the shipped bytes to verify the HOME-menu identity, the 16-bit stereo banner audio and the DSP-RAM exheader mapping — the three traps that build green and fail silently on a console.
+Three ways to get the published CIA onto a console, all using the file and hash from [Download and play](#download-and-play):
+
+1. **Scan the QR with FBI.** FBI's QR/URL download path installs directly from `https://archive.org/download/t2k-3ds/t2k.cia`. The code is at `https://archive.org/download/t2k-3ds/t2k_cia_qr.png` and is also a gallery image in the [announcement post](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
+2. **FBI → Add URL.** Enter the direct URL by hand: `https://archive.org/download/t2k-3ds/t2k.cia`.
+3. **Download on a PC, copy the CIA across.** Pull `t2k.cia` on a computer, check it against the SHA-256 above, and put the file on the SD card — then open it in FBI and choose install. **This is the fast route:** downloading on a computer and transferring the file over FTP is much faster than pulling 218.7 MiB over the 3DS's own Wi-Fi.
+
+Any other CIA installer works the same way as route 3. Whichever route you took, the HOME-menu entry should read **T2K** / *Psychedelic Tube Shooter* / **TSEngine Devs**.
+
+Anything you build yourself should go through `./build.sh production`, not a bare `cia`: it refuses a dirty tree, always builds from clean, and re-reads the shipped bytes to verify the HOME-menu identity, the 16-bit stereo banner audio and the DSP-RAM exheader mapping — the three traps that build green and fail silently on a console.
 
 ## Desktop (correctness oracle)
 
