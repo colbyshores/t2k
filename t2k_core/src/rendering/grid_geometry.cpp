@@ -400,10 +400,16 @@ void lightenLevel(GameEngine& engine) {
             // docs/validation/arm11-second-opinion-verdict-2026-09-07.md,
             // contract rule AGENTS.md R11.
             int elCol = el * GRID_LOD_X;
-            // R11: one-period bound does NOT hold -- elCol = el*GRID_LOD_X
-            // scales with the loop index and can be many periods out of
-            // [0,cols), so the modulo wrap is required (the lightenLevel
-            // one-period elimination does NOT apply here). Left as-is.
+            // R11: the bound claim here was wrong. `el` is exp.grid_element_pos,
+            // a lane index in [0,lane_count) (engine.cpp:927), so elCol is already
+            // in [0,cols) with cols = lane_count*GRID_LOD_X (:231) -- this modulo
+            // is a NO-OP on every live value, not a many-period wrap, and it runs
+            // once per explosion OUTSIDE the dv/dz kernel, so there is no in-loop
+            // divide cost to recover. KEPT DELIBERATELY as the normalization guard
+            // the prologue above describes: it is what lands an out-of-range
+            // grid_element_pos in range instead of subscripting engine.vertex_col[]
+            // out of bounds. A compare-wrap would not normalize at all.
+            /* @vfp-exempt R11 — mechanics-gated column wrap kept as the normalization guard: it is a no-op on live values but bounds an out-of-range grid_element_pos, which a compare-wrap would not; rewrite benefit unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
             if (wrapCols) elCol = ((elCol % cols) + cols) % cols;
             for (int dv = -10; dv < 12; dv++) {
                 int vg = elCol + dv;

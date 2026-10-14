@@ -177,3 +177,15 @@ tools/runner/__pycache__/
 !/tools/runner/audit_r11_idiv.py
 !/tools/runner/audit_c_with_classes.py
 !/tools/runner/contracts/
+# The gate tests ship with the gates they cover: tests/ left ignored here is the
+# same silent-disappear defect one level down -- the tests that prove the gates
+# still gate would vanish from a fresh clone just like an un-negated gate script.
+# Only the tests of the SHIPPED gates ship, though: the scheduler tests import
+# local-only modules (diffapply, context, pipeline, schemas) and cannot run from
+# a fresh clone, so the directory is re-ignored and each shipped test is admitted
+# by name, with the fixtures those two tests read.
+!/tools/runner/tests/
+/tools/runner/tests/*
+!/tools/runner/tests/test_gates_vfp.py
+!/tools/runner/tests/test_audit_r11_idiv.py
+!/tools/runner/tests/fixtures/

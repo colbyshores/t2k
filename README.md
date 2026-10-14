@@ -16,9 +16,9 @@ The published build is a single Nintendo 3DS CIA, hosted on archive.org.
 | Item page | <https://archive.org/details/t2k-3ds> |
 | FBI QR code | <https://archive.org/download/t2k-3ds/t2k_cia_qr.png> |
 | Size | 229,352,384 bytes (218.7 MiB) |
-| SHA-256 | `447882f9b5335849244b4216196c895a2a6195ae61de6f9d2137e70f3adac1a7` |
+| SHA-256 | `2f837733ba0eaf5abcfc4638c87544892e0b76ee8cdffd8d227bdc5e7ea1ca36` |
 
-The size and hash above are for the **currently published build**, which traces to `5f5e4706` on `master` and was packaged by `t2k_3ds/tools/build_production.sh`. The archive.org item publishes the same hash in its own description, so you can confirm what you downloaded; re-check both figures against the item page after any new release. The announcement post, with screenshots and the QR code as a gallery image, is [on r/3dshomebrew](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
+The size and hash above are for the **currently published build**, which traces to `a89c2c9b` on `master` and was packaged by `t2k_3ds/tools/build_production.sh`. The previous published build (`5f5e4706`) was byte-for-byte the same size, so the SHA-256 above is the only way to tell the two apart. The archive.org item publishes the same hash in its own description, so you can confirm what you downloaded; re-check both figures against the item page after any new release. The announcement post, with screenshots and the QR code as a gallery image, is [on r/3dshomebrew](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
 
 **Performance in stereoscopic 3D:** approximately 25–30 fps on Old 3DS and 50–60 fps on New 3DS.
 

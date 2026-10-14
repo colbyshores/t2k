@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
@@ -53,13 +54,45 @@ EXCLUDED_PREFIXES = (
     REPO_ROOT / "t2k_3ds" / "tools",
 )
 
-CXX_EXTS = {".c", ".h", ".cpp", ".hpp", ".cc", ".hh"}
+# `.inc` IS A SOURCE EXTENSION HERE, not a data or build fragment.
+# `t2k_3ds/src/rendering/c3d/*.inc` (~9,000 lines) are #included by
+# renderer_c3d.cpp, which the hot-path corpus lists as hot with `*`, and they hold
+# real shipped code -- including a worker thread (threadCreate at
+# c3d/04_setup.inc:989) and its R1 helper (c3d/03_tev.inc:368). Leaving `.inc` out
+# of this set meant the corpus's hottest renderer file was swept only in the ~100
+# lines that survive outside its includes, and audit_r11_idiv.py already swept
+# them, so the three screens disagreed about what "the tree" is.
+CXX_EXTS = {".c", ".h", ".cpp", ".hpp", ".cc", ".hh", ".inc"}
 INIT_NAME_RE = re.compile(
     r"(init|load|create|destroy|reset|parse|shutdown|seed)", re.IGNORECASE
 )
 THREAD_CREATE_RE = re.compile(r"\bthreadCreate\s*\(")
+# A worker started through the shared wrapper never spells `threadCreate` at the
+# call site: `sys::Thread::start(analyzerThreadMain, ...)` in audio_analysis.cpp
+# hides it inside t2k_core/src/audio/audio_thread.h:134. Matching only the
+# wrapper would credit the wrong file -- the file that OWNS the worker, and so
+# owes the FPSCR helper, is the caller. So call sites are matched too, but only
+# for a name this file (or its include closure) declares as a Thread; without
+# that restriction `.start(` matches every unrelated `start()` in the tree.
+THREAD_START_RE = re.compile(r"\b([A-Za-z_]\w*)\s*\.\s*start\s*\(")
+THREAD_DECL_RE = re.compile(r"\b(?:sys::)?Thread\s+([A-Za-z_]\w*)\b")
+# The FIRST argument of a creation call is the worker function itself, and a
+# function definition is decidable in a way that "does the unit mention FPSCR"
+# never was: `threadCreate(texPrefetchWorker, ...)` names the routine whose entry
+# owes the helper, so the gate can look that routine up and read its body instead
+# of crediting whatever else happens to be in the file.
+THREAD_CREATE_ARG_RE = re.compile(r"\bthreadCreate\s*\(\s*([A-Za-z_]\w*)")
+THREAD_START_ARG_RE = re.compile(r"\.\s*start\s*\(\s*([A-Za-z_]\w*)")
+# `std::thread` is deliberately NOT a thread-site pattern. R1 is a 3DS FPSCR rule,
+# and the only std::thread in the tree is the non-3DS branch of the same
+# sys::Thread wrapper, whose 3DS branch is covered by THREAD_CREATE_RE.
+LOCAL_INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]+"([^"]+)"', re.M)
+# `vfp_thread_fz_dn` is the helper AGENTS.md 3 names for EVERY worker row of its
+# own table, and it was not in this list -- so a worker file that calls nothing but
+# that helper satisfied `fpscr_ok` only by accident, via the word "FPSCR" appearing
+# in a comment. audio_analysis.cpp was exactly that case.
 FPSCR_HELPER_RE = re.compile(
-    r"\b(vfp_set_fz_dn|ts_vfp_init|vfp_init_fpscr|ts_vfp_set_fpscr)\b"
+    r"\b(vfp_set_fz_dn|vfp_thread_fz_dn|ts_vfp_init|vfp_init_fpscr|ts_vfp_set_fpscr)\b"
 )
 FPSCR_ASM_RE = re.compile(
     r"\b(vmsr|vmrs)\b.*\bFPSCR\b"
@@ -144,12 +177,29 @@ KEYWORD_STOP = {
     "goto",
 }
 ARCH_REQUIRED = ("-march=armv6k", "-mfloat-abi=hard", "-mfpu=vfp")
+# Every row of AGENTS.md 3's R1 table, plus the two worker sites the table only
+# reached indirectly. A listed file that has no FPSCR helper in itself OR in its
+# include closure is a MUST finding (see gate_r1) -- before 2026-10-14 a listed
+# file lacking FPSCR produced no finding at all unless it was main_3ds.cpp, which
+# made the renderer_c3d.cpp row decorative: that file contains no FPSCR text, and
+# nothing checked it.
+#
+#   main          main_3ds.cpp            vfp_set_fz_dn()  main_3ds.cpp:284
+#   music         music_3ds.cpp           threadCreate     music_3ds.cpp:275
+#   sfx           sfx_3ds.cpp             threadCreate     sfx_3ds.cpp:359
+#   analyzer      audio_analysis.cpp      sys::Thread      audio_analysis.cpp:452
+#   tex-prefetch  c3d/04_setup.inc        threadCreate     c3d/04_setup.inc:989
+#   shared        audio_thread.h          threadCreate     audio_thread.h:134/136
+#   renderer      renderer_c3d.cpp        (helper is in the c3d/*.inc closure)
 R1_THREAD_SITES = (
     "t2k_3ds/src/platform_3ds/main_3ds.cpp",
     "t2k_3ds/src/audio/music_3ds.cpp",
     "t2k_3ds/src/audio/sfx_3ds.cpp",
     "t2k_3ds/src/rendering/renderer_c3d.cpp",
     "t2k_core/src/audio/audio_thread.h",
+    "t2k_core/src/audio/audio_analysis.cpp",
+    "t2k_3ds/src/rendering/c3d/04_setup.inc",
+    "t2k_3ds/src/rendering/c3d/03_tev.inc",
 )
 STANDING_EXEMPTIONS: tuple[dict[str, object], ...] = (
     {
@@ -913,10 +963,13 @@ def probe_objects(build_dir: Path) -> list[Finding]:
     return findings
 
 
-def fpscr_ok(text: str) -> bool:
-    if FPSCR_HELPER_RE.search(text):
-        return True
-    if FPSCR_ASM_RE.search(text) and re.search(r"\b(FZ|DN|0x0[23]000000|1\s*<<\s*24|1\s*<<\s*25)\b", text):
+def fpscr_asm_write(text: str) -> bool:
+    """Does this text write the FPSCR inline, rather than through a helper?
+
+    Split out of `fpscr_ok` so "establishes FZ|DN here" can be asked of a single
+    function body, where a helper definition in the same file proves nothing.
+    """
+    if FPSCR_ASM_RE.search(text) and re.search(r"\b(FZ|DN|0x0[23]000000|1u?\s*<<\s*24|1u?\s*<<\s*25)\b", text):
         return True
     if re.search(r"vmsr\s+FPSCR", text, re.IGNORECASE) and re.search(
         r"(1u?\s*<<\s*24).*(1u?\s*<<\s*25)|(1u?\s*<<\s*25).*(1u?\s*<<\s*24)|0x03000000",
@@ -924,6 +977,159 @@ def fpscr_ok(text: str) -> bool:
     ):
         return True
     return False
+
+
+def fpscr_ok(text: str) -> bool:
+    """Does this text MENTION FPSCR setup, as a helper name or as inline asm?
+
+    This is a presence proxy and it is deliberately weak: it is the check that
+    predates the 2026-10-14 tightening, kept for the coarse "does this file carry
+    FZ|DN at all" questions (the main-thread row, the rationale-comment rule).
+    For a worker's entry path use `fpscr_established` / `worker_helper_verdict`.
+    """
+    if FPSCR_HELPER_RE.search(text):
+        return True
+    return fpscr_asm_write(text)
+
+
+HELPER_CALL_RE = re.compile(
+    r"\b(vfp_set_fz_dn|vfp_thread_fz_dn|ts_vfp_init|vfp_init_fpscr|ts_vfp_set_fpscr)\s*\(\s*\)"
+)
+HELPER_DEF_TAIL_RE = re.compile(r"\b(?:void|int|static|inline|constexpr|auto)\s*$")
+
+
+def fpscr_called(text: str) -> bool:
+    """Is a FZ|DN helper CALLED here, rather than merely defined here?
+
+    `fpscr_ok` answers "does this text mention FPSCR setup", and using that for
+    everything is exactly what made the old gate a presence check: a worker whose
+    helper is defined in its unit and never called at thread entry read as
+    compliant, because the definition is in the unit. Whether the helper is
+    invoked is a different question and it IS decidable -- the name followed by
+    `()`, not preceded by the tail of its own declaration.
+
+    This is the test used for an include closure, where "the unit mentions FPSCR"
+    is far too weak a claim: the renderer's ten fragments mention FPSCR because
+    03_tev.inc defines the helper, and that alone says nothing about the
+    tex-prefetch worker ever running it.
+    """
+    for match in HELPER_CALL_RE.finditer(text):
+        if HELPER_DEF_TAIL_RE.search(text[max(0, match.start() - 40) : match.start()]):
+            continue
+        return True
+    return False
+
+
+HELPER_DEF_RE = re.compile(
+    r"\b(?:void|int|static|inline|constexpr|auto)[^\n;{}]*\b"
+    r"(?:vfp_set_fz_dn|vfp_thread_fz_dn|ts_vfp_init|vfp_init_fpscr|ts_vfp_set_fpscr)\s*\("
+)
+
+
+def fpscr_established(text: str) -> bool:
+    """Is FZ|DN actually ESTABLISHED here, rather than merely offered?
+
+    `fpscr_ok` answers "does this text mention FPSCR setup", and that is exactly
+    why the old gate could not fail: delete the helper CALL from a worker and the
+    helper DEFINITION two lines above still satisfied it. Here the call has to be
+    present, or the FPSCR written inline. A unit that only defines the helper
+    establishes nothing -- that is audio_thread.h, which hands the helper to its
+    callers and is correct to do so, and is also the shape that must not be
+    mistaken for compliance in a worker file.
+    """
+    if fpscr_called(text):
+        return True
+    if HELPER_DEF_RE.search(text):
+        return False
+    return fpscr_asm_write(text)
+
+
+def worker_name_at(code: str, index: int, kind: str) -> str | None:
+    """The worker routine named by the creation call at byte `index`."""
+    rx = THREAD_CREATE_ARG_RE if kind == "threadCreate" else THREAD_START_ARG_RE
+    match = rx.search(code, index, index + 160)
+    return match.group(1) if match else None
+
+
+def worker_helper_verdict(name: str, scope: Sequence[Path]) -> bool | None:
+    """Does the worker routine `name` establish FZ|DN at its own entry?
+
+    True  -- definition found, body calls the helper or writes the FPSCR.
+    False -- definition found, body does neither. This is the case the old gate
+             could not see: a worker whose helper call was deleted, or a new
+             worker that never had one, in a file that defines the helper anyway.
+    None  -- definition not in scope, so it is undecidable here. That is the
+             shared sys::Thread wrapper, whose first argument is the parameter
+             `fn`; its callers each name a concrete routine and are checked at
+             their own sites, so the wrapper is not a hole, just not a leaf.
+    """
+    for path in scope:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for fn in parse_functions(strip_comments_keep_lines(text)):
+            if fn.name == name:
+                return bool(fpscr_called(fn.body) or fpscr_asm_write(fn.body))
+    return None
+
+
+def r1_site_ok(
+    path: Path, code: str, index: int, kind: str,
+    closures: Mapping[str, frozenset[Path]],
+) -> bool:
+    """Is FZ|DN established for the worker created at byte `index` of `code`?
+
+    The worker function named by the call is the question, and it is answerable
+    more often than the old gate assumed. Only when the name is a pointer
+    parameter (undecidable) does this fall back to the unit-level proxy, and even
+    then it demands that the unit actually CALLS a helper -- not merely define one.
+    """
+    scope = sorted(closures.get(str(path.resolve()), frozenset({path})))
+    name = worker_name_at(code, index, kind)
+    verdict = worker_helper_verdict(name, scope) if name else None
+    if verdict is not None:
+        return verdict
+    if fpscr_established(code):
+        return True
+    return fpscr_established(strip_comments_keep_lines(tu_text(path, closures)))
+
+
+def thread_creation_sites(
+    path: Path, clean: str, closures: Mapping[str, frozenset[Path]]
+) -> list[tuple[int, str, str]]:
+    """Every thread-creation site in comment-stripped `clean`: (byte, kind, severity).
+
+    `threadCreate` is a MUST -- a libctru call, so unambiguously a 3DS worker, and
+    every libctru worker in this tree does float work. A `sys::Thread::start` call
+    is a SHOULD, because that wrapper compiles to std::thread off-3DS and a
+    desktop-only worker is not an R1 subject at all; the name must be declared as
+    a Thread in the file or its unit, or `.start(` would match every unrelated
+    `start()` in the tree.
+    """
+    sites = [(m.start(), "threadCreate", "MUST") for m in THREAD_CREATE_RE.finditer(clean)]
+    if THREAD_START_RE.search(clean):
+        names = set(THREAD_DECL_RE.findall(clean))
+        names |= set(
+            THREAD_DECL_RE.findall(strip_comments_keep_lines(tu_text(path, closures)))
+        )
+        for m in THREAD_START_RE.finditer(clean):
+            if m.group(1) in names:
+                sites.append((m.start(), "Thread::start", "SHOULD"))
+    return sorted(sites)
+
+
+def r1_site_detail(kind: str) -> str:
+    detail = (
+        "thread-creation site whose worker never establishes FPSCR FZ|DN "
+        "(worker body checked, then the include closure)"
+    )
+    if kind == "Thread::start":
+        detail += (
+            " -- review: whether this worker does float work is not"
+            " statically decidable (see gate_r1)"
+        )
+    return detail
 
 
 def _fpscr_comment_ok(text: str) -> bool:
@@ -942,6 +1148,86 @@ def _fpscr_comment_ok(text: str) -> bool:
     return (has_denormal or has_fz_dn) and has_per_thread
 
 
+def swept_files(base: Path) -> list[Path]:
+    """Every swept source file under `base`, in a stable order."""
+    out: list[Path] = []
+    for src in (base / "t2k_core" / "src", base / "t2k_3ds" / "src"):
+        if not src.exists():
+            continue
+        for path in sorted(src.rglob("*")):
+            if path.is_file() and path.suffix in CXX_EXTS and not is_excluded(path):
+                out.append(path)
+    return out
+
+
+def include_graph(
+    files: Sequence[Path],
+) -> tuple[dict[Path, set[Path]], dict[Path, set[Path]]]:
+    """(includes, includers) over the quoted local #include edges of `files`."""
+    present = {p.resolve(): p for p in files}
+    includes: dict[Path, set[Path]] = {p: set() for p in files}
+    includers: dict[Path, set[Path]] = {p: set() for p in files}
+    for path in files:
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in LOCAL_INCLUDE_RE.finditer(text):
+            src = present.get((path.parent / match.group(1)).resolve())
+            if src is not None and src != path:
+                includes[path].add(src)
+                includers[src].add(path)
+    return includes, includers
+
+
+def include_closures(files: Sequence[Path]) -> dict[str, frozenset[Path]]:
+    """resolved path -> the files the compiler pastes together with it, one hop out.
+
+    That is: the file, the local headers it #includes, every file that directly
+    #includes it, and the local headers each of those includes.
+
+    A `.inc` is not a translation unit. `t2k_3ds/src/rendering/c3d/*.inc` are
+    pasted into renderer_c3d.cpp, which #includes all ten, and the R1 helper for
+    the worker created in 04_setup.inc:989 lives in the SIBLING fragment
+    03_tev.inc:368. A per-file check therefore reports a worker with no FPSCR
+    helper that does not exist -- a false positive whose only remedies would be
+    duplicating the helper or pinning it away, both worse than the finding. One
+    hop up (to the .cpp that pastes it) and one hop down (to the fragments pasted
+    beside it) reproduces the unit the compiler sees, which is what R1 needs.
+
+    Deliberately NOT transitive. The transitive closure of this tree's include
+    graph is one blob: measured on the current tree, `audio_thread.h` reaches 111
+    of the 139 swept files, because a shared header reaches engine.h and engine.h
+    reaches most of t2k_core. "The unit" would then mean "the repository", and any
+    presence test over it is vacuously true -- which is not a check, it is a green
+    light with a docstring. Angle-bracket includes are system headers and are not
+    followed.
+    """
+    includes, includers = include_graph(files)
+    closures: dict[str, frozenset[Path]] = {}
+    for path in files:
+        seen = {path} | includes[path]
+        for up in includers[path]:
+            seen.add(up)
+            seen |= includes[up]
+        closures[str(path.resolve())] = frozenset(seen)
+    return closures
+
+
+def tu_text(path: Path, closures: Mapping[str, frozenset[Path]]) -> str:
+    """The file plus everything its include closure reaches ("" if unknown)."""
+    members = closures.get(str(path.resolve()))
+    if not members:
+        return ""
+    parts: list[str] = []
+    for member in sorted(members):
+        try:
+            parts.append(member.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return "\n".join(parts)
+
+
 def window_after(text: str, index: int, lines: int = 40) -> str:
     start = index
     consumed = 0
@@ -954,8 +1240,53 @@ def window_after(text: str, index: int, lines: int = 40) -> str:
 
 
 def gate_r1(root: Path | None = None) -> list[Finding]:
+    """R1 -- every float thread establishes FPSCR FZ|DN at its entry.
+
+    Three checks. The second and third are new on 2026-10-14; none of the earlier
+    behaviour was removed to make room for them.
+
+      1. The AGENTS.md 3 table. Each listed site must exist, and now each listed
+         site must actually carry the helper: a listed file with no FPSCR helper in
+         itself OR anywhere in its include closure is a MUST. Before this, a listed
+         file lacking FPSCR produced NO finding unless it was main_3ds.cpp, which
+         made the renderer_c3d.cpp row decorative -- that file contains no FPSCR
+         text at all, and nothing checked it.
+      2. Every thread-creation site names the routine it starts, and the gate now
+         reads THAT routine: `threadCreate(texPrefetchWorker, ...)` is checked
+         against the body of `texPrefetchWorker`, wherever it is defined in the
+         unit. This is the tightening that 2026-10-14 was for. The old rule asked
+         whether FPSCR text appeared near the call or anywhere in the file, which
+         a helper DEFINITION satisfied -- so deleting a worker's helper call left
+         the gate green while the thread ran with FZ|DN off. `fpscr_established`
+         (call present, or FPSCR written inline) is what counts now.
+      3. A tree-wide sweep of thread-creation sites, because a table is a list
+         someone has to remember to update. It finds every `threadCreate` in the
+         swept trees -- including the ones inside `c3d/*.inc` -- and every
+         `sys::Thread::start()` call site, which hides its `threadCreate` inside
+         t2k_core/src/audio/audio_thread.h and so was invisible to both the table
+         and pattern 2.
+
+    WHAT THIS CANNOT DECIDE, AND WHAT IT DOES ABOUT IT. Two things. R1's MUST is
+    scoped to a worker "that touches floats", and that is not statically
+    decidable here, so the sweep flags every thread-creation site whose worker
+    does not establish FZ|DN, rather than pretending to know which threads do
+    arithmetic. And when the creation call's first argument is a POINTER PARAMETER
+    -- the shared sys::Thread wrapper passes `fn` -- there is no body to read.
+    `worker_helper_verdict` returns None for that, meaning undecidable, and the
+    site falls back to the unit-level rule (some file of the unit must actually
+    CALL a helper, not merely define one). That is not a hole: every caller of the
+    wrapper names a concrete routine and is checked at its own site, so the
+    wrapper is the one place the gate declines to answer instead of guessing.
+    A `threadCreate` (a libctru call, so unambiguously a 3DS worker) is a MUST:
+    every libctru worker in this tree does float work, and the remedy -- calling
+    the existing helper at thread entry -- costs a non-float thread nothing. A
+    `sys::Thread::start` call is a SHOULD, because that wrapper compiles to
+    std::thread off-3DS and a desktop-only worker is not an R1 subject at all.
+    """
     findings: list[Finding] = []
     base = root or REPO_ROOT
+    swept = swept_files(base)
+    closures = include_closures(swept)
     any_fpscr = False
     for rel in R1_THREAD_SITES:
         path = base / rel
@@ -975,6 +1306,15 @@ def gate_r1(root: Path | None = None) -> list[Finding]:
             )
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
+        # Comments are stripped for the SITE checks below (offsets are preserved
+        # by strip_comments_keep_lines, so indices found in `text` stay valid).
+        # A comment that says "FPSCR FZ|DN" is documentation, not enforcement: it
+        # is what let a worker whose helper call had been deleted keep reading as
+        # compliant. The rationale-comment check above deliberately keeps using
+        # the raw text -- that check is ABOUT the comment.
+        code = strip_comments_keep_lines(text)
+        tu = tu_text(path, closures)
+        tu_code = strip_comments_keep_lines(tu)
         if fpscr_ok(text):
             any_fpscr = True
             if not _fpscr_comment_ok(text):
@@ -1005,22 +1345,84 @@ def gate_r1(root: Path | None = None) -> list[Finding]:
                     "no FPSCR FZ|DN write on main or workers",
                 )
             )
-        for match in THREAD_CREATE_RE.finditer(text):
-            chunk = window_after(text, match.start(), 40)
-            if not fpscr_ok(chunk) and not fpscr_ok(text):
+        for index, kind, severity in thread_creation_sites(path, code, closures):
+            # Ask the worker itself. The creation call names the routine
+            # (`threadCreate(texPrefetchWorker, ...)`), so the gate reads that
+            # routine's body rather than crediting the file around it -- which is
+            # what let a deleted helper call pass while the definition two lines
+            # above it stayed. The routine may be defined in a sibling fragment
+            # (texPrefetchWorker is in 03_tev.inc, its creation in 04_setup.inc),
+            # so the lookup walks the unit, not just this file.
+            if not r1_site_ok(path, code, index, kind, closures):
                 findings.append(
                     Finding(
                         "R1",
-                        "MUST",
+                        severity,
                         rel,
-                        line_of(text, match.start()),
-                        "threadCreate",
+                        line_of(text, index),
+                        kind,
                         True,
                         "seed",
                         None,
-                        "threadCreate without FPSCR FZ|DN within 40 lines and file has no helper",
+                        r1_site_detail(kind),
                     )
                 )
+        # The row is only real if the helper is actually there -- and "there"
+        # means called or inlined, not merely defined: a file that defines
+        # `vfp_thread_fz_dn` and never runs it satisfies the table on paper only.
+        # The unit counts: renderer_c3d.cpp's worker helper legitimately lives in
+        # c3d/03_tev.inc, and demanding a second copy in the .cpp would be the
+        # screen inventing work.
+        if not fpscr_established(code) and not fpscr_established(tu_code):
+            findings.append(
+                Finding(
+                    "R1",
+                    "MUST",
+                    rel,
+                    0,
+                    "thread-site",
+                    True,
+                    "seed",
+                    None,
+                    "listed R1 thread site has no FPSCR FZ|DN helper in the file "
+                    "or its include closure",
+                )
+            )
+
+    # --- every thread-creation site in the tree, not just the listed files ----
+    # Files already in R1_THREAD_SITES are skipped: check 2 above already covers
+    # their `threadCreate` sites with the stricter per-file rule, and reporting
+    # the same site twice under two details teaches nobody anything.
+    listed = set(R1_THREAD_SITES)
+    for path in swept:
+        rel = repo_rel(path)
+        if rel in listed:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        clean = strip_comments_keep_lines(text)
+        sites = thread_creation_sites(path, clean, closures)
+        if not sites:
+            continue
+        for index, kind, severity in sites:
+            if r1_site_ok(path, clean, index, kind, closures):
+                continue
+            detail = r1_site_detail(kind)
+            findings.append(
+                Finding(
+                    "R1",
+                    severity,
+                    rel,
+                    line_of(text, index),
+                    kind,
+                    True,
+                    "seed",
+                    None,
+                    detail,
+                )
+            )
     if any_fpscr:
         findings = [
             f
@@ -1299,6 +1701,143 @@ def scan_file(
     return findings
 
 
+def fragment_hot_entries(root: Path, files: Sequence[Path], seed: dict) -> list[HotEntry]:
+    """Corpus entries for `.inc` fragments, derived from the file that pastes them.
+
+    THE BLIND SPOT THIS CLOSES IS THE BIGGEST ONE IN THE FILE. The corpus names
+    `t2k_3ds/src/rendering/renderer_c3d.cpp` with `symbols: ["*"]`, and the ten
+    `c3d/*.inc` fragments ARE that translation unit -- they are pasted in by
+    #include, and every symbol the profile captured (`build_Stars`,
+    `ts_render_frame`, `packDotColor`) is defined in a fragment, not in the .cpp.
+    Matching hotness by file path therefore rated the renderer's entire body as
+    cold: the .cpp is 11 KB of #include lines and setup, and the ~9,000 lines that
+    actually build and issue the frame were never scanned hot by any rule in this
+    module. First run over the fragments: 27 MUST and 119 SHOULD.
+
+    Hotness is inherited, never invented: a fragment is hot only because the file
+    that pastes it is in the corpus, and it inherits that entry's symbol list.
+    A fragment with no hot includer stays cold, which is correct -- `#include`-ing
+    a header does not make the header hot, only the pasting file's body is.
+    """
+    _, includers = include_graph(files)
+    out: list[HotEntry] = []
+    for path in files:
+        if path.suffix != ".inc":
+            continue
+        try:
+            rel = path.resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            continue
+        if rel in seed:
+            continue
+        for up in sorted(includers.get(path, ())):
+            up_rel = up.resolve().relative_to(root.resolve()).as_posix()
+            entry = seed.get(up_rel)
+            if entry is not None:
+                out.append(
+                    HotEntry(
+                        rel,
+                        entry.symbols,
+                        f"pasted into {up_rel} ({entry.why})",
+                        entry.source,
+                    )
+                )
+                break
+    return out
+
+
+INC_HOT_BASELINE = "tools/runner/contracts/inc_hot_baseline.txt"
+
+
+def bless_inc_hot(root: Path) -> int:
+    """Write the baseline of untriaged `.inc` hot-path sites. See INC_HOT_BASELINE."""
+    corpus_path = root / "tools/runner/contracts/hotpath_corpus.json"
+    corpus = json.loads(corpus_path.read_text(encoding="utf-8", errors="replace"))
+    files: list[Path] = []
+    for base in (root / "t2k_core" / "src", root / "t2k_3ds" / "src"):
+        if base.exists():
+            files.extend(p for p in base.rglob("*") if p.is_file() and p.suffix in CXX_EXTS)
+    seed = seed_map(corpus)
+    cold = [str(x) for x in corpus.get("cold_always", [])]
+    for entry in fragment_hot_entries(root, files, seed):
+        seed.setdefault(entry.rel, entry)
+    keys: list[str] = []
+    for path in files:
+        rel = path.resolve().relative_to(root.resolve()).as_posix()
+        if not rel.endswith(".inc"):
+            continue
+        for finding in scan_file(path, seed, cold):
+            keys.append(inc_hot_key(finding))
+    dest = root / INC_HOT_BASELINE
+    dest.write_text(INC_HOT_BASELINE_HEADER + "\n".join(sorted(keys)) + "\n", encoding="utf-8")
+    return len(keys)
+
+
+INC_HOT_BASELINE_HEADER = """\
+# Untriaged hot-path sites in c3d/*.inc -- the renderer's actual body.
+#
+# WHY THIS FILE EXISTS. The corpus names renderer_c3d.cpp with symbols ["*"], and
+# the ten c3d/*.inc fragments ARE that translation unit -- every symbol the
+# profile captured (build_Stars, ts_render_frame, packDotColor) is defined in a
+# fragment, not in the .cpp. gates_vfp matched hotness by file path, so ~9,000
+# lines of per-frame renderer code were rated cold by every rule in the module.
+# Adding the inheritance (fragment -> the .cpp that pastes it) found these sites
+# on the first run. They are not new defects: they are old sites nobody had
+# looked at, and many are the same swept-window / viewport-cull / envelope float
+# predicates AGENTS.md 6 says are reviewed and pinned in the .cpp files.
+#
+# WHAT IT IS. A record of UNREVIEWED sites, not of accepted ones. Each line is
+# `file<TAB>symbol<TAB>rule<TAB>detail`, line-independent, as a MULTISET: a key
+# not listed here, or one more copy of a listed key than the baseline allows, is
+# reported and blocks. The list is meant to SHRINK -- a site leaves it by being
+# pinned in the fragment with a real `@vfp-exempt R<n>` reason (AGENTS.md 5) or
+# fixed. Regenerate with: python3 -m tools.runner.gates_vfp --bless-inc-hot
+"""
+
+
+def inc_hot_baseline(path: Path) -> Counter:
+    """Multiset of already-known untriaged fragment findings (see INC_HOT_BASELINE)."""
+    counts: Counter = Counter()
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return counts
+    for line in text.splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        counts[line.strip()] += 1
+    return counts
+
+
+def inc_hot_key(f: Finding) -> str:
+    """Line-INDEPENDENT identity for a baselined fragment finding.
+
+    Same lesson the R11 baseline already learned: a file:line baseline reports the
+    same site as new after any edit above it, and a baseline that must be rewritten
+    after every unrelated edit is a baseline nobody reads. `detail` is in the key
+    so a second violation of the same rule in the same function is not silently
+    covered by the first, and the count is a MULTISET so a third identical site is
+    one more than the baseline allows.
+    """
+    return f"{f.file}\t{f.symbol}\t{f.rule}\t{f.detail}"
+
+
+def filter_inc_hot(findings: list[Finding], baseline_path: Path) -> tuple[list[Finding], int]:
+    """Drop baselined untriaged fragment findings; return (kept, dropped)."""
+    allowed = inc_hot_baseline(baseline_path)
+    kept: list[Finding] = []
+    dropped = 0
+    for f in findings:
+        if f.file.endswith(".inc"):
+            key = inc_hot_key(f)
+            if allowed.get(key, 0) > 0:
+                allowed[key] -= 1
+                dropped += 1
+                continue
+        kept.append(f)
+    return kept, dropped
+
+
 def scan_tree(
     root: Path,
     corpus: Mapping[str, object],
@@ -1318,6 +1857,8 @@ def scan_tree(
     for base in src_roots:
         if base.exists():
             files.extend(p for p in base.rglob("*") if p.is_file() and p.suffix in CXX_EXTS)
+    for entry in fragment_hot_entries(root, files, seed):
+        seed.setdefault(entry.rel, entry)
     targets = {entry.rel for entry in seed.values()}
     for path in files:
         rel = path.resolve().relative_to(root.resolve()).as_posix()
@@ -1325,6 +1866,9 @@ def scan_tree(
             if not HOTPATH_ANN_RE.search(path.read_text(encoding="utf-8", errors="replace")):
                 continue
         findings.extend(scan_file(path, seed, cold))
+    findings, dropped = filter_inc_hot(findings, root / INC_HOT_BASELINE)
+    if dropped:
+        source += f"; {dropped} baselined untriaged .inc hot-path site(s)"
     return findings, source
 
 
@@ -1483,7 +2027,15 @@ def _cli(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=DEFAULT_LOG)
     parser.add_argument("--no-profile", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--bless-inc-hot",
+        action="store_true",
+        help="rewrite the baseline of untriaged .inc hot-path sites and exit",
+    )
     args = parser.parse_args(argv)
+    if args.bless_inc_hot:
+        print(f"blessed {bless_inc_hot(args.root)} untriaged .inc hot-path site(s)")
+        return 0
     result = run_audit(
         args.root,
         corpus_path=args.corpus,

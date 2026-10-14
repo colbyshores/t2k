@@ -1,0 +1,262 @@
+# Untriaged hot-path sites in c3d/*.inc -- the renderer's actual body.
+#
+# WHY THIS FILE EXISTS. The corpus names renderer_c3d.cpp with symbols ["*"], and
+# the ten c3d/*.inc fragments ARE that translation unit -- every symbol the
+# profile captured (build_Stars, ts_render_frame, packDotColor) is defined in a
+# fragment, not in the .cpp. gates_vfp matched hotness by file path, so ~9,000
+# lines of per-frame renderer code were rated cold by every rule in the module.
+# Adding the inheritance (fragment -> the .cpp that pastes it) found these sites
+# on the first run. They are not new defects: they are old sites nobody had
+# looked at, and many are the same swept-window / viewport-cull / envelope float
+# predicates AGENTS.md 6 says are reviewed and pinned in the .cpp files.
+#
+# WHAT IT IS. A record of UNREVIEWED sites, not of accepted ones. Each line is
+# `file<TAB>symbol<TAB>rule<TAB>detail`, line-independent, as a MULTISET: a key
+# not listed here, or one more copy of a listed key than the baseline allows, is
+# reported and blocks. The list is meant to SHRINK -- a site leaves it by being
+# pinned in the fragment with a real `@vfp-exempt R<n>` reason (AGENTS.md 5) or
+# fixed. Regenerate with: python3 -m tools.runner.gates_vfp --bless-inc-hot
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	computeTexMean	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/03_tev.inc	swizzleToBuffer	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/03_tev.inc	swizzleToBuffer	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/03_tev.inc	xfRotateDeg	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildGridStatic	R7	sqrtf inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildView	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	buildView	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/04_setup.inc	evictLevelTexLRU	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/05_stars.inc	build_Stars	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_Bonus	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_Bonus	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_GameOver	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_GameOver	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_GameOver	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_GameOver	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	build_InfosIcons	R7	sqrtf inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	packDotColor	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	packDotColor	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/06_builders.inc	perfTicksToMs	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/06_builders.inc	perfTicksToMs	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/07_perf.inc	perfAccum	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R5	float value used as array subscript
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	sqrtf inner_loop=false
+t2k_3ds/src/rendering/c3d/08_frame.inc	ts_render_frame	R7	sqrtf inner_loop=false
+t2k_3ds/src/rendering/c3d/09_warp.inc	fbEnsure	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/09_warp.inc	fbEnsure	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/09_warp.inc	fbEnsure	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/09_warp.inc	fbEnsure	R2	untyped-heuristic: float-to-int cast in loop body
+t2k_3ds/src/rendering/c3d/09_warp.inc	goComposite	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/09_warp.inc	pauseBuildVerts	R3	float ternary in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	railProjectDots	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	railProjectDots	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	railProjectDots	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	railProjectDots	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	railProjectDots	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	riverProjectEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	riverProjectEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	riverProjectEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	riverProjectEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectDotsEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectDotsEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectDotsEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectDotsEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpProjectStrokesEye	R7	sqrtf in hot loop
+t2k_3ds/src/rendering/c3d/09_warp.inc	warpShear	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	logoProjectTrisEye	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	logoProjectTrisEye	R3	float comparison driving control flow in hot loop
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	logoProjectTrisEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	logoProjectTrisEye	R7	float division in hot loop
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	ts_render_warp	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	ts_render_warp	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	ts_render_warp	R7	float division inner_loop=false
+t2k_3ds/src/rendering/c3d/10_ui_seam.inc	ts_render_warp	R7	float division inner_loop=false

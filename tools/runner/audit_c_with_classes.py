@@ -48,7 +48,12 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TREES = ("t2k_core/src", "t2k_3ds/src")
-EXTS = (".cpp", ".h", ".hpp", ".cc", ".cxx")
+# `.inc` is not optional here. t2k_3ds/src/rendering/c3d/*.inc are the body of
+# renderer_c3d.cpp -- pasted in by #include, so they compile into the shipped
+# binary -- and a language gate that walks only .cpp/.h silently excludes the
+# largest chunk of the renderer. 139 files scanned after the addition, 0
+# violations, so this closed a blind spot without inventing any work.
+EXTS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".inc")
 
 # (rule, what, pattern) -- matched against comment/string-free source.
 RULES = [

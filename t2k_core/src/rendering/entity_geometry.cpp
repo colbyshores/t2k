@@ -937,6 +937,13 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
     if (enemy.id == SP_ZAPPER1 && enemy.animation_phase != 0 && engine.lane_count > 1) {
         int vv = v + enemy.animation_vec;
         const bool inRange = (vv >= 0 && vv < engine.lane_count);
+        // R11: one-period bound HOLDS. This arm is gated to SP_ZAPPER1, whose
+        // animation_vec is only +/-1 (enemies.cpp:742/:747/:756), and v is a lane
+        // index in [0,n), so vv = v + animation_vec is in [-1,n], inside
+        // -n <= v < 2n. KEPT DELIBERATELY: the modulo NORMALIZES an out-of-range
+        // lane into a valid index for the webLane() lookup below; the compare-wrap
+        // identity would not, and would index a lane that does not exist.
+        /* @vfp-exempt R11 — mechanics-gated glide lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
         if (engine.grid_level_go_round)
             vv = ((vv % engine.lane_count) + engine.lane_count) % engine.lane_count;
         if (inRange || engine.grid_level_go_round) {

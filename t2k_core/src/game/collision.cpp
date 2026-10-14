@@ -362,10 +362,16 @@ void move_bonus(GameEngine& engine, int time) {
                 bonus.grid_element_pos = (bonus.grid_element_pos + 1) % engine.lane_count;
                 bonus.d -= 1.0f;
             } else if (bonus.d <= -0.5f) {
-                // R11: one-period bound HOLDS (grid_element_pos-1 is at most
-                // one period below 0), so `if(v<0)v+=n;` would be an exact
-                // zero-divide identity. Mechanics-gated and not
-                // profile-justified; left as the modulo positive-wrap.
+                // R11: one-period bound HOLDS. grid_element_pos is in [0,n): it is
+                // seeded from a lane index at engine.cpp:957 and only ever +1/-1
+                // wrapped here (:362 and this line), and bonuses.clear() runs in
+                // both init_level (engine.cpp:322) and clear_gameplay_entities
+                // (engine.cpp:302), so a bonus cannot outlive a lane_count change.
+                // Hence v = pos-1 is in [-1,n-1], inside -n <= v < 2n. KEPT
+                // DELIBERATELY: the modulo NORMALIZES an out-of-range lane into a
+                // valid index; the compare-wrap identity would not, and an
+                // out-of-range pos feeds the lane lookups below.
+                /* @vfp-exempt R11 — mechanics-gated bonus lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                 bonus.grid_element_pos = ((bonus.grid_element_pos - 1) % engine.lane_count + engine.lane_count) % engine.lane_count;
                 bonus.d += 1.0f;
             }

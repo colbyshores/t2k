@@ -391,12 +391,23 @@ static bool _ai_shooter(GameEngine& engine, int time, int lane, int idx, Enemy& 
             }
             int target = lane + step;
             if (engine.grid_level_go_round) {
-                // R11: one-period bound does NOT hold -- step is animation_vec/2
-                // or animation_vec, and animation_vec carries fade-out markers
-                // (+100 / -200, see :566/:576), so target can be many periods
-                // out and the modulo wrap is required. Mechanics-gated; left as
-                // the double-modulo positive-wrap (no profile to justify the
-                // 2->1 divide reduction here).
+                // R11: one-period bound HOLDS. A SHOOTER's animation_vec is only
+                // ever +/-1 or +/-2 -- :348 (dir*2), :357 (-1), :362 (+1), :371
+                // (dir) -- and _transfer_enemy only negates it (:1056), so `step`
+                // is +/-1 on both branches and target = lane +/- 1 with lane in
+                // [0,n) is [-1,n], inside -n <= v < 2n (n = lane_count, 3..18 per
+                // validWeb in data/webs_runtime.cpp). The old note here blamed the
+                // RECT2 fade markers (+100/-200, now :645/:655); they cannot reach
+                // this function -- dispatch is a switch (enemy.id) with no
+                // fall-through (:83) and the markers are written only in
+                // _ai_rectangle's RECT2 arm. The one in-place id mutation
+                // (enemies/arcade_pulsar.cpp:542) is arcade->arcade and zeroes
+                // animation_vec, and every cross-enemy copy preserves id. KEPT
+                // DELIBERATELY, and not only because the divide win is unmeasured:
+                // the modulo NORMALIZES an out-of-range lane into a valid index,
+                // which the compare-wrap identity does not -- it would hand
+                // _transfer_enemy an out-of-range engine.grid[] subscript.
+                /* @vfp-exempt R11 — mechanics-gated lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                 target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
             } else if (target < 0 || target >= engine.lane_count) {
                 enemy.animation_vec = -enemy.animation_vec;
@@ -477,11 +488,15 @@ static bool _ai_el_zapper(GameEngine& engine, int time, int lane, int idx, Enemy
                 int direction = enemy.sidestep_freq + 2; // -1 or +1
                 int target = lane + direction;
                 if (engine.grid_level_go_round) {
-                    // R11: one-period bound HOLDS here (direction is +/-1, so
-                    // target = lane +/-1 is at most one period out of [0,n));
-                    // `if(v<0)v+=n; else if(v>=n)v-=n;` would be an exact
-                    // zero-divide identity. Mechanics-gated and not
-                    // profile-justified, so left as the modulo form.
+                    // R11: one-period bound HOLDS. direction = sidestep_freq + 2,
+                    // and in this branch sidestep_freq is only -1 or -3 (set at the
+                    // split above and toggled by the bounce below), so direction is
+                    // +/-1 and target = lane +/- 1 with lane in [0,n) is [-1,n],
+                    // inside -n <= v < 2n. KEPT DELIBERATELY: the modulo NORMALIZES
+                    // an out-of-range lane into a valid index; the compare-wrap
+                    // identity would not, and would hand _transfer_enemy an
+                    // out-of-range engine.grid[] subscript.
+                    /* @vfp-exempt R11 — mechanics-gated lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                     target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
                 } else if (target < 0 || target >= engine.lane_count) {
                     // Bounce off edge
@@ -507,10 +522,16 @@ static bool _ai_mushroom(GameEngine& engine, int time, int lane, int idx, Enemy&
         if (abs(enemy.animation_phase) >= enemy.max_animation) {
             int target = lane + enemy.animation_vec;
             if (engine.grid_level_go_round) {
-                // R11: one-period bound does NOT hold -- the step is
-                // animation_vec, which carries fade-out markers (+100/-200),
-                // so target can be many periods out; the modulo wrap is
-                // required. Mechanics-gated; left as-is.
+                // R11: one-period bound HOLDS. animation_vec here is only +/-1
+                // (:574, :578, :551 dir; container children get +/-1 at
+                // :956/:959), so target = lane +/- 1 with lane in [0,n) is inside
+                // -n <= v < 2n. The fade markers (+100/-200, now :645/:655) are
+                // RECT2-only and cannot reach this function -- dispatch is a switch
+                // (enemy.id) with no fall-through (:83). KEPT DELIBERATELY: the
+                // modulo NORMALIZES an out-of-range lane into a valid index; a
+                // compare-wrap would not, and would hand _transfer_enemy an
+                // out-of-range engine.grid[] subscript.
+                /* @vfp-exempt R11 — mechanics-gated lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                 target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
             } else if (target < 0 || target >= engine.lane_count) {
                 enemy.animation_phase = 0;
@@ -602,9 +623,13 @@ static bool _ai_rectangle(GameEngine& engine, int time, int lane, int idx, Enemy
             int dir = (enemy.animation_vec > 0) ? 1 : -1;
             int target = lane + dir;
             if (engine.grid_level_go_round) {
-                // R11: one-period bound HOLDS (dir is +/-1); a compare-wrap
-                // would be an exact zero-divide identity. Mechanics-gated and
-                // not profile-justified; left as the modulo form.
+                // R11: one-period bound HOLDS. dir is +/-1 whatever the magnitude
+                // of animation_vec is here (this arm only initiates duplication),
+                // so target = lane +/- 1 with lane in [0,n) is [-1,n], inside
+                // -n <= v < 2n. KEPT DELIBERATELY: the modulo NORMALIZES an
+                // out-of-range lane into a valid index for the engine.grid[]
+                // subscript below; the compare-wrap identity would not.
+                /* @vfp-exempt R11 — mechanics-gated lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                 target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
             } else if (target < 0 || target >= engine.lane_count) {
                 enemy.animation_vec = 0;
@@ -737,10 +762,15 @@ static bool _ai_sp_zapper(GameEngine& engine, int time, int lane, int idx, Enemy
         if (abs(enemy.animation_phase) >= enemy.max_animation) {
             int target = lane + enemy.animation_vec;
             if (engine.grid_level_go_round) {
-                // R11: one-period bound does NOT hold -- the step is
-                // animation_vec, which carries fade-out markers (+100/-200),
-                // so target can be many periods out; the modulo wrap is
-                // required. Mechanics-gated; left as-is.
+                // R11: one-period bound HOLDS. animation_vec here is only +/-1
+                // (:742, :747, :756 dir), so target = lane +/- 1 with lane in
+                // [0,n) is inside -n <= v < 2n. The fade markers (+100/-200, now
+                // :645/:655) are RECT2-only and cannot reach this function --
+                // dispatch is a switch (enemy.id) with no fall-through (:83). KEPT
+                // DELIBERATELY: the modulo NORMALIZES an out-of-range lane into a
+                // valid index; a compare-wrap would not, and would hand
+                // _transfer_enemy an out-of-range engine.grid[] subscript.
+                /* @vfp-exempt R11 — mechanics-gated lane wrap; the modulo normalizes out-of-range input where a compare-wrap would not, and the rewrite benefit is unmeasured (no OG capture). measured n/a. Verified 2026-10-14. */
                 target = ((target % engine.lane_count) + engine.lane_count) % engine.lane_count;
             } else if (target < 0 || target >= engine.lane_count) {
                 enemy.animation_vec = -enemy.animation_vec;

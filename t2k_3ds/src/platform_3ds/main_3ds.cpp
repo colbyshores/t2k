@@ -544,6 +544,39 @@ int main(int argc, char** argv) {
             setBottomBacklight(false);
     }, &panel);
 
+    // ---- SUSPEND / SLEEP CLOCK STAMP (AGENTS.md §11 P1) ----------------------
+    // HOME and lid-close park THIS thread inside aptMainLoop, so the frame loop
+    // does not run for any of that interval -- and svcGetSystemTick, which is what
+    // `now_ms` reads, does not stop for it either. Which hook fires where was
+    // checked against the installed libctru.a's apt.o rather than assumed, same
+    // method as the disassembly note above: aptJumpToHomeMenu walks the hook list
+    // with APTHOOK_ONSUSPEND (0) before the applet handover, aptWaitForWakeUp
+    // walks it with APTHOOK_ONRESTORE (1) after the VRAM restore, and
+    // aptHandleSleep walks it with APTHOOK_ONSLEEP (2) before LightEvent_Wait and
+    // APTHOOK_ONWAKEUP (3) after.
+    //
+    // The hook does the least it can: note WHEN the screen went away, as the
+    // clock of the last frame this thread actually ran, and flag that a rebase is
+    // owed. Synchronous, no allocation, no file I/O, no logging -- same shape as
+    // the three hooks above. The rebase itself belongs to the first frame back,
+    // because that is the only place the frame's own wall clock exists; doing the
+    // arithmetic here would be a second timing path, and P1 asks for the rebase
+    // "under the existing pause policy", i.e. the one the pause menu already has.
+    struct SuspendStamp {
+        GameEngine* engine = nullptr;   // the loop's engine, for its last clock
+        int         start   = 0;        // engine->time when APT took the screen
+        bool        pending = false;    // the next frame owes the rebase
+    };
+    static SuspendStamp suspendStamp;
+    suspendStamp.engine = &engine;
+    static aptHookCookie s_suspendClockCookie;
+    aptHook(&s_suspendClockCookie, [](APT_HookType hook, void* param) {
+        if (hook != APTHOOK_ONSUSPEND && hook != APTHOOK_ONSLEEP) return;
+        SuspendStamp* ss = static_cast<SuspendStamp*>(param);
+        ss->start   = ss->engine->time;  // the last frame THIS thread ran
+        ss->pending = true;
+    }, &suspendStamp);
+
     int  frameCount       = 0;
     int  lastMusicLevel   = -1;    // drives level-synced album playback
     ts::LevelSelect levelSelect;
@@ -699,6 +732,60 @@ int main(int argc, char** argv) {
             pauseFxLastMs = wallMs;
             ts::pauseFxStep(pauseFx, pauseOverlayOpen, dt);
             engine.pause_fx = pauseFx.t;
+        }
+
+        // ONE REBASE, TWO CALLERS: the pause menu's RESUME below, and the APT
+        // resume block under this. `frozenMs` is wall-clock time during which the
+        // sim did not run, and it is HANDED BACK rather than replayed:
+        //   * gameplayStart moves by the same amount, so `wallMs - gameplayStart`
+        //     -- and with it engine.game_time, the frame-animation clock at the
+        //     bottom of the frame -- is unchanged across the freeze instead of
+        //     jumping by all of it;
+        //   * a bonus round's clocks are absolute, so resume_warp gets the same
+        //     interval back (warp.cpp) -- which is what stops a paused round from
+        //     ending the instant it resumes;
+        //   * game_reset_clock drops the sub-tick remainder the accumulator was
+        //     carrying. At the end of a frame dif_time is < TICK_MS by
+        //     construction (game_advance drains it down), so no whole step that
+        //     was legitimately pending is lost -- only the partial one, which is
+        //     the shipped pause policy and the honest reading of "the sim was not
+        //     running then".
+        // The `gameplayStart >= 0` test is the not-yet-started case: a level whose
+        // first GAMEPLAY frame has not run keeps it at -1, and the GAMEPLAY case
+        // below stamps it fresh from this frame's wallMs.
+        auto rebaseFrozenTime = [&](int frozenMs) {
+            if (frozenMs > 0) {
+                if (gameplayStart >= 0) gameplayStart += frozenMs;
+                if (engine.state == GameState::WARP)
+                    ts::resume_warp(engine.warp, frozenMs);
+            }
+            game_reset_clock(engine, wallMs);
+        };
+
+        // ---- APT resume: rebase the frame timer (AGENTS.md §11 P1) ------------
+        // The suspended interval must NOT be converted into gameplay, and on its
+        // own it is: game_advance's accumulator replays up to MAX_ACCUM_MS (250
+        // ms) of sim the player never played, move_warp replays up to its own 128
+        // ms catch-up bound, and engine.game_time jumps by the FULL interval --
+        // nothing clamps that one. The clamps BOUND the leak; they are not the
+        // rebase P1 requires, so the interval is handed back here instead.
+        //
+        // IDEMPOTENT against the pause menu, which is the common case: pause, then
+        // HOME. While the frost box is up the sim is already frozen by the pause
+        // path, and MENU_RESUME below rebases against `pauseStart` -- an interval
+        // that ALREADY contains the suspended time, because pauseStart is stamped
+        // when the box opens and engine.time is only ever written by frames this
+        // thread ran. So the pause path keeps the one rebase and this one stands
+        // down; the flag is still consumed, so nothing is carried into a later,
+        // unrelated frame. The other order cannot double-count either: opening the
+        // pause box re-stamps pauseStart on that frame (GAMEPLAY and WARP both do
+        // it before menu.openPause()), so a later MENU_RESUME hands back only its
+        // own pause interval, never the suspend that preceded it.
+        if (suspendStamp.pending) {
+            suspendStamp.pending = false;
+            if (!pauseOverlayOpen &&
+                (engine.state == GameState::GAMEPLAY || engine.state == GameState::WARP))
+                rebaseFrozenTime(wallMs - suspendStamp.start);
         }
 
         // ---- Audio-reactive features (docs/AUDIO_REACTIVE_SPEC.md §4.4) ----
@@ -1032,11 +1119,11 @@ int main(int argc, char** argv) {
                 engine.state = GameState::HIGHSCORES;
                 break;
             case MENU_RESUME:                      // un-pause gameplay
-                gameplayStart += engine.time - pauseStart;
-                // A bonus round's clocks are absolute; hand the paused
-                // interval back so the pause costs no round time.
-                if (engine.state == GameState::WARP)
-                    ts::resume_warp(engine.warp, engine.time - pauseStart);
+                // The paused interval, handed back through the one rebase the
+                // APT resume above shares -- one implementation of "the sim was
+                // frozen for this long", two triggers, so the two can never
+                // disagree about what a freeze costs.
+                rebaseFrozenTime(engine.time - pauseStart);
                 menu.close();
                 ts::modmusic::music_set_paused(!config.mod_music);
                 game_reset_clock(engine, wallMs);

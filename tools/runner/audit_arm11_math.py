@@ -94,7 +94,15 @@ def iter_sources(sub: str) -> list[Path]:
     root = REPO_ROOT / sub
     if not root.is_dir():
         return []
-    return [p for p in sorted(root.rglob("*")) if p.suffix in (".cpp", ".h") and THIRD_PARTY not in p.parts]
+    # `.inc` too: c3d/*.inc are pasted into renderer_c3d.cpp, so their trig is
+    # compiled trig, and a scan that skipped them was certifying a renderer it
+    # had not read. First run over the fragments added one R6 site (already
+    # ALLOWED-R6-PIN) and three cold `double` declarations.
+    return [
+        p
+        for p in sorted(root.rglob("*"))
+        if p.suffix in (".cpp", ".h", ".inc") and THIRD_PARTY not in p.parts
+    ]
 
 
 def raw_line(raw: str, clean: str, idx: int) -> int:
