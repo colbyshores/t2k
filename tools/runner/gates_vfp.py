@@ -28,6 +28,23 @@ PIN_MAX_AGE_DAYS = int(os.environ.get("VFP_PIN_MAX_AGE_DAYS", "180"))
 # captured and go stale on the same clock.
 CORPUS_MAX_AGE_DAYS = int(os.environ.get("VFP_CORPUS_MAX_AGE_DAYS", "45"))
 
+# The two clocks above exist to DEMAND A RE-MEASUREMENT. Once the project is
+# frozen that demand cannot be satisfied -- nobody is taking another OG-profile
+# capture -- so past the freeze they stop being a prompt and become permanent
+# red, and a permanently red gate is worse than a stale corpus because it trains
+# the reader to skip the gate. So the staleness clocks are waived from this date.
+# ONLY the staleness clocks: every substantive rule (R2/R3/R4/R6/R11, exemption
+# shape, register pressure) still runs, so editing hot-path code still fails on
+# its merits. Green after a freeze means "clean under the freeze", NOT "freshly
+# measured" -- which is why the waiver is reported, not silent.
+# Set VFP_FROZEN_AT="" to put the clocks back and resume perf work.
+PROJECT_FROZEN_AT = os.environ.get("VFP_FROZEN_AT", "2026-10-19").strip()
+
+
+def _frozen() -> str | None:
+    """Freeze date, or None if the staleness clocks are live."""
+    return PROJECT_FROZEN_AT or None
+
 
 def _age_days(iso: str, today: date | None = None) -> int | None:
     try:
@@ -1507,7 +1524,7 @@ def gate_exemptions(text: str, rel: str) -> list[Finding]:
                     "MUST exemption missing measured cost",
                 )
             )
-        age = _age_days(verified)
+        age = None if _frozen() else _age_days(verified)
         if age is not None and age > PIN_MAX_AGE_DAYS:
             findings.append(
                 Finding(
@@ -1940,7 +1957,7 @@ def gate_corpus_freshness(corpus: Mapping[str, object], docs_dir: Path) -> list[
             )
         )
         return findings
-    age = _age_days(captured)
+    age = None if _frozen() else _age_days(captured)
     if age is not None and age > CORPUS_MAX_AGE_DAYS:
         findings.append(
             Finding(
@@ -2007,6 +2024,12 @@ def run_audit(
         notes.append("R9 omitted (VFP_OBJDUMP!=1)")
     elif not (root / "t2k_3ds" / "build").exists():
         notes.append("R9 omitted (no t2k_3ds/build/*.o)")
+    frozen = _frozen()
+    if frozen:
+        notes.append(
+            f"staleness clocks waived (corpus age, pin age): project frozen at "
+            f"{frozen}. Substantive rules still run. VFP_FROZEN_AT='' restores them."
+        )
     findings = _dedupe(findings)
     blockers = sum(1 for f in findings if f.severity == "MUST")
     reviews = sum(1 for f in findings if f.severity == "SHOULD")
@@ -2048,6 +2071,8 @@ def _cli(argv: Sequence[str] | None = None) -> int:
         sys.stdout.write("\n")
     else:
         print(f"{result.status} blockers={result.blockers} reviews={result.reviews}")
+        for note in result.notes:
+            print(f"note: {note}")
         for finding in result.findings:
             print(
                 f"{finding.rule} {finding.severity} {finding.file}:{finding.line} "

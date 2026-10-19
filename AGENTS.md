@@ -1,6 +1,7 @@
 # T2K — performance and platform contract
 
-Revision: 2026-10-14.
+Revision: 2026-10-14, amended 2026-10-19 (perf gates frozen at v1.02 -- see §2
+and §12).
 
 Design language, fidelity ladder, and the rest of the doctrine live in
 `docs/DOCTRINE.md`. This file records T2K's ARM11 performance rules, gameplay
@@ -108,6 +109,43 @@ normally COLD. Do not "clean up" them to satisfy hot-only math restrictions.
 If work moves into a per-frame path, reassess it against the criteria above.
 The annotation and frequency criteria also apply when a function is outside
 the profile's top 15.
+
+### PROJECT FROZEN — the staleness clocks are waived, deliberately (2026-10-19)
+
+T2K shipped v1.02 and no further OG-profile perf campaign is planned. Two of
+this file's clocks exist to **demand a re-measurement**: the corpus age limit
+(`CORPUS_MAX_AGE_DAYS = 45`) and the exemption-pin age limit
+(`PIN_MAX_AGE_DAYS = 180`). On a frozen tree that demand cannot be satisfied --
+nobody is taking another capture -- so past their dates they stop being a
+prompt and become permanent red. A permanently red gate is worse than a stale
+corpus, because it trains the reader to skip the gate, and §2's whole argument
+depends on the reader believing the gate.
+
+So both clocks are waived from **2026-10-19** by `PROJECT_FROZEN_AT` in
+`tools/runner/gates_vfp.py`. This is not a bug and must not be "tidied" back.
+
+**What is NOT waived:** every substantive rule still runs -- R1–R11, T1/T2,
+exemption shape, the `measured`/`Verified` pin grammar, register pressure.
+Editing hot-path code still fails on its merits. Only the *age* checks are
+silent. `PASS` after the freeze therefore means "clean under the freeze", not
+"freshly measured", and the gate says so on its own output:
+
+```
+note: staleness clocks waived (corpus age, pin age): project frozen at 2026-10-19.
+```
+
+**To resume perf work**, set `VFP_FROZEN_AT=""` and take a fresh capture. Do not
+edit `captured` in the corpus to a newer date: the gate rejects a date newer
+than the newest `docs/validation/perf-*.log` precisely so the field cannot be
+bumped without a real capture.
+
+**A new target is not covered by this waiver.** The corpus is a 3DS OG-profile
+capture; a hot-path list derived from a ~30 fps 3DS frame says nothing about a
+90 Hz-per-eye VR budget, so it is not merely stale for a VR build, it is
+inapplicable. `t2k_pc/**` is already outside §8's scope, which means a VR
+renderer there is explicitly *ungated*, not compliant. New VR work needs its
+own capture and its own corpus -- do not resume the 3DS clock and read a green
+result as VR evidence.
 
 ---
 
@@ -757,3 +795,19 @@ record the installed versions/commits rather than infer them from these links.
   `std::bind` while preserving the existing project restrictions.
 - Qualified compiler-lowering claims for integer division, LUT range reduction,
   and macro promotions; retained their existing optimization safeguards.
+
+### Amendment, 2026-10-19 — perf gates frozen at v1.02
+
+The game shipped. No further OG-profile capture is planned, so the two clocks
+that demand one were waived rather than left to go permanently red:
+
+- `PROJECT_FROZEN_AT` in `tools/runner/gates_vfp.py` silences `R-CORPUS` (corpus
+  age) and `R-EXPIRED` (pin age) only. Every substantive rule still runs.
+- The waiver prints a `note:` line on the gate's own output, so a green result
+  cannot be read as a fresh measurement.
+- `VFP_FROZEN_AT=""` restores both clocks for resumed perf work.
+- The waiver is scoped to the 3DS campaign. It is not evidence for any other
+  target; see §2's "A new target is not covered by this waiver."
+
+No code outside `tools/runner/gates_vfp.py` changed, and no historical
+measurement in this file was altered.
