@@ -87,49 +87,20 @@ constexpr float WARP_TAIL_MAX     = 31.0f;  // comet-tail meter cap
 // DEFAULTS from them, so a friction change moves the sim and the harness
 // together — the duplication that let the harness certify courses against
 // physics the game no longer has was closed here on 2026-10-12. The reachability
-// bounds fitted to these constants (coast_sum, h_reach, v_reach) stay in
+// bounds fitted to these constants (coast_sum, axis_reach) stay in
 // warp.cpp: generator internals with exactly one caller, generate_gate_course.
 namespace gates_tuning {
 
-// GATES flight. Horizontal is the player's axis (left/right seam input):
-// accel 0.14/frame², friction 0.93 on velocity, cap ±2.0 units/frame — at the
-// reference-pace 8-tick gate spacing (256 z-units / 1.333 z-per-frame = 192
-// frames) that reaches well past the ±64 gate lattice between gates, which is
-// the reference FEEL: always reachable, never trivial (the course generator
-// tightens late-course gaps to keep it honest). Vertical authority is
-// ±1.0 unit/frame (half the horizontal, "vertical stronger than horizontal"
-// refers to the reference's impulses, which overshoot the stick clamp while
-// coasting: an impulse sets |vel| above the cap and friction 0.975 lets a
-// ceiling kick carry ~175 units before control resumes).
-constexpr float H_ACC  = 0.14f;
-// Lateral friction, tightened 2026-10-12 (user: the GATES movement is too
-// slippery; BOTH axes, ALL GATES rounds — the shared model was chosen over a
-// round-1 seam, round 1 is not special). Measured coast from a full-stick
-// release at v0 = H_CAP: 0.95 carried 38.0 units and took 0.72 s to fall to 10%
-// of v0; 0.93 carries 26.6 units in 0.51 s — a 30.1% cut. H_ACC and H_CAP are
-// untouched: less slide was asked for, not a slower round. NB the stick terminal
-// velocity H_ACC*H_FRIC/(1-H_FRIC) is now 1.86, below the ±2.0 cap, so H_CAP is
-// no longer reached by stick input alone; it stays as the clamp it is.
-constexpr float H_FRIC = 0.93f;
-constexpr float H_CAP  = 2.0f;
+// GATES stick control on both axes. User-requested feel match (2026-10-23):
+// average the former horizontal and vertical tuning, then use one shared
+// acceleration, friction, and cap. A held input now has the same response in
+// every direction. Gate impulse shoves remain vertical-only course events and
+// may exceed AXIS_CAP; their coast still uses AXIS_FRIC. The course generator's
+// axis_reach fit is calibrated to these shared stick values.
+constexpr float AXIS_ACC  = 0.13f;   // average of 0.14 horizontal and 0.12 vertical
+constexpr float AXIS_FRIC = 0.9525f; // average of 0.93 horizontal and 0.975 vertical
+constexpr float AXIS_CAP  = 1.5f;    // average of 2.0 horizontal and 1.0 vertical
 constexpr float H_POS_MAX = 96.0f;   // soft wall past the ±64 gate lattice
-
-constexpr float V_CAP     = 1.0f;
-constexpr float V_ACC     = 0.12f;   // stick slew per frame
-// Vertical friction, tightened with H_FRIC on the same 2026-10-12 decision and
-// for the same reason — this is the axis that actually read as slippery. Measured
-// coast from a full-stick release at v0 = V_CAP: 0.985 carried 65.7 units and
-// took 2.44 s to 10% of v0; 0.975 carries 39.0 units in 1.46 s — a 40.6% cut.
-// V_CAP / V_ACC / the impulse bounds are untouched. coast_sum() is the closed
-// form of THIS decay and re-derives itself; h_reach()/v_reach() are empirical
-// fits and were re-fitted by hand (see them in warp.cpp). Winnability of every
-// generated course is proven by t2k_core/tools/warp_winnability_check.sh.
-constexpr float V_FRIC    = 0.975f;  // coast decay while impulse-overshooting
-// Impulse-gate vertical kick: solved from the altitude delta the course
-// actually asks for and the frames available before the next gate (measured:
-// a fixed kick either flew 60+ units past small clusters or fell short of big
-// ones at escalated speed — the smoke harness caught both), clamped to a
-// floor that still reads as a kick and a hard ceiling the coast brake absorbs.
 constexpr float V_IMP_MIN  = 1.3f;
 constexpr float V_KICK_CAP = 4.5f;
 constexpr float V_POS_MAX = 120.0f;
@@ -178,13 +149,12 @@ struct WarpState {
 
     // Vertical input seam — LIVE (both frontends pass up/down to move_warp).
     // in_up/in_down mirror the held flags of the most recent move_warp call
-    // and are the ONLY vertical control law: pure inertial (accel while held,
-    // friction, velocity cap, position clamp — the later port Inertcon /
-    // the arcade reference ixcon-iycon). There is NO autopilot and NO recentering — the
-    // ship stays wherever the player leaves it (rules fidelity, second proof
-    // verdict in docs/design/bonus_rounds.md). Gate impulse SHOVES
-    // (WGATE_UP/WGATE_DOWN setting vertical velocity) are gate effects, not
-    // assists, and stay.
+    // and are the ONLY vertical control law: same inertial law and tuning as
+    // left/right (accel while held, friction, velocity cap, position clamp).
+    // There is NO autopilot and NO recentering — the ship stays wherever the
+    // player leaves it (rules fidelity, second proof verdict in
+    // docs/design/bonus_rounds.md). Gate impulse SHOVES (WGATE_UP/WGATE_DOWN
+    // setting vertical velocity) are gate effects, not assists, and stay.
     // in_vert_live LATCHES true the first time real vertical input arrives
     // this round (reset by init_warp's full `state = WarpState{}`). NOTHING
     // READS IT TODAY — no renderer, backend or UI file mentions it and there

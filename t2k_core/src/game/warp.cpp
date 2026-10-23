@@ -35,13 +35,13 @@ inline uint32_t course_seed(int roundType, int playCount) {
 }
 
 // ---- tuning constants ---------------------------------------------------------
-// The GATES flight constants (H_ACC/H_FRIC/H_CAP/H_POS_MAX, V_CAP/V_ACC/V_FRIC,
+// The GATES flight constants (AXIS_ACC/AXIS_FRIC/AXIS_CAP, H_POS_MAX,
 // V_IMP_MIN/V_KICK_CAP/V_POS_MAX) live in the ts::gates_tuning block of warp.h
 // since 2026-10-12: the engine owns exactly ONE definition and the winnability
 // harness (t2k_core/tools/warp_winnability_check.cpp) sources its controller-
 // model defaults from the same bytes, so a friction change can never again
 // leave the harness certifying courses against physics the game no longer has.
-// The reachability bounds fitted to those constants (coast_sum/h_reach/v_reach)
+// The reachability bounds fitted to those constants (coast_sum/axis_reach)
 // stay here — generator internals with exactly one caller, generate_gate_course.
 using namespace gates_tuning;
 // One impulse's worth of altitude change at unhurried pacing; the generator
@@ -49,37 +49,18 @@ using namespace gates_tuning;
 // escalated speed leaves between the impulse gate and the cluster.
 constexpr float Y_CLUSTER_DELTA_MAX = 96.0f;
 
-// Distance covered by an impulse coast of v0 = 1 over n frames at V_FRIC decay.
+// Distance covered by an impulse coast of v0 = 1 over n frames at AXIS_FRIC.
 inline float coast_sum(float n) {
-    return (V_FRIC * (1.0f - std::pow(V_FRIC, n))) / (1.0f - V_FRIC);
+    return (AXIS_FRIC * (1.0f - std::pow(AXIS_FRIC, n))) / (1.0f - AXIS_FRIC);
 }
 
-// Horizontal distance reachable from a STANDING START in n frames with the
-// real H_ACC/H_FRIC/H_CAP kinematics (arriving hot — the catch box tests
-// position only). Fitted against the exact per-frame integration, and RE-DERIVED
-// by hand for H_FRIC = 0.93 (2026-10-12): the ramp no longer reaches the cap
-// (stick terminal is 1.86), so the tail is a saturating approach to it rather
-// than the old linear capped run. Verified by integrating the shipped loop frame
-// by frame: the fit stays UNDER the integration for every n in 1..200 (worst
-// ratio 0.99), and is within 0.92 of it across n = 20..70 — the range where the
-// caller's lattice step count still changes — and 0.88 out to n = 192, past
-// which the caller's 4-step cap makes the exact value irrelevant. The caller's
-// steps = floor(h_reach * 0.75 / 16) never increments earlier than the exact
-// integration would allow (steps>=1 at n=23 both, >=2 at 36 both, >=3 at 50 vs
-// 48, >=4 at 63 vs 59), so the generator can only place gates CLOSER than the
-// physics permits, never further.
-inline float h_reach(float n) {
-    return (n <= 20.0f) ? 0.045f * n * n : 17.5f + 1.6f * (n - 20.0f);
-}
-
-// Vertical stick reach over n frames: V_ACC slew to the ±1 cap (~11 frames at
-// V_FRIC 0.975), then capped — (n - 4.1) units for n >= 10. Re-derived with
-// V_FRIC on the same 2026-10-12 change: the exact integration is n - 4.071 for
-// n >= 10, so the fit stays under it, with the same ~0.1 slack the old
-// (n - 4.0) had against the old friction's n - 3.89.
-inline float v_reach(float n) {
-    float d = n - 4.1f;
-    return d > 0.0f ? d : 0.0f;
+// Stick reach from a standing start over n frames with the shared GATES axis
+// law. This conservative fit is checked against the exact per-frame integration
+// by warp_winnability_check.sh; the generator uses it to avoid asking the player
+// to cross more than 75% of the reachable distance between gates.
+inline float axis_reach(float n) {
+    if (n <= 20.0f) return 0.045f * n * n;
+    return 18.0f + 1.35f * (n - 20.0f);
 }
 
 // Course pacing — REFERENCE-DERIVED (second proof verdict: much slower start).
@@ -114,8 +95,8 @@ constexpr float RAIL_BACKDROP_SPEED = 4.0f;
 // frames read surface-overhead — the reference starts just under the plane.
 // With the autopilot removed this is now FREE FLIGHT: the ship STAYS at −12
 // until the player climbs (nothing recenters). −12 is well inside stick
-// reach of gate 0's altitude across the ~3.1 s intro (the ±1-cap stick
-// covers it in ~16 of the 192 intro frames), and climbing up through the
+// reach of gate 0's altitude across the ~3.1 s intro (the shared
+// 1.5-cap stick covers it well before the 192 intro frames), and climbing up through the
 // plane is the round's signature crossing — now the player's own first move.
 constexpr float GATES_START_Y = -12.0f;
 
@@ -241,12 +222,12 @@ void generate_gate_course(WarpState& s) {
             float target = (float)((rng.next() % 15) - 7) * 16.0f;
             target = clampf(target, -WARP_Y_RANGE, WARP_Y_RANGE);
             target = yBand + clampf(target - yBand, -d_max, d_max);
-            // Direct (impulse-free) moves are bounded by what the ±1 stick
-            // can actually cover before the next gate at the CURRENT speed —
+            // Direct (impulse-free) moves are bounded by what the shared stick
+            // law can actually cover before the next gate at the CURRENT speed —
             // late-course 3-tick gaps shrink this to zero, at which point any
             // altitude change must ride an impulse gate (whose following gap
             // is forced to a full 8 ticks above).
-            float y_direct = v_reach(next_min_frames) * 0.8f;
+            float y_direct = axis_reach(next_min_frames) * 0.8f;
             y_direct = std::floor(y_direct / 16.0f) * 16.0f;
             if (y_direct > WARP_Y_REACH) y_direct = WARP_Y_REACH;
             if (target > yBand + y_direct || target < yBand - y_direct) {
@@ -264,11 +245,11 @@ void generate_gate_course(WarpState& s) {
         g.y = yBand;
 
         // ---- x lattice walk, bounded by reachability -----------------------
-        // Bounded by the real accel-ramp kinematics over the worst-case NEXT
-        // gap (h_reach), 0.75 margin, quantized to the 16-unit lattice. steps
+        // Bounded by the shared axis reach over the worst-case NEXT gap
+        // (axis_reach), 0.75 margin, quantized to the 16-unit lattice. steps
         // may legitimately be ZERO at escalated speed on a 3-tick gap — the
         // course goes straight there, exactly like the y freeze above.
-        int steps = (int)(h_reach(next_min_frames) * 0.75f / 16.0f);
+        int steps = (int)(axis_reach(next_min_frames) * 0.75f / 16.0f);
         if (steps > 4) steps = 4;
         float dx = (steps > 0)
                  ? (float)((rng.next() % (2 * steps + 1)) - steps) * 16.0f
@@ -393,18 +374,18 @@ int catch_points(float err) {
 
 void step_gates(GameEngine& engine, WarpState& s,
                 bool left, bool right, int t_abs) {
-    // -- horizontal: the player's axis (left = -x; renderers mirror to taste) --
-    if (left)  s.axis_x.vel -= H_ACC;
-    if (right) s.axis_x.vel += H_ACC;
-    s.axis_x.vel = clampf(s.axis_x.vel * H_FRIC, -H_CAP, H_CAP);
+    // -- horizontal: shared GATES stick law (left = -x; renderers mirror) --
+    if (left)  s.axis_x.vel -= AXIS_ACC;
+    if (right) s.axis_x.vel += AXIS_ACC;
+    s.axis_x.vel = clampf(s.axis_x.vel * AXIS_FRIC, -AXIS_CAP, AXIS_CAP);
     s.axis_x.value += s.axis_x.vel;
     if (s.axis_x.value >  H_POS_MAX) { s.axis_x.value =  H_POS_MAX; s.axis_x.vel = 0; }
     if (s.axis_x.value < -H_POS_MAX) { s.axis_x.value = -H_POS_MAX; s.axis_x.vel = 0; }
 
-    // -- vertical: PURE INERTIAL stick control (rules fidelity — the second
-    // proof verdict, docs/design/bonus_rounds.md). The reference law (the later port
-    // Inertcon / the arcade reference ixcon-iycon) is accel while held, friction, velocity
-    // cap, position clamp — NOTHING tracks a gate and nothing recenters. The
+    // -- vertical: same inertial stick control as left/right (up = +y). The
+    // reference law (the later port Inertcon / the arcade reference ixcon-iycon)
+    // is accel while held, friction, velocity cap and position clamp. NOTHING
+    // tracks a gate and nothing recenters. The
     // vertical AUTOPILOT this sim used to run when no key was held is REMOVED,
     // and with it the coast's target-crossing brake (both were assists keyed
     // on course knowledge the player is not supposed to get for free): the
@@ -412,13 +393,15 @@ void step_gates(GameEngine& engine, WarpState& s,
     //
     // Impulse-gate SHOVES stay — they are gate effects, not assists (the
     // reference's zup/zdn set vertical velocity exactly like this). A kick
-    // legitimately exceeds V_CAP; while that coast is live the cap is not
-    // applied — V_FRIC bleeds it back down, and stick accel still applies on
+    // legitimately exceeds AXIS_CAP; while that coast is live the cap is not
+    // applied — AXIS_FRIC bleeds it back down, and stick accel still applies on
     // top (push along the kick to extend it, against it to brake). Position
     // clamps to ±V_POS_MAX unconditionally.
     //
-    // SIGN EVIDENCE (up = +y): there is no per-backend warp projection left to
-    // disagree about — both backends consume ONE shared CPU projection into the
+    // Gate impulses remain vertical-only course events; ordinary held stick
+    // input now follows the same law on both axes. SIGN EVIDENCE (up = +y):
+    // there is no per-backend warp projection left to disagree about — both
+    // backends consume ONE shared CPU projection into the
     // 1.3333 x 1.0 UI box (railgeom::View::project, rail_geometry.h, maps
     // uy = ANCHOR_Y + (wy - sy) * s; the gate layer's compressed form is in
     // warp_geometry.cpp, cy = ANCHOR_Y + GATE_LATERAL_K * (gate.y - v.sy) * s).
@@ -429,11 +412,11 @@ void step_gates(GameEngine& engine, WarpState& s,
     // (renderer_vk.cpp, "0..1.3333 x 0..1.0 with y UP") — so a larger world y is
     // a larger uy is higher on screen, on both. WGATE_UP's impulse kick already
     // sets vel = +mag under the same convention; both renderers and the sim agree.
-    bool coasting = (s.axis_y.vel > V_CAP + 0.01f) || (s.axis_y.vel < -V_CAP - 0.01f);
-    if (s.in_up)   s.axis_y.vel += V_ACC;
-    if (s.in_down) s.axis_y.vel -= V_ACC;
-    s.axis_y.vel *= V_FRIC;
-    if (!coasting) s.axis_y.vel = clampf(s.axis_y.vel, -V_CAP, V_CAP);
+    bool coasting = (s.axis_y.vel > AXIS_CAP + 0.01f) || (s.axis_y.vel < -AXIS_CAP - 0.01f);
+    if (s.in_up)   s.axis_y.vel += AXIS_ACC;
+    if (s.in_down) s.axis_y.vel -= AXIS_ACC;
+    s.axis_y.vel *= AXIS_FRIC;
+    if (!coasting) s.axis_y.vel = clampf(s.axis_y.vel, -AXIS_CAP, AXIS_CAP);
     s.axis_y.value = clampf(s.axis_y.value + s.axis_y.vel, -V_POS_MAX, V_POS_MAX);
 
     // -- world scroll: every gate approaches by `speed` per step ---------------
@@ -477,8 +460,8 @@ void step_gates(GameEngine& engine, WarpState& s,
         // and the frames the current speed leaves to get there (8% margin —
         // ≤ 7.7 units on the largest ±96 cluster delta, inside the ±8 catch
         // box; the player's own stick trims the rest, there is no autopilot
-        // brake any more). Overshoots the stick clamp and coasts; see the
-        // vertical sim above.
+        // brake any more). Overshoots the shared stick clamp and coasts; see
+        // the vertical sim above.
         if (s.next_gate < s.gate_count) {
             const WarpGate& ng = s.gates[s.next_gate];
             float dyn = ng.y - s.axis_y.value;

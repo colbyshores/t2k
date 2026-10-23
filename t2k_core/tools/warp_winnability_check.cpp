@@ -2,10 +2,10 @@
 // human controller, by driving the REAL warp sim.
 //
 // Why this exists: the course generator's reachability guarantee is FITTED to
-// the flight constants. h_reach() / v_reach() in warp.cpp are empirical fits to
-// the per-frame integration of H_ACC/H_FRIC/H_CAP and V_ACC/V_FRIC/V_CAP, and
-// coast_sum() is the closed form of the vertical friction decay. Tighten a
-// friction constant and those bounds shrink; if the generator keeps placing
+// the flight constants. axis_reach() in warp.cpp is a conservative fit to the
+// shared per-frame integration used by both stick axes; coast_sum() is the
+// closed form of the impulse friction decay. Tighten the shared friction and
+// those bounds shrink; if the generator keeps placing
 // gates at the OLD reach, courses become unwinnable — and because missing ONE
 // gate fails the round instantly (step_gates), an unwinnable course is not a
 // hard round, it is a round that cannot be completed at all. Nothing in the
@@ -31,7 +31,7 @@
 //     re-aim every 16 ms.
 //   Aim law (per axis, sliding surface). Brake distance = the distance the axis
 //     needs to come to a standstill under maximum opposite input, integrated
-//     with the shipped law. Hold the stick toward the gate while the distance
+//     with the shipped shared-axis law. Hold the stick toward the gate while the distance
 //     left exceeds that braking distance, hold it against the ship once they
 //     agree, and only let go once stopped. "Push until letting go now would put
 //     me on the gate, then brake to it." No gate autopilot, no recentering, no
@@ -41,8 +41,8 @@
 //     of the physics (it must have one to aim). Its defaults ARE the engine's
 //     flight constants (ts::gates_tuning in game/warp.h) — one definition, no
 //     retyped numbers, so the model can never drift from the physics the game
-//     actually runs. --fric is an explicit OVERRIDE of those engine-derived
-//     defaults (not their source), for flying a differently-built warp.cpp
+//     actually runs. --fric is an explicit OVERRIDE of that engine-derived
+//     friction (not its source), for flying a differently-built warp.cpp
 //     without rebuilding. The VERDICT never comes from that model: it comes
 //     from the real ts::move_warp run.
 //
@@ -81,29 +81,24 @@ constexpr int   MAX_STEPS       = 40000; // ~640 s of sim; a course never runs t
 // The controller's model of the flight law. The DEFAULTS are the engine's own
 // flight constants (ts::gates_tuning, game/warp.h) — the single definition the
 // sim runs on, so this harness cannot certify courses against stale physics.
-// --fric is an explicit override of the engine-derived defaults, NOT the source
-// of the values: it re-points the two frictions so the same binary can fly a
-// build of warp.cpp whose friction constants differ (used to measure the
-// pre-change values).
+// --fric is an explicit override of the engine-derived shared friction, NOT the
+// source of the value: it lets the same binary fly a build of warp.cpp whose
+// friction constant differs.
 struct Model {
-    float h_acc  = ts::gates_tuning::H_ACC;
-    float h_fric = ts::gates_tuning::H_FRIC;
-    float h_cap  = ts::gates_tuning::H_CAP;
-    float h_pos  = ts::gates_tuning::H_POS_MAX;
-    float v_acc  = ts::gates_tuning::V_ACC;
-    float v_fric = ts::gates_tuning::V_FRIC;
-    float v_cap  = ts::gates_tuning::V_CAP;
-    float v_pos  = ts::gates_tuning::V_POS_MAX;
+    float axis_acc  = ts::gates_tuning::AXIS_ACC;
+    float axis_fric = ts::gates_tuning::AXIS_FRIC;
+    float axis_cap  = ts::gates_tuning::AXIS_CAP;
+    float h_pos     = ts::gates_tuning::H_POS_MAX;
+    float v_pos     = ts::gates_tuning::V_POS_MAX;
 };
 
 inline float clampf(float v, float lo, float hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-// One step of the shipped per-axis law, mirrored for the controller's AIMING
-// ONLY. Horizontal mirrors step_gates' input/friction/cap/soft-wall order;
-// vertical mirrors its coasting-flag order (coast judged from the PREVIOUS
-// velocity, cap skipped while an impulse coast is live). Keep in step with warp.cpp.
+// One step of the shipped shared per-axis law, mirrored for the controller's
+// AIMING ONLY. Both axes use the same input/friction/cap order; vertical alone
+// skips the cap while a gate-impulse coast is live. Keep in step with warp.cpp.
 void axis_step(float& pos, float& vel, float acc, float fric, float cap,
                float pos_max, bool vertical, int dir) {
     if (vertical) {
@@ -231,8 +226,8 @@ Result fly(ts::GameEngine& engine, ts::WarpState& s, const Model& m) {
                 // lag window, frame by frame, so the reconstruction is exact.
                 for (int i = 0; i < REACTION_FRAMES; ++i) {
                     int slot = (slot0 + i) % (REACTION_FRAMES + 1);
-                    axis_step(d.x, d.vx, m.h_acc, m.h_fric, m.h_cap, m.h_pos, false, in_h[slot]);
-                    axis_step(d.y, d.vy, m.v_acc, m.v_fric, m.v_cap, m.v_pos, true, in_v[slot]);
+                    axis_step(d.x, d.vx, m.axis_acc, m.axis_fric, m.axis_cap, m.h_pos, false, in_h[slot]);
+                    axis_step(d.y, d.vy, m.axis_acc, m.axis_fric, m.axis_cap, m.v_pos, true, in_v[slot]);
                     d.gz -= d.speed;
                 }
                 int frames = (int)((d.gz - ts::WARP_CATCH_Z) / d.speed + 0.999f);
@@ -243,15 +238,15 @@ Result fly(ts::GameEngine& engine, ts::WarpState& s, const Model& m) {
                 // try the next gate, and take it ONLY if a forward simulation shows
                 // the ship is still inside the FRONT gate's catch box when the front
                 // gate arrives. Provably free pre-aim, never a missed catch.
-                int hx = aim(d.x, d.vx, d.gx, m.h_acc, m.h_fric, m.h_cap, m.h_pos, false, frames);
-                int vy = aim(d.y, d.vy, d.gy, m.v_acc, m.v_fric, m.v_cap, m.v_pos, true, frames);
+                int hx = aim(d.x, d.vx, d.gx, m.axis_acc, m.axis_fric, m.axis_cap, m.h_pos, false, frames);
+                int vy = aim(d.y, d.vy, d.gy, m.axis_acc, m.axis_fric, m.axis_cap, m.v_pos, true, frames);
                 if (d.nz > d.gz && frames > 0) {
-                    int ax = aim(d.x, d.vx, d.nx, m.h_acc, m.h_fric, m.h_cap, m.h_pos, false, frames);
-                    int ay = aim(d.y, d.vy, d.ny, m.v_acc, m.v_fric, m.v_cap, m.v_pos, true, frames);
+                    int ax = aim(d.x, d.vx, d.nx, m.axis_acc, m.axis_fric, m.axis_cap, m.h_pos, false, frames);
+                    int ay = aim(d.y, d.vy, d.ny, m.axis_acc, m.axis_fric, m.axis_cap, m.v_pos, true, frames);
                     float cx = d.x, cvx = d.vx, cy = d.y, cvy = d.vy;
                     for (int i = 0; i < frames; ++i) {
-                        axis_step(cx, cvx, m.h_acc, m.h_fric, m.h_cap, m.h_pos, false, ax);
-                        axis_step(cy, cvy, m.v_acc, m.v_fric, m.v_cap, m.v_pos, true, ay);
+                        axis_step(cx, cvx, m.axis_acc, m.axis_fric, m.axis_cap, m.h_pos, false, ax);
+                        axis_step(cy, cvy, m.axis_acc, m.axis_fric, m.axis_cap, m.v_pos, true, ay);
                     }
                     float ex = cx - d.gx; if (ex < 0) ex = -ex;
                     float ey = cy - d.gy; if (ey < 0) ey = -ey;
@@ -325,7 +320,7 @@ void probe_kick(const char* label, float dyn, float speed, float start_y) {
     bool clamped = false;
     while (frames < 4000 && !s.warp_level_end) {
         float av = s.axis_y.vel < 0 ? -s.axis_y.vel : s.axis_y.vel;
-        if (above_cap < 0.0f && av <= ts::gates_tuning::V_CAP + 0.01f)
+        if (above_cap < 0.0f && av <= ts::gates_tuning::AXIS_CAP + 0.01f)
             above_cap = s.axis_y.value - y0;
         if (av < 0.01f) break;
         if (s.axis_y.value >= ts::gates_tuning::V_POS_MAX - 0.01f ||
@@ -353,9 +348,8 @@ int main(int argc, char** argv) {
             control = (float)std::atof(argv[++i]);
         } else if (std::strcmp(argv[i], "--dump") == 0) {
             dump = true;
-        } else if (std::strcmp(argv[i], "--fric") == 0 && i + 2 < argc) {
-            model.h_fric = (float)std::atof(argv[++i]);
-            model.v_fric = (float)std::atof(argv[++i]);
+        } else if (std::strcmp(argv[i], "--fric") == 0 && i + 1 < argc) {
+            model.axis_fric = (float)std::atof(argv[++i]);
             fric_override = true;
         }
     }
@@ -363,12 +357,12 @@ int main(int argc, char** argv) {
     std::printf("controller: reaction=%d frames (%.0f ms) with efference copy, "
                 "re-steer every %d frames, vel_deadband=%.2f\n",
                 REACTION_FRAMES, REACTION_FRAMES * 16.0f, CONTROL_PERIOD, VEL_TOL);
-    std::printf("model h_acc=%.3f h_fric=%.3f h_cap=%.2f h_pos=%.1f "
-                "v_acc=%.3f v_fric=%.3f v_cap=%.2f v_pos=%.1f  "
+    std::printf("model axis_acc=%.3f axis_fric=%.4f axis_cap=%.2f "
+                "h_pos=%.1f v_pos=%.1f  "
                 "[engine ts::gates_tuning, game/warp.h%s]\n",
-                model.h_acc, model.h_fric, model.h_cap, model.h_pos,
-                model.v_acc, model.v_fric, model.v_cap, model.v_pos,
-                fric_override ? ", h_fric/v_fric overridden by --fric" : "");
+                model.axis_acc, model.axis_fric, model.axis_cap,
+                model.h_pos, model.v_pos,
+                fric_override ? ", axis_fric overridden by --fric" : "");
     if (control > 0.0f)
         std::printf("CONTROL RUN: inter-gate deltas inflated x%.2f "
                     "(generator at a reach the physics no longer provides)\n", control);
