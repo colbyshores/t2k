@@ -16,13 +16,17 @@ The published build is a single Nintendo 3DS CIA, hosted on archive.org.
 | Item page | <https://archive.org/details/t2k-3ds> |
 | FBI QR code | <https://archive.org/download/t2k-3ds/t2k_cia_qr.png> |
 | Size | 229,352,384 bytes (218.7 MiB) |
-| SHA-256 | `2f837733ba0eaf5abcfc4638c87544892e0b76ee8cdffd8d227bdc5e7ea1ca36` |
+| SHA-256 | `2e75dac5431d7a4b09e8cec439421da592ab2373f52485b5ab60ed780064beb1` |
 
-The size and hash above are for the **currently published build**, tagged [`v1.02`](https://github.com/colbyshores/t2k/releases/tag/v1.02) and packaged by `t2k_3ds/tools/build_production.sh`. The previous published build (`v1.0`) was byte-for-byte the same size, so the SHA-256 above is the only way to tell the two apart. The archive.org item publishes the same hash in its own description, so you can confirm what you downloaded; re-check both figures against the item page after any new release. The announcement post, with screenshots and the QR code as a gallery image, is [on r/3dshomebrew](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
+The size and hash above are for the **currently published build**, tagged [`v1.03`](https://github.com/colbyshores/t2k/releases/tag/v1.03) and packaged by `t2k_3ds/tools/build_production.sh`. The CIA size is unchanged from earlier releases; use the SHA-256 to identify the exact build. The archive.org item publishes the same hash in its description so you can verify downloads. The announcement post, with screenshots and the QR code as a gallery image, is [on r/3dshomebrew](https://www.reddit.com/r/3dshomebrew/comments/1wulzrd/t2k_psychedelic_tube_shooter/).
 
 **Performance in stereoscopic 3D:** approximately 25–30 fps on Old 3DS and 50–60 fps on New 3DS.
 
 To put the CIA on a console, see [Installing on hardware](#installing-on-hardware). To build it yourself instead, see [Building from scratch](#building-from-scratch) — the prebuilt download above is 3DS only.
+
+## What's new in v1.03
+
+- GATES bonus-round up/down controls now use the same averaged acceleration, friction, and velocity cap as left/right, so movement response matches across both axes. Vertical gate impulse shoves are unchanged.
 
 ## The game
 
