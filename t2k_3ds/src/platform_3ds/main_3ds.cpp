@@ -1227,7 +1227,6 @@ int main(int argc, char** argv) {
         // demo's end condition does NOT come through here: it is
         // anyButtonDown(kDown) on the raw libctru mask, tested up in the
         // attract block above, so overwriting `in` cannot swallow it.
-        const bool demoAnyInput = (kDown & ~KEY_TOUCH) != 0;
         if (engine.demo_mode) in = ts::demoai::demoInput(engine);
         // SELECT cycles the viewpoints (select_viewpoint, see DOCTRINE.md): FOUR
         // stops ordered outward -- 0 NEAR, 1 MID (the default), 2 FAR, 3 FIXED

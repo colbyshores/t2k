@@ -577,9 +577,9 @@ static bool _ai_rectangle(GameEngine& engine, int time, int lane, int idx, Enemy
             if (enemy.id == RECT2) {
                 enemy.animation_vec = 1;
             }
-        } else if (roll <= 11) {
-            // toward player - not implemented for rects
-        } else {
+        } else if (roll > 11) {
+            // roll 6..11 is "toward player" -- not implemented for rects, so
+            // those rolls fall through with no action.
             enemy.animation_phase = 1;
             enemy.max_animation = 33 + (25 - enemy.shoot_freq) * 4;
         }
