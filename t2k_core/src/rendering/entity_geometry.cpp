@@ -1064,7 +1064,6 @@ glm::mat4 enemyModelMatrix(GameEngine& engine, int v, const Enemy& enemy) {
 }
 
 int buildEnemies(GameEngine& engine, EntityDraw* out, int cap) {
-    const float PI = (float)M_PI;
     const float time = (float)engine.time;
     // Hoisted loop-invariant int time (identical value, no per-enemy cast).
     const int timeI = (int)time;

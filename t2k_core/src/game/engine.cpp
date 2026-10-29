@@ -648,10 +648,10 @@ void GameEngine::init_embrio() {
                 if (spawnable[i] == ARCADE_ADROID) { in_pool = true; break; }
             if (!in_pool || enemies_todo[ARCADE_ADROID] <= 0) {
                 spawn_ufo_next = false;        // not a saucer level / budget gone
-            } else if ((embrios_nums[ARCADE_ADROID] + enemies_nums[ARCADE_ADROID]) > max_per_type) {
-                // at the cap right now: leave the latch armed and let a normal
-                // spawn happen rather than suppress it; retry next opportunity.
-            } else {
+            } else if ((embrios_nums[ARCADE_ADROID] + enemies_nums[ARCADE_ADROID]) <= max_per_type) {
+                // Below the per-type cap: releasable now. AT the cap we take no
+                // action -- the latch stays armed and a normal spawn happens
+                // instead of suppressing one; retry next opportunity.
                 force_ufo = true;
             }
         }

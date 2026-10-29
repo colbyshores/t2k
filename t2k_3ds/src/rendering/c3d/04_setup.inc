@@ -556,7 +556,6 @@ void buildView(RendererC3D* r, ts::GameEngine& engine, C3D_Mtx* view,
     // shape, and its 6x world scale is what pushed the tube's far half past
     // far=50, producing the dark hole in the middle during level entry).
     // the reference build drives the wobble off `time` (ms), not game_time.
-    const float timeMs = (float)engine.time;
     Mtx_Identity(view);
 
     // Multiplier wobble (ref build:1680): sqr(1.125-mult)*60, sin(time*pi*0.00017), axis (0.1,0.1,1).
